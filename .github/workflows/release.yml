@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    container:
+      image: ocaml/opam:alpine-3.21-ocaml-5.1
+      options: --user root
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install file utility
+        run: apk add --no-cache file
+
+      - name: Install dependencies
+        run: |
+          chown -R opam:opam .
+          su opam -c "opam install . --deps-only --with-test -y"
+
+      - name: Test
+        run: su opam -c "opam exec -- dune test"
+
+      - name: Build (static profile)
+        run: su opam -c "opam exec -- dune build --profile static @install"
+
+      - name: Copy binary
+        run: cp _build/install/default/bin/ocaml-compose-dsl ocaml-compose-dsl-linux-x86_64
+
+      - name: Verify static linking
+        run: |
+          file_out=$(file ocaml-compose-dsl-linux-x86_64)
+          echo "$file_out"
+          echo "$file_out" | grep -qE "statically linked|static-pie linked" || { echo "ERROR: binary is not statically linked"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ocaml-compose-dsl-linux-x86_64
+          path: ocaml-compose-dsl-linux-x86_64
+          if-no-files-found: error
+
+  build-macos:
+    strategy:
+      matrix:
+        include:
+          - os: macos-13
+            asset_name: ocaml-compose-dsl-macos-x86_64
+          - os: macos-15
+            asset_name: ocaml-compose-dsl-macos-arm64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "5.1"
+
+      - run: opam install . --deps-only --with-test -y
+
+      - run: opam exec -- dune test
+
+      - run: opam exec -- dune build --profile release @install
+
+      - name: Copy binary
+        run: cp _build/install/default/bin/ocaml-compose-dsl ${{ matrix.asset_name }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.asset_name }}
+          if-no-files-found: error
+
+  release:
+    needs: [build-linux, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Make binaries executable
+        run: chmod +x artifacts/*
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
