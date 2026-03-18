@@ -41,6 +41,22 @@ dune exec ocaml-compose-dsl -- pipeline.arrow
 
 The EBNF is the language spec. If the parser diverges from the EBNF, either fix the parser or update the EBNF — they must stay in sync.
 
+## CI/CD
+
+Two GitHub Actions workflows in `.github/workflows/`:
+
+- **`ci.yml`** — runs `dune test` on ubuntu-latest and macos-latest (OCaml 5.1) for every push to main and PR
+- **`release.yml`** — triggered by `v*` tags; builds Linux static binary (Alpine/musl, `--profile static`), macOS x86_64 (macos-13) and arm64 (macos-15) binaries (`--profile release`), uploads to GitHub Releases
+
+`dune-workspace` defines a `static` profile with `-ccopt -static` for musl static linking.
+
+### Releasing
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
 ## Plans
 
 - prefix any plan with 3 digits starts from 000

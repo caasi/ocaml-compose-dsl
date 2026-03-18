@@ -1,5 +1,7 @@
 # ocaml-compose-dsl
 
+[![CI](https://github.com/caasi/ocaml-compose-dsl/actions/workflows/ci.yml/badge.svg)](https://github.com/caasi/ocaml-compose-dsl/actions/workflows/ci.yml)
+
 A structural checker for an Arrow-style DSL designed for AI agent workflow composition.
 
 ## What Is This?
@@ -74,6 +76,14 @@ echo 'a >>> b' | ocaml-compose-dsl
 ```
 
 Exits `0` with `OK` on valid input, `1` with error messages on structural problems.
+
+## Install
+
+Pre-built binaries are available on the [Releases](https://github.com/caasi/ocaml-compose-dsl/releases) page for:
+
+- Linux x86_64 (statically linked)
+- macOS x86_64
+- macOS arm64
 
 ## Build
 
