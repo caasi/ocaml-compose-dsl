@@ -45,17 +45,8 @@ jobs:
           path: ocaml-compose-dsl-linux-x86_64
           if-no-files-found: error
 
-  build-macos:
-    strategy:
-      matrix:
-        include:
-          - os: macos-13
-            asset_name: ocaml-compose-dsl-macos-x86_64
-          - os: macos-15
-            asset_name: ocaml-compose-dsl-macos-arm64
-
-    runs-on: ${{ matrix.os }}
-
+  build-macos-arm64:
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
@@ -70,16 +61,16 @@ jobs:
       - run: opam exec -- dune build --profile release @install
 
       - name: Copy binary
-        run: cp _build/install/default/bin/ocaml-compose-dsl ${{ matrix.asset_name }}
+        run: cp _build/install/default/bin/ocaml-compose-dsl ocaml-compose-dsl-macos-arm64
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.asset_name }}
-          path: ${{ matrix.asset_name }}
+          name: ocaml-compose-dsl-macos-arm64
+          path: ocaml-compose-dsl-macos-arm64
           if-no-files-found: error
 
   release:
-    needs: [build-linux, build-macos]
+    needs: [build-linux, build-macos-arm64]
     runs-on: ubuntu-latest
     permissions:
       contents: write
