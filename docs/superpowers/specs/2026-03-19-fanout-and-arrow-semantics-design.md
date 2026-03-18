@@ -36,6 +36,15 @@ term     = node
          | "loop" , "(" , seq_expr , ")"
          | "(" , seq_expr , ")"
          ;
+
+(* remaining rules unchanged *)
+node     = ident , [ "(" , [ args ] , ")" ] ;
+args     = arg , { "," , arg } ;
+arg      = ident , ":" , value ;
+value    = string | ident | "[" , [ value , { "," , value } ] , "]" ;
+ident    = ( letter | "_" ) , { letter | digit | "-" | "_" } ;
+string   = '"' , { any char - '"' } , '"' ;
+comment  = "--" , { any char - newline } ;
 ```
 
 All operators are left-associative. `***` and `&&&` share the highest precedence (matching Haskell's Arrow instances). Groups and loop bodies return to the lowest precedence level (`seq_expr`).
@@ -61,6 +70,8 @@ type expr =
 
 Add `Ampersand3` token for `&&&`. Same triple-character peek pattern as `Seq3` (`>>>`), `Star3` (`***`), `Pipe3` (`|||`).
 
+Partial `&` or `&&` raises `Lex_error` (same as partial `>`, `*`, `|` today).
+
 ### 4. Parser
 
 Replace single `parse_expr` + `parse_binop` with 3 precedence levels:
@@ -73,7 +84,9 @@ Each level is a left-associative while loop. `parse_term` unchanged.
 
 ### 5. Checker
 
-No changes. `&&&` has no structural constraints (unlike `loop` which requires an eval node).
+No new constraints. `&&&` has no structural constraints (unlike `loop` which requires an eval node).
+
+`Fanout` must be added to all pattern matches in `checker.ml` — both the outer `go` traversal and the inner `scan` function inside the `Loop` case — to avoid incomplete match warnings and ensure `Fanout` nodes inside loop bodies are scanned for eval nodes.
 
 ### 6. README: Arrow Semantics Section
 
@@ -90,7 +103,7 @@ these types describe the data flow for the agent (and human) reading the pipelin
 | `>>>`    | compose  | `Arrow a b → Arrow b c → Arrow a c`           |
 | `***`    | product  | `Arrow a b → Arrow c d → Arrow (a,c) (b,d)`   |
 | `&&&`    | fanout   | `Arrow a b → Arrow a c → Arrow a (b,c)`       |
-| `\|\|\|` | fanin   | `Arrow a c → Arrow b c → Arrow (Either a b) c` |
+| `\|\|\|` | fanin / branch | `Arrow a c → Arrow b c → Arrow (Either a b) c` |
 | `loop`   | feedback | `Arrow (a,s) (b,s) → Arrow a b`               |
 
 `***` is left-associative: `a *** b *** c` types as `((A,B), C)`.
@@ -101,11 +114,53 @@ Comments can annotate the concrete types when the structure isn't obvious from n
 
 Three files in `examples/` demonstrating real subagent workflows:
 
-**`examples/brainstorming.arr`** — parallel research → sequential design process. Shows `***` producing nested tuples from 3-way parallel, comments as type annotations.
+**`examples/brainstorming.arr`**
 
-**`examples/tdd-loop.arr`** — TDD cycle with `loop` feedback. Shows `|||` as Either (pass/fail branching), loop-carried error context.
+```
+-- explore_context : () → ((SourceCode, History), Docs)
+-- summarize       : ((SourceCode, History), Docs) → Context
+-- ask_questions   : Context → Requirements
+-- propose         : Requirements → Design
 
-**`examples/release.arr`** — CI/CD pipeline. Shows `&&&` (same code → lint + test) vs `***` (separate binaries → separate builds). Demonstrates when to use each.
+(read_files(glob: "lib/**/*.ml") *** git_log(n: "20") *** read_docs(path: "CLAUDE.md"))
+  >>> summarize
+  >>> ask_questions(style: one_at_a_time)
+  >>> propose(count: "3")
+  >>> present_design
+  >>> write_spec
+```
+
+**`examples/tdd-loop.arr`**
+
+```
+-- write_test : Feature → (Code, TestSuite)
+-- implement  : (Code, ErrorContext) → (Code, ErrorContext)
+-- run_tests  : Code → Either PassResult FailResult
+-- evaluate   : Either PassResult FailResult → (Result, ErrorContext)
+
+write_test(for: feature)
+  >>> loop(
+    implement
+      >>> run_tests
+      >>> evaluate(criteria: all_pass)
+  )
+  >>> commit
+```
+
+**`examples/release.arr`**
+
+```
+-- lint      : Code → LintReport
+-- test      : Code → TestReport
+-- gate      : (LintReport, TestReport) → (Code, Code)
+-- build_*   : Code → Binary
+-- upload    : (Binary, Binary) → Release
+
+(lint &&& test)
+  >>> gate(require: [pass, pass])
+  >>> (build_linux(profile: static) *** build_macos(profile: release))
+  >>> upload_release(tag: "v0.1.0")
+```
 
 ## What This Does NOT Add
 
@@ -118,11 +173,18 @@ Three files in `examples/` demonstrating real subagent workflows:
 
 New tests needed:
 
-- **Lexer:** `&&&` token recognition
+- **Lexer:**
+  - `&&&` token recognition
+  - Partial `&` and `&&` raise `Lex_error`
 - **Parser:**
   - `a &&& b` → `Fanout(Node a, Node b)`
   - Precedence: `a >>> b &&& c >>> d` → `Seq(Seq(Node a, Fanout(Node b, Node c)), Node d)`
   - Precedence: `a ||| b *** c` → `Alt(Node a, Par(Node b, Node c))`
-  - Mixed: `a >>> b ||| c &&& d *** e`
-  - Groups override precedence: `(a >>> b) &&& c`
-- **Existing tests:** must still pass (behavior change for mixed operators — tests that relied on same-precedence parsing may need updating)
+  - Mixed `***` and `&&&`: `a *** b &&& c` → `Fanout(Par(Node a, Node b), Node c)` (left-associative, same precedence)
+  - Mixed all: `a >>> b ||| c &&& d *** e` → `Seq(Node a, Alt(Node b, Par(Fanout(Node c, Node d), Node e)))` (precedence: `>>>` < `|||` < `***`/`&&&`)
+  - Groups override precedence: `(a >>> b) &&& c` → `Fanout(Group(Seq(Node a, Node b)), Node c)`
+- **Breaking change for existing mixed-operator tests:**
+  - Old: `a >>> b *** c ||| d` parsed as `Alt(Par(Seq(Node a, Node b), Node c), Node d)` (left-to-right, same precedence)
+  - New: `a >>> b *** c ||| d` parses as `Seq(Node a, Alt(Par(Node b, Node c), Node d))` (precedence: `>>>` < `|||` < `***`)
+  - Existing tests using mixed operators must be updated to reflect new precedence
+- **Existing single-operator tests:** unaffected (same associativity within each level)
