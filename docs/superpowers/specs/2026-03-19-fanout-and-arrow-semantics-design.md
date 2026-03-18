@@ -47,9 +47,9 @@ string   = '"' , { any char - '"' } , '"' ;
 comment  = "--" , { any char - newline } ;
 ```
 
-All operators are left-associative. `***` and `&&&` share the highest precedence (matching Haskell's Arrow instances). Groups and loop bodies return to the lowest precedence level (`seq_expr`).
+All operators are right-associative (matching Haskell's `infixr`). Precedence from lowest to highest: `>>>` (1) < `|||` (2) < `***`/`&&&` (3). Groups and loop bodies return to the lowest precedence level (`seq_expr`).
 
-`a >>> b &&& c >>> d` parses as `a >>> (b &&& c) >>> d`.
+`a >>> b &&& c >>> d` parses as `a >>> ((b &&& c) >>> d)`.
 
 ### 2. AST
 
@@ -80,7 +80,7 @@ Replace single `parse_expr` + `parse_binop` with 3 precedence levels:
 - `parse_alt_expr` — consumes `|||`, calls `parse_par_expr`
 - `parse_par_expr` — consumes `***` and `&&&`, calls `parse_term`
 
-Each level is a left-associative while loop. `parse_term` unchanged.
+Each level is right-associative (parse the right side recursively). `parse_term` unchanged.
 
 ### 5. Checker
 
@@ -106,7 +106,7 @@ these types describe the data flow for the agent (and human) reading the pipelin
 | `\|\|\|` | fanin / branch | `Arrow a c → Arrow b c → Arrow (Either a b) c` |
 | `loop`   | feedback | `Arrow (a,s) (b,s) → Arrow a b`               |
 
-`***` is left-associative: `a *** b *** c` types as `((A,B), C)`.
+`***` is right-associative: `a *** b *** c` types as `(A, (B,C))`.
 Comments can annotate the concrete types when the structure isn't obvious from node names.
 ```
 
@@ -117,8 +117,8 @@ Three files in `examples/` demonstrating real subagent workflows:
 **`examples/brainstorming.arr`**
 
 ```
--- explore_context : () → ((SourceCode, History), Docs)
--- summarize       : ((SourceCode, History), Docs) → Context
+-- explore_context : () → (SourceCode, (History, Docs))
+-- summarize       : (SourceCode, (History, Docs)) → Context
 -- ask_questions   : Context → Requirements
 -- propose         : Requirements → Design
 
@@ -178,13 +178,13 @@ New tests needed:
   - Partial `&` and `&&` raise `Lex_error`
 - **Parser:**
   - `a &&& b` → `Fanout(Node a, Node b)`
-  - Precedence: `a >>> b &&& c >>> d` → `Seq(Seq(Node a, Fanout(Node b, Node c)), Node d)`
+  - Precedence: `a >>> b &&& c >>> d` → `Seq(Node a, Seq(Fanout(Node b, Node c), Node d))` (right-assoc)
   - Precedence: `a ||| b *** c` → `Alt(Node a, Par(Node b, Node c))`
-  - Mixed `***` and `&&&`: `a *** b &&& c` → `Fanout(Par(Node a, Node b), Node c)` (left-associative, same precedence)
-  - Mixed all: `a >>> b ||| c &&& d *** e` → `Seq(Node a, Alt(Node b, Par(Fanout(Node c, Node d), Node e)))` (precedence: `>>>` < `|||` < `***`/`&&&`)
+  - Mixed `***` and `&&&`: `a *** b &&& c` → `Par(Node a, Fanout(Node b, Node c))` (right-associative, same precedence)
+  - Mixed all: `a >>> b ||| c &&& d *** e` → `Seq(Node a, Alt(Node b, Par(Fanout(Node c, Node d), Node e)))` (precedence: `>>>` < `|||` < `***`/`&&&`, all right-assoc)
   - Groups override precedence: `(a >>> b) &&& c` → `Fanout(Group(Seq(Node a, Node b)), Node c)`
-- **Breaking change for existing mixed-operator tests:**
-  - Old: `a >>> b *** c ||| d` parsed as `Alt(Par(Seq(Node a, Node b), Node c), Node d)` (left-to-right, same precedence)
-  - New: `a >>> b *** c ||| d` parses as `Seq(Node a, Alt(Par(Node b, Node c), Node d))` (precedence: `>>>` < `|||` < `***`)
-  - Existing tests using mixed operators must be updated to reflect new precedence
-- **Existing single-operator tests:** unaffected (same associativity within each level)
+  - Right-assoc: `a >>> b >>> c` → `Seq(Node a, Seq(Node b, Node c))`
+- **Breaking change for existing tests:**
+  - Associativity change: `a >>> b >>> c` was `Seq(Seq(a,b),c)`, now `Seq(a,Seq(b,c))`
+  - Precedence change: `a >>> b *** c ||| d` was `Alt(Par(Seq(a,b),c),d)` (left-to-right, same precedence), now `Seq(a, Alt(Par(b,c), d))` (precedence + right-assoc)
+  - Existing tests using chained or mixed operators must be updated
