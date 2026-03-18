@@ -46,15 +46,19 @@ The EBNF is the language spec. If the parser diverges from the EBNF, either fix 
 Two GitHub Actions workflows in `.github/workflows/`:
 
 - **`ci.yml`** — runs `dune test` on ubuntu-latest and macos-latest (OCaml 5.1) for every push to main and PR
-- **`release.yml`** — triggered by `v*` tags; builds Linux static binary (Alpine/musl, `--profile static`), macOS x86_64 (macos-13) and arm64 (macos-15) binaries (`--profile release`), uploads to GitHub Releases
+- **`release.yml`** — triggered by `v*` tags; builds Linux x86_64 static binary (Alpine/musl, `--profile static`) and macOS arm64 binary (macos-15, `--profile release`), uploads to GitHub Releases
 
 `dune-workspace` defines a `static` profile with `-ccopt -static` for musl static linking.
+
+macOS x86_64 binary is **not built in CI** (Rosetta cross-compile doesn't work with OCaml — `ocamlopt` emits arm64 assembly regardless of shell arch). It must be built locally and uploaded via `scripts/release-macos-x86_64.sh`.
 
 ### Releasing
 
 ```sh
 git tag v0.1.0
 git push origin v0.1.0
+# After CI release completes, upload macOS x86_64 from local Intel Mac:
+./scripts/release-macos-x86_64.sh v0.1.0
 ```
 
 ## Plans
