@@ -69,43 +69,8 @@ jobs:
           path: ocaml-compose-dsl-macos-arm64
           if-no-files-found: error
 
-  build-macos-x86_64:
-    runs-on: macos-15
-    defaults:
-      run:
-        shell: arch -x86_64 /bin/bash --noprofile --norc -eo pipefail {0}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Verify Rosetta x86_64
-        run: |
-          echo "arch: $(uname -m)"
-          test "$(uname -m)" = "x86_64"
-
-      - uses: ocaml/setup-ocaml@v3
-        with:
-          ocaml-compiler: "5.1"
-
-      - run: opam install . --deps-only --with-test -y
-
-      - run: opam exec -- dune test
-
-      - run: opam exec -- dune build --profile release @install
-
-      - name: Copy and verify binary
-        run: |
-          cp _build/install/default/bin/ocaml-compose-dsl ocaml-compose-dsl-macos-x86_64
-          file ocaml-compose-dsl-macos-x86_64
-          file ocaml-compose-dsl-macos-x86_64 | grep -q "x86_64" || { echo "ERROR: not x86_64 binary"; exit 1; }
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ocaml-compose-dsl-macos-x86_64
-          path: ocaml-compose-dsl-macos-x86_64
-          if-no-files-found: error
-
   release:
-    needs: [build-linux, build-macos-arm64, build-macos-x86_64]
+    needs: [build-linux, build-macos-arm64]
     runs-on: ubuntu-latest
     permissions:
       contents: write
