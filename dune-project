@@ -7,7 +7,7 @@
 (source
  (github caasi/ocaml-compose-dsl))
 
-(authors "caasi Huang")
+(authors "caasi Huang" "Claude <noreply@anthropic.com>")
 
 (maintainers "caasi Huang")
 
