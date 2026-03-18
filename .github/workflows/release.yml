@@ -24,11 +24,11 @@ jobs:
           chown -R opam:opam .
           su opam -c "opam install . --deps-only --with-test -y"
 
-      - name: Build (static profile)
-        run: su opam -c "opam exec -- dune build --profile static @install"
-
       - name: Test
         run: su opam -c "opam exec -- dune test"
+
+      - name: Build (static profile)
+        run: su opam -c "opam exec -- dune build --profile static @install"
 
       - name: Copy binary
         run: cp _build/install/default/bin/ocaml-compose-dsl ocaml-compose-dsl-linux-x86_64
@@ -43,6 +43,7 @@ jobs:
         with:
           name: ocaml-compose-dsl-linux-x86_64
           path: ocaml-compose-dsl-linux-x86_64
+          if-no-files-found: error
 
   build-macos:
     strategy:
@@ -50,7 +51,7 @@ jobs:
         include:
           - os: macos-13
             asset_name: ocaml-compose-dsl-macos-x86_64
-          - os: macos-latest
+          - os: macos-15
             asset_name: ocaml-compose-dsl-macos-arm64
 
     runs-on: ${{ matrix.os }}
@@ -64,9 +65,9 @@ jobs:
 
       - run: opam install . --deps-only --with-test -y
 
-      - run: opam exec -- dune build --profile release @install
-
       - run: opam exec -- dune test
+
+      - run: opam exec -- dune build --profile release @install
 
       - name: Copy binary
         run: cp _build/install/default/bin/ocaml-compose-dsl ${{ matrix.asset_name }}
@@ -75,6 +76,7 @@ jobs:
         with:
           name: ${{ matrix.asset_name }}
           path: ${{ matrix.asset_name }}
+          if-no-files-found: error
 
   release:
     needs: [build-linux, build-macos]
