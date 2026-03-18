@@ -1,0 +1,5 @@
+(executable
+ (name main)
+ (public_name ocaml-compose-dsl)
+ (package ocaml-compose-dsl)
+ (libraries compose_dsl))
