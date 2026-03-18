@@ -22,13 +22,13 @@ jobs:
       - name: Install dependencies
         run: |
           chown -R opam:opam .
-          su opam -c "opam install . --deps-only --with-test -y"
+          su -s /bin/sh opam -c "opam install . --deps-only --with-test -y"
 
       - name: Test
-        run: su opam -c "opam exec -- dune test"
+        run: su -s /bin/sh opam -c "opam exec -- dune test"
 
       - name: Build (static profile)
-        run: su opam -c "opam exec -- dune build --profile static @install"
+        run: su -s /bin/sh opam -c "opam exec -- dune build --profile static @install"
 
       - name: Copy binary
         run: cp _build/install/default/bin/ocaml-compose-dsl ocaml-compose-dsl-linux-x86_64
