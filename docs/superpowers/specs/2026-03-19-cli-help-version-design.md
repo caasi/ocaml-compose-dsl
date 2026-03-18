@@ -26,10 +26,11 @@ A `bin/version.ml` file is generated at build time by a dune rule using the `%{v
 
 Added to the top of `bin/main.ml`, before the existing stdin/file logic:
 
-1. Scan `Sys.argv` for `--help`, `-h`, `--version`, or `-v`.
+1. Scan **all** of `Sys.argv` (not just position 1) for known flags. Flags take priority regardless of position.
 2. `--help` / `-h`: print usage text to stdout, exit 0.
 3. `--version` / `-v`: print `ocaml-compose-dsl <version>` to stdout, exit 0.
-4. No matching flag: fall through to existing behavior (file arg or stdin).
+4. Any argument starting with `-` that is not a known flag: print `unknown option: <arg>` to stderr, print usage text to stderr, exit 1.
+5. No flags found: fall through to existing behavior (first non-flag arg as file, or stdin if none).
 
 No changes to existing stdin/file reading logic.
 
@@ -74,6 +75,8 @@ ocaml-compose-dsl <version>
 - `dune exec ocaml-compose-dsl -- --version` prints version, exits 0.
 - `dune exec ocaml-compose-dsl -- -h` same as `--help`.
 - `dune exec ocaml-compose-dsl -- -v` same as `--version`.
+- `dune exec ocaml-compose-dsl -- --foo` prints unknown option error and usage to stderr, exits 1.
+- `dune exec ocaml-compose-dsl -- file.arr --help` prints help (flag scanned across all args).
 - Existing stdin/file behavior unchanged (run existing test suite).
 
 ## Future Work
