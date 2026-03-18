@@ -27,4 +27,5 @@
  (depends
   (ocaml
    (>= 5.1))
-  dune))
+  dune
+  (alcotest :with-test)))

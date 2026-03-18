@@ -1,1 +1,4 @@
-(** ocaml-compose-dsl library *)
+module Ast = Ast
+module Lexer = Lexer
+module Parser = Parser
+module Checker = Checker
