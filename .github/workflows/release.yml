@@ -33,7 +33,7 @@ jobs:
       - name: Verify static linking
         run: |
           file ocaml-compose-dsl-linux-x86_64
-          file ocaml-compose-dsl-linux-x86_64 | grep -q "statically linked" || { echo "ERROR: binary is not statically linked"; exit 1; }
+          file ocaml-compose-dsl-linux-x86_64 | grep -qE "statically linked|static-pie linked" || { echo "ERROR: binary is not statically linked"; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:
