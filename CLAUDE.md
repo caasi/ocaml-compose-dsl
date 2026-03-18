@@ -61,6 +61,10 @@ git push origin v0.1.0
 ./scripts/release-macos-x86_64.sh v0.1.0
 ```
 
+## Known Bugs
+
+- `checker.ml`: `String.sub s 0 5 = "check"` crashes when `String.length n.name = 4` — the guard only checks `>= 4` but `String.sub` needs `>= 5`. Same pattern may affect other substring checks in `scan`.
+
 ## Plans
 
 - prefix any plan with 3 digits starts from 000
