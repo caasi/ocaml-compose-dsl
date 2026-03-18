@@ -8,17 +8,42 @@ AI agents compose tools through natural language reasoning, but this approach is
 
 The DSL uses Arrow combinators because they sit at the sweet spot between shell pipes (too linear) and monads (too opaque): pipeline structure is fully visible before execution.
 
-## DSL Syntax
+## Grammar (EBNF)
 
-| Syntax | Meaning |
-|--------|---------|
-| `name(key: value, ...)` | Node — a step with a purpose |
-| `>>>` | Sequential composition |
-| `***` | Parallel composition |
-| `\|\|\|` | Branch / fallback |
-| `( )` | Grouping |
-| `loop ( )` | Feedback loop |
-| `-- text` | Comment |
+```ebnf
+pipeline = expr ;
+
+expr     = term , { operator , term } ;
+
+operator = ">>>"                        (* sequential composition *)
+         | "***"                        (* parallel composition *)
+         | "|||"                        (* branch / fallback *)
+         ;
+
+term     = node
+         | "loop" , "(" , expr , ")"    (* feedback loop *)
+         | "(" , expr , ")"            (* grouping *)
+         ;
+
+node     = ident , [ "(" , [ args ] , ")" ] ;
+
+args     = arg , { "," , arg } ;
+
+arg      = ident , ":" , value ;
+
+value    = string
+         | ident
+         | "[" , [ value , { "," , value } ] , "]"
+         ;
+
+ident    = ( letter | "_" ) , { letter | digit | "-" | "_" } ;
+
+string   = '"' , { any char - '"' } , '"' ;
+
+comment  = "--" , { any char - newline } ;
+```
+
+Comments can appear after any term and are attached to the preceding node as purpose descriptions or reference tool annotations.
 
 ## Example
 

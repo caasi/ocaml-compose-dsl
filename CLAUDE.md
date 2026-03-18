@@ -33,6 +33,14 @@ echo 'a >>> b' | dune exec ocaml-compose-dsl
 dune exec ocaml-compose-dsl -- pipeline.arrow
 ```
 
+## After Any Implementation Change
+
+1. Verify the EBNF in `README.md` still matches the parser/lexer behavior
+2. Update or add tests in `test/test_compose_dsl.ml` to cover the change
+3. Run `dune test` and confirm all tests pass
+
+The EBNF is the language spec. If the parser diverges from the EBNF, either fix the parser or update the EBNF — they must stay in sync.
+
 ## Plans
 
 - prefix any plan with 3 digits starts from 000
