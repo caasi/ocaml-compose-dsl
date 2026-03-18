@@ -67,7 +67,7 @@ loop (
 
 ```sh
 # From file
-ocaml-compose-dsl pipeline.arrow
+ocaml-compose-dsl pipeline.arr
 
 # From stdin
 echo 'a >>> b' | ocaml-compose-dsl
