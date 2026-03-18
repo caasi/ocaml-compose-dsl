@@ -162,6 +162,14 @@ write_test(for: feature)
   >>> upload_release(tag: "v0.1.0")
 ```
 
+### 8. CLI: AST Output
+
+On valid input, the CLI outputs the AST in OCaml data constructor format instead of `OK`. This lets agents verify parse results programmatically.
+
+Format: `Seq(Node("a", [], []), Node("b", [], []))` — matching the `Ast.expr` type constructors.
+
+A new `Printer` module (`lib/printer.ml`) provides `to_string : Ast.expr -> string`.
+
 ## What This Does NOT Add
 
 - **No `fmap` / `arr`** — every node is already an opaque arrow. Agent infers transformations from names + args.

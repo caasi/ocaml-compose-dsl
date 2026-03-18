@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add `&&&` (fanout) operator, implement operator precedence with right-associativity, and document Arrow semantics.
+**Goal:** Add `&&&` (fanout) operator, implement operator precedence with right-associativity, output AST on valid input, and document Arrow semantics.
 
-**Architecture:** Extend the existing Lexer → Parser → Checker pipeline. Lexer gets one new token (`FANOUT`). Parser is restructured from a single-level `parse_expr`/`parse_binop` into three precedence levels with right-associative recursion. AST gets one new variant (`Fanout`). Checker adds `Fanout` to pattern matches. README gets updated EBNF and a new Arrow Semantics section.
+**Architecture:** Extend the existing Lexer → Parser → Checker pipeline. Lexer gets one new token (`FANOUT`). Parser is restructured from a single-level `parse_expr`/`parse_binop` into three precedence levels with right-associative recursion. AST gets one new variant (`Fanout`). Checker adds `Fanout` to pattern matches. A new `Printer` module outputs the AST in OCaml data constructor format so agents can verify parse results. CLI changes from printing `OK` to printing the AST. README gets updated EBNF and a new Arrow Semantics section.
 
 **Tech Stack:** OCaml 5.1, Dune 3.0, Alcotest
 
@@ -473,7 +473,200 @@ git add lib/checker.ml test/test_compose_dsl.ml
 git commit -m "feat(checker): add Fanout to pattern matches"
 ```
 
-### Task 7: Update README with new EBNF and Arrow Semantics
+### Task 7: Add AST Printer module
+
+**Files:**
+- Create: `lib/printer.ml`
+- Modify: `lib/compose_dsl.ml`
+- Test: `test/test_compose_dsl.ml`
+
+- [ ] **Step 1: Write failing tests for AST printing**
+
+Add to `test/test_compose_dsl.ml` after the checker test functions:
+
+```ocaml
+(* === Printer tests === *)
+
+let test_print_simple_node () =
+  let ast = parse_ok "a" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "simple node" {|Node("a", [], [])|} s
+
+let test_print_node_with_args () =
+  let ast = parse_ok {|read(source: "data.csv")|} in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "node with args"
+    {|Node("read", [source: String("data.csv")], [])|} s
+
+let test_print_node_with_list_arg () =
+  let ast = parse_ok "collect(fields: [name, email])" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "node with list"
+    {|Node("collect", [fields: List([Ident("name"), Ident("email")])], [])|} s
+
+let test_print_seq () =
+  let ast = parse_ok "a >>> b" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "seq"
+    {|Seq(Node("a", [], []), Node("b", [], []))|} s
+
+let test_print_fanout () =
+  let ast = parse_ok "a &&& b" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "fanout"
+    {|Fanout(Node("a", [], []), Node("b", [], []))|} s
+
+let test_print_loop () =
+  let ast = parse_ok "loop (a >>> evaluate(x: y))" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "loop"
+    {|Loop(Seq(Node("a", [], []), Node("evaluate", [x: Ident("y")], [])))|} s
+
+let test_print_group () =
+  let ast = parse_ok "(a >>> b) *** c" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "group"
+    {|Par(Group(Seq(Node("a", [], []), Node("b", [], []))), Node("c", [], []))|} s
+
+let test_print_comment () =
+  let ast = parse_ok "a -- this is a comment" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "comment"
+    {|Node("a", [], ["this is a comment"])|} s
+```
+
+Add a `printer_tests` list and register it:
+
+```ocaml
+let printer_tests =
+  [ "simple node", `Quick, test_print_simple_node
+  ; "node with args", `Quick, test_print_node_with_args
+  ; "node with list arg", `Quick, test_print_node_with_list_arg
+  ; "seq", `Quick, test_print_seq
+  ; "fanout", `Quick, test_print_fanout
+  ; "loop", `Quick, test_print_loop
+  ; "group", `Quick, test_print_group
+  ; "comment", `Quick, test_print_comment
+  ]
+```
+
+Add `"Printer", printer_tests` to the `Alcotest.run` call:
+
+```ocaml
+let () =
+  Alcotest.run "compose-dsl"
+    [ "Lexer", lexer_tests
+    ; "Parser", parser_tests
+    ; "Checker", checker_tests
+    ; "Printer", printer_tests
+    ]
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `dune test`
+Expected: Compilation error — `Printer` module does not exist.
+
+- [ ] **Step 3: Create `lib/printer.ml`**
+
+```ocaml
+open Ast
+
+let rec value_to_string = function
+  | String s -> Printf.sprintf "String(%S)" s
+  | Ident s -> Printf.sprintf "Ident(%S)" s
+  | List vs ->
+    Printf.sprintf "List([%s])"
+      (String.concat ", " (List.map value_to_string vs))
+
+let arg_to_string (a : arg) =
+  Printf.sprintf "%s: %s" a.key (value_to_string a.value)
+
+let node_to_string (n : node) =
+  Printf.sprintf "Node(%S, [%s], [%s])"
+    n.name
+    (String.concat ", " (List.map arg_to_string n.args))
+    (String.concat ", " (List.map (Printf.sprintf "%S") n.comments))
+
+let rec to_string = function
+  | Node n -> node_to_string n
+  | Seq (a, b) -> Printf.sprintf "Seq(%s, %s)" (to_string a) (to_string b)
+  | Par (a, b) -> Printf.sprintf "Par(%s, %s)" (to_string a) (to_string b)
+  | Fanout (a, b) -> Printf.sprintf "Fanout(%s, %s)" (to_string a) (to_string b)
+  | Alt (a, b) -> Printf.sprintf "Alt(%s, %s)" (to_string a) (to_string b)
+  | Loop body -> Printf.sprintf "Loop(%s)" (to_string body)
+  | Group inner -> Printf.sprintf "Group(%s)" (to_string inner)
+```
+
+- [ ] **Step 4: Add `Printer` to `lib/compose_dsl.ml`**
+
+```ocaml
+module Ast = Ast
+module Lexer = Lexer
+module Parser = Parser
+module Checker = Checker
+module Printer = Printer
+```
+
+- [ ] **Step 5: Run tests**
+
+Run: `dune test`
+Expected: All printer tests pass.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add lib/printer.ml lib/compose_dsl.ml test/test_compose_dsl.ml
+git commit -m "feat(printer): add AST printer with OCaml constructor output"
+```
+
+### Task 8: Update CLI to output AST instead of "OK"
+
+**Files:**
+- Modify: `bin/main.ml:33-35`
+
+- [ ] **Step 1: Replace `print_endline "OK"` with AST output**
+
+In `bin/main.ml`, change:
+
+```ocaml
+      if errors = [] then (
+        print_endline "OK";
+        exit 0)
+```
+
+To:
+
+```ocaml
+      if errors = [] then (
+        print_endline (Compose_dsl.Printer.to_string ast);
+        exit 0)
+```
+
+- [ ] **Step 2: Verify with a quick manual test**
+
+Run: `echo 'a >>> b' | dune exec ocaml-compose-dsl`
+Expected: `Seq(Node("a", [], []), Node("b", [], []))`
+
+Run: `echo 'a &&& b' | dune exec ocaml-compose-dsl`
+Expected: `Fanout(Node("a", [], []), Node("b", [], []))`
+
+Run: `echo 'a >>>' | dune exec ocaml-compose-dsl`
+Expected: error message on stderr, exit 1 (unchanged)
+
+- [ ] **Step 3: Run all tests**
+
+Run: `dune test`
+Expected: All tests pass.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add bin/main.ml
+git commit -m "feat(cli): output AST in constructor format instead of OK"
+```
+
+### Task 9: Update README with new EBNF and Arrow Semantics
 
 **Files:**
 - Modify: `README.md`
@@ -558,7 +751,7 @@ git add README.md
 git commit -m "docs: update EBNF, add Arrow semantics and fanout example"
 ```
 
-### Task 8: Add example `.arr` files
+### Task 10: Add example `.arr` files
 
 **Files:**
 - Create: `examples/brainstorming.arr`
@@ -621,7 +814,7 @@ dune exec ocaml-compose-dsl -- examples/brainstorming.arr
 dune exec ocaml-compose-dsl -- examples/tdd-loop.arr
 dune exec ocaml-compose-dsl -- examples/release.arr
 ```
-Expected: All three print `OK` and exit 0.
+Expected: All three print AST output (constructor format) and exit 0.
 
 - [ ] **Step 5: Commit**
 
@@ -630,7 +823,7 @@ git add examples/
 git commit -m "docs: add example .arr files for subagent workflows"
 ```
 
-### Task 9: Update CLAUDE.md
+### Task 11: Update CLAUDE.md
 
 **Files:**
 - Modify: `CLAUDE.md`
@@ -646,9 +839,25 @@ To:
 - `Ast` — ADT for DSL expressions: Node, Seq (`>>>`), Par (`***`), Fanout (`&&&`), Alt (`|||`), Loop, Group
 ```
 
-- [ ] **Step 2: Commit**
+Add after the `Checker` line:
+```
+- `Printer` — AST to OCaml constructor format string (for agent verification)
+```
+
+- [ ] **Step 2: Update CLI Usage description**
+
+Change:
+```
+Reads from file argument or stdin. Exits 0 with "OK" on success, exits 1 with error messages on failure.
+```
+To:
+```
+Reads from file argument or stdin. Exits 0 with AST output (OCaml constructor format) on success, exits 1 with error messages on failure.
+```
+
+- [ ] **Step 3: Commit**
 
 ```bash
 git add CLAUDE.md
-git commit -m "docs: update CLAUDE.md for fanout operator"
+git commit -m "docs: update CLAUDE.md for fanout operator and AST output"
 ```
