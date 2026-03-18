@@ -6,24 +6,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `dune build` — build everything
 - `dune exec ocaml-compose-dsl` — run the main executable
-- `dune test` — run tests
+- `dune test` — run all tests (alcotest)
+- `dune exec test/test_compose_dsl.exe -- test <Suite> <N>` — run a single test by suite name and index
 - `dune clean` — remove build artifacts
 
 ## Project Structure
 
 Two opam packages defined in `dune-project` (opam files are auto-generated via `generate_opam_files`):
 
-- **ocaml-compose-dsl** — the executable (`bin/main.ml`), depends on the library
-- **ocaml-compose-dsl-lib** — the library (`lib/compose_dsl.ml`), exposed as `compose_dsl`
+- **ocaml-compose-dsl** — the CLI executable (`bin/main.ml`), depends on the library
+- **ocaml-compose-dsl-lib** — the library (`lib/`), exposed as `compose_dsl`
 
-## Requirements
+Library modules:
 
-- OCaml >= 5.1
-- Dune 3.0+
-- ocamlformat 0.26.2 (configured in `.ocamlformat`)
+- `Ast` — ADT for DSL expressions: Node, Seq (`>>>`), Par (`***`), Alt (`|||`), Loop, Group
+- `Lexer` — tokenizer, raises `Lex_error` on invalid input
+- `Parser` — recursive descent parser, raises `Parse_error`
+- `Checker` — structural validation (e.g. loop must contain an evaluation node)
+
+## CLI Usage
+
+Reads from file argument or stdin. Exits 0 with "OK" on success, exits 1 with error messages on failure.
+
+```
+echo 'a >>> b' | dune exec ocaml-compose-dsl
+dune exec ocaml-compose-dsl -- pipeline.arrow
+```
 
 ## Plans
 
 - prefix any plan with 3 digits starts from 000
 - treat plans as RFCs
-
