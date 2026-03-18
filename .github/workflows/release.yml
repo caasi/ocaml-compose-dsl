@@ -5,7 +5,7 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-linux:
@@ -16,24 +16,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install file utility
+        run: apk add --no-cache file
+
       - name: Install dependencies
         run: |
           chown -R opam:opam .
           su opam -c "opam install . --deps-only --with-test -y"
 
-      - name: Build
-        run: su opam -c "opam exec -- dune build"
+      - name: Build (static profile)
+        run: su opam -c "opam exec -- dune build --profile static @install"
 
       - name: Test
         run: su opam -c "opam exec -- dune test"
 
       - name: Copy binary
-        run: cp _build/default/bin/main.exe ocaml-compose-dsl-linux-x86_64
+        run: cp _build/install/default/bin/ocaml-compose-dsl ocaml-compose-dsl-linux-x86_64
 
       - name: Verify static linking
         run: |
-          file ocaml-compose-dsl-linux-x86_64
-          file ocaml-compose-dsl-linux-x86_64 | grep -qE "statically linked|static-pie linked" || { echo "ERROR: binary is not statically linked"; exit 1; }
+          file_out=$(file ocaml-compose-dsl-linux-x86_64)
+          echo "$file_out"
+          echo "$file_out" | grep -qE "statically linked|static-pie linked" || { echo "ERROR: binary is not statically linked"; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:
@@ -60,12 +64,12 @@ jobs:
 
       - run: opam install . --deps-only --with-test -y
 
-      - run: opam exec -- dune build
+      - run: opam exec -- dune build --profile release @install
 
       - run: opam exec -- dune test
 
       - name: Copy binary
-        run: cp _build/default/bin/main.exe ${{ matrix.asset_name }}
+        run: cp _build/install/default/bin/ocaml-compose-dsl ${{ matrix.asset_name }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -75,6 +79,8 @@ jobs:
   release:
     needs: [build-linux, build-macos]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
