@@ -181,7 +181,7 @@ New tests needed:
   - Precedence: `a >>> b &&& c >>> d` → `Seq(Node a, Seq(Fanout(Node b, Node c), Node d))` (right-assoc)
   - Precedence: `a ||| b *** c` → `Alt(Node a, Par(Node b, Node c))`
   - Mixed `***` and `&&&`: `a *** b &&& c` → `Par(Node a, Fanout(Node b, Node c))` (right-associative, same precedence)
-  - Mixed all: `a >>> b ||| c &&& d *** e` → `Seq(Node a, Alt(Node b, Par(Fanout(Node c, Node d), Node e)))` (precedence: `>>>` < `|||` < `***`/`&&&`, all right-assoc)
+  - Mixed all: `a >>> b ||| c &&& d *** e` → `Seq(Node a, Alt(Node b, Fanout(Node c, Par(Node d, Node e))))` (precedence: `>>>` < `|||` < `***`/`&&&`, all right-assoc)
   - Groups override precedence: `(a >>> b) &&& c` → `Fanout(Group(Seq(Node a, Node b)), Node c)`
   - Right-assoc: `a >>> b >>> c` → `Seq(Node a, Seq(Node b, Node c))`
 - **Breaking change for existing tests:**
