@@ -3,3 +3,7 @@
  (public_name ocaml-compose-dsl)
  (package ocaml-compose-dsl)
  (libraries compose_dsl))
+
+(rule
+ (target version.ml)
+ (action (write-file version.ml "let value = \"%{version:ocaml-compose-dsl}\"")))
