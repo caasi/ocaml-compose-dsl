@@ -385,6 +385,55 @@ let test_check_loop_with_fanout_and_eval () =
   let _ = check_ok "loop (a &&& evaluate(criteria: done))" in
   ()
 
+(* === Printer tests === *)
+
+let test_print_simple_node () =
+  let ast = parse_ok "a" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "simple node" {|Node("a", [], [])|} s
+
+let test_print_node_with_args () =
+  let ast = parse_ok {|read(source: "data.csv")|} in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "node with args"
+    {|Node("read", [source: String("data.csv")], [])|} s
+
+let test_print_node_with_list_arg () =
+  let ast = parse_ok "collect(fields: [name, email])" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "node with list"
+    {|Node("collect", [fields: List([Ident("name"), Ident("email")])], [])|} s
+
+let test_print_seq () =
+  let ast = parse_ok "a >>> b" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "seq"
+    {|Seq(Node("a", [], []), Node("b", [], []))|} s
+
+let test_print_fanout () =
+  let ast = parse_ok "a &&& b" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "fanout"
+    {|Fanout(Node("a", [], []), Node("b", [], []))|} s
+
+let test_print_loop () =
+  let ast = parse_ok "loop (a >>> evaluate(x: y))" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "loop"
+    {|Loop(Seq(Node("a", [], []), Node("evaluate", [x: Ident("y")], [])))|} s
+
+let test_print_group () =
+  let ast = parse_ok "(a >>> b) *** c" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "group"
+    {|Par(Group(Seq(Node("a", [], []), Node("b", [], []))), Node("c", [], []))|} s
+
+let test_print_comment () =
+  let ast = parse_ok "a -- this is a comment" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "comment"
+    {|Node("a", [], ["this is a comment"])|} s
+
 (* === Test suite === *)
 
 let lexer_tests =
@@ -447,9 +496,21 @@ let checker_tests =
   ; "loop with fanout and eval", `Quick, test_check_loop_with_fanout_and_eval
   ]
 
+let printer_tests =
+  [ "simple node", `Quick, test_print_simple_node
+  ; "node with args", `Quick, test_print_node_with_args
+  ; "node with list arg", `Quick, test_print_node_with_list_arg
+  ; "seq", `Quick, test_print_seq
+  ; "fanout", `Quick, test_print_fanout
+  ; "loop", `Quick, test_print_loop
+  ; "group", `Quick, test_print_group
+  ; "comment", `Quick, test_print_comment
+  ]
+
 let () =
   Alcotest.run "compose-dsl"
     [ "Lexer", lexer_tests
     ; "Parser", parser_tests
     ; "Checker", checker_tests
+    ; "Printer", printer_tests
     ]
