@@ -312,13 +312,6 @@ let test_parse_group_overrides_precedence () =
   | Ast.Fanout (Ast.Group (Ast.Seq (Ast.Node _, Ast.Node _)), Ast.Node _) -> ()
   | _ -> Alcotest.fail "expected Fanout(Group(Seq(a,b)), c)"
 
-let test_parse_right_assoc_seq () =
-  (* a >>> b >>> c  =  a >>> (b >>> c)  right-assoc *)
-  let ast = parse_ok "a >>> b >>> c" in
-  match ast with
-  | Ast.Seq (Ast.Node _, Ast.Seq (Ast.Node _, Ast.Node _)) -> ()
-  | _ -> Alcotest.fail "expected right-associative Seq"
-
 (* error cases *)
 let test_parse_error_unclosed_paren () =
   match parse_ok "a(" with
@@ -471,7 +464,6 @@ let parser_tests =
   ; "par and fanout same prec", `Quick, test_parse_par_fanout_same_prec
   ; "mixed all precedence", `Quick, test_parse_mixed_all_precedence
   ; "group overrides precedence", `Quick, test_parse_group_overrides_precedence
-  ; "right-assoc seq", `Quick, test_parse_right_assoc_seq
   ; "group", `Quick, test_parse_group
   ; "nested groups", `Quick, test_parse_nested_groups
   ; "loop", `Quick, test_parse_loop

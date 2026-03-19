@@ -57,7 +57,7 @@ these types describe the data flow for the agent (and human) reading the pipelin
 | `>>>`    | compose        | `Arrow a b → Arrow b c → Arrow a c`           |
 | `***`    | product        | `Arrow a b → Arrow c d → Arrow (a,c) (b,d)`   |
 | `&&&`    | fanout         | `Arrow a b → Arrow a c → Arrow a (b,c)`       |
-| `\|\|\|` | fanin / branch | `Arrow a c → Arrow b c → Arrow (Either a b) c` |
+| <code>&#124;&#124;&#124;</code> | fanin / branch | `Arrow a c → Arrow b c → Arrow (Either a b) c` |
 | `loop`   | feedback       | `Arrow (a,s) (b,s) → Arrow a b`               |
 
 `***` is right-associative: `a *** b *** c` types as `(A, (B, C))`.
