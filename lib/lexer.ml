@@ -10,6 +10,7 @@ type token =
   | SEQ (** [>>>] *)
   | PAR (** [***] *)
   | ALT (** [|||] *)
+  | FANOUT (** [&&&] *)
   | LOOP
   | COMMENT of string
   | EOF
@@ -106,6 +107,12 @@ let tokenize input =
       | '|' ->
         if peek2 () = Some '|' && !i + 2 < len && input.[!i + 2] = '|' then begin
           tokens := { token = ALT; pos = p } :: !tokens;
+          advance (); advance (); advance ()
+        end else
+          raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
+      | '&' ->
+        if peek2 () = Some '&' && !i + 2 < len && input.[!i + 2] = '&' then begin
+          tokens := { token = FANOUT; pos = p } :: !tokens;
           advance (); advance (); advance ()
         end else
           raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))

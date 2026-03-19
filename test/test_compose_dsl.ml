@@ -92,6 +92,24 @@ let test_lex_unexpected_char () =
   | exception Lexer.Lex_error (_, msg) ->
     Alcotest.(check string) "error msg" "unexpected character '@'" msg
 
+let test_lex_fanout_operator () =
+  let tokens = Lexer.tokenize "a &&& b" in
+  let toks = List.map (fun (t : Lexer.located) -> t.token) tokens in
+  Alcotest.(check int) "token count" 4 (List.length toks);
+  Alcotest.(check bool) "has FANOUT" true (List.nth toks 1 = Lexer.FANOUT)
+
+let test_lex_partial_ampersand () =
+  match Lexer.tokenize "a & b" with
+  | _ -> Alcotest.fail "expected lex error"
+  | exception Lexer.Lex_error (_, msg) ->
+    Alcotest.(check string) "error msg" "unexpected character '&'" msg
+
+let test_lex_double_ampersand () =
+  match Lexer.tokenize "a && b" with
+  | _ -> Alcotest.fail "expected lex error"
+  | exception Lexer.Lex_error (_, msg) ->
+    Alcotest.(check string) "error msg" "unexpected character '&'" msg
+
 (* === Parser tests === *)
 
 (* node = ident , [ "(" , [ args ] , ")" ] *)
@@ -181,8 +199,8 @@ let test_parse_single_item_list () =
 let test_parse_seq () =
   let ast = parse_ok "a >>> b >>> c" in
   match ast with
-  | Ast.Seq (Ast.Seq (Ast.Node _, Ast.Node _), Ast.Node _) -> ()
-  | _ -> Alcotest.fail "expected left-associative Seq"
+  | Ast.Seq (Ast.Node _, Ast.Seq (Ast.Node _, Ast.Node _)) -> ()
+  | _ -> Alcotest.fail "expected right-associative Seq"
 
 let test_parse_par () =
   let ast = parse_ok "a *** b" in
@@ -197,10 +215,11 @@ let test_parse_alt () =
   | _ -> Alcotest.fail "expected Alt"
 
 let test_parse_mixed_operators () =
+  (* a >>> b *** c ||| d = a >>> ((b *** c) ||| d) *)
   let ast = parse_ok "a >>> b *** c ||| d" in
   match ast with
-  | Ast.Alt (Ast.Par (Ast.Seq (Ast.Node _, Ast.Node _), Ast.Node _), Ast.Node _) -> ()
-  | _ -> Alcotest.fail "expected left-associative mixed ops"
+  | Ast.Seq (Ast.Node _, Ast.Alt (Ast.Par (Ast.Node _, Ast.Node _), Ast.Node _)) -> ()
+  | _ -> Alcotest.fail "expected precedence: >>> < ||| < ***"
 
 (* term = node | "loop" , "(" , expr , ")" | "(" , expr , ")" *)
 let test_parse_group () =
@@ -224,7 +243,7 @@ let test_parse_loop () =
 let test_parse_nested_loop () =
   let ast = parse_ok "loop (a >>> loop (b >>> check(x: y)) >>> evaluate(r: done))" in
   match ast with
-  | Ast.Loop (Ast.Seq (Ast.Seq (Ast.Node _, Ast.Loop _), Ast.Node _)) -> ()
+  | Ast.Loop (Ast.Seq (Ast.Node _, Ast.Seq (Ast.Loop _, Ast.Node _))) -> ()
   | _ -> Alcotest.fail "expected nested Loop"
 
 (* comment attachment *)
@@ -250,6 +269,48 @@ let test_parse_multiline_comments () =
   | Ast.Node n ->
     Alcotest.(check int) "2 comments" 2 (List.length n.comments)
   | _ -> Alcotest.fail "expected Node"
+
+let test_parse_fanout () =
+  let ast = parse_ok "a &&& b" in
+  match ast with
+  | Ast.Fanout (Ast.Node _, Ast.Node _) -> ()
+  | _ -> Alcotest.fail "expected Fanout"
+
+let test_parse_precedence_seq_fanout () =
+  (* a >>> b &&& c >>> d  =  a >>> ((b &&& c) >>> d)  right-assoc *)
+  let ast = parse_ok "a >>> b &&& c >>> d" in
+  match ast with
+  | Ast.Seq (Ast.Node _, Ast.Seq (Ast.Fanout (Ast.Node _, Ast.Node _), Ast.Node _)) -> ()
+  | _ -> Alcotest.fail "expected Seq(a, Seq(Fanout(b,c), d))"
+
+let test_parse_precedence_alt_par () =
+  (* a ||| b *** c  =  a ||| (b *** c)  precedence *)
+  let ast = parse_ok "a ||| b *** c" in
+  match ast with
+  | Ast.Alt (Ast.Node _, Ast.Par (Ast.Node _, Ast.Node _)) -> ()
+  | _ -> Alcotest.fail "expected Alt(a, Par(b,c))"
+
+let test_parse_par_fanout_same_prec () =
+  (* a *** b &&& c  =  a *** (b &&& c)  right-assoc, same precedence *)
+  let ast = parse_ok "a *** b &&& c" in
+  match ast with
+  | Ast.Par (Ast.Node _, Ast.Fanout (Ast.Node _, Ast.Node _)) -> ()
+  | _ -> Alcotest.fail "expected Par(a, Fanout(b,c))"
+
+let test_parse_mixed_all_precedence () =
+  let ast = parse_ok "a >>> b ||| c &&& d *** e" in
+  match ast with
+  | Ast.Seq (Ast.Node _,
+      Ast.Alt (Ast.Node _,
+        Ast.Fanout (Ast.Node _,
+          Ast.Par (Ast.Node _, Ast.Node _)))) -> ()
+  | _ -> Alcotest.fail "expected Seq(a, Alt(b, Fanout(c, Par(d, e))))"
+
+let test_parse_group_overrides_precedence () =
+  let ast = parse_ok "(a >>> b) &&& c" in
+  match ast with
+  | Ast.Fanout (Ast.Group (Ast.Seq (Ast.Node _, Ast.Node _)), Ast.Node _) -> ()
+  | _ -> Alcotest.fail "expected Fanout(Group(Seq(a,b)), c)"
 
 (* error cases *)
 let test_parse_error_unclosed_paren () =
@@ -313,6 +374,59 @@ let test_check_nested_loop_both_need_eval () =
   let errors = check_fails "loop (a >>> loop (b >>> c))" in
   Alcotest.(check int) "2 errors" 2 (List.length errors)
 
+let test_check_loop_with_fanout_and_eval () =
+  let _ = check_ok "loop (a &&& evaluate(criteria: done))" in
+  ()
+
+(* === Printer tests === *)
+
+let test_print_simple_node () =
+  let ast = parse_ok "a" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "simple node" {|Node("a", [], [])|} s
+
+let test_print_node_with_args () =
+  let ast = parse_ok {|read(source: "data.csv")|} in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "node with args"
+    {|Node("read", [source: String("data.csv")], [])|} s
+
+let test_print_node_with_list_arg () =
+  let ast = parse_ok "collect(fields: [name, email])" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "node with list"
+    {|Node("collect", [fields: List([Ident("name"), Ident("email")])], [])|} s
+
+let test_print_seq () =
+  let ast = parse_ok "a >>> b" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "seq"
+    {|Seq(Node("a", [], []), Node("b", [], []))|} s
+
+let test_print_fanout () =
+  let ast = parse_ok "a &&& b" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "fanout"
+    {|Fanout(Node("a", [], []), Node("b", [], []))|} s
+
+let test_print_loop () =
+  let ast = parse_ok "loop (a >>> evaluate(x: y))" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "loop"
+    {|Loop(Seq(Node("a", [], []), Node("evaluate", [x: Ident("y")], [])))|} s
+
+let test_print_group () =
+  let ast = parse_ok "(a >>> b) *** c" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "group"
+    {|Par(Group(Seq(Node("a", [], []), Node("b", [], []))), Node("c", [], []))|} s
+
+let test_print_comment () =
+  let ast = parse_ok "a -- this is a comment" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "comment"
+    {|Node("a", [], ["this is a comment"])|} s
+
 (* === Test suite === *)
 
 let lexer_tests =
@@ -325,6 +439,9 @@ let lexer_tests =
   ; "comment", `Quick, test_lex_comment
   ; "loop keyword", `Quick, test_lex_loop_keyword
   ; "unexpected char", `Quick, test_lex_unexpected_char
+  ; "fanout operator", `Quick, test_lex_fanout_operator
+  ; "partial ampersand", `Quick, test_lex_partial_ampersand
+  ; "double ampersand", `Quick, test_lex_double_ampersand
   ]
 
 let parser_tests =
@@ -341,6 +458,12 @@ let parser_tests =
   ; "parallel", `Quick, test_parse_par
   ; "alternative", `Quick, test_parse_alt
   ; "mixed operators", `Quick, test_parse_mixed_operators
+  ; "fanout", `Quick, test_parse_fanout
+  ; "precedence: seq vs fanout", `Quick, test_parse_precedence_seq_fanout
+  ; "precedence: alt vs par", `Quick, test_parse_precedence_alt_par
+  ; "par and fanout same prec", `Quick, test_parse_par_fanout_same_prec
+  ; "mixed all precedence", `Quick, test_parse_mixed_all_precedence
+  ; "group overrides precedence", `Quick, test_parse_group_overrides_precedence
   ; "group", `Quick, test_parse_group
   ; "nested groups", `Quick, test_parse_nested_groups
   ; "loop", `Quick, test_parse_loop
@@ -362,6 +485,18 @@ let checker_tests =
   ; "loop with verify", `Quick, test_check_loop_with_verify
   ; "loop with check", `Quick, test_check_loop_with_check
   ; "nested loops both need eval", `Quick, test_check_nested_loop_both_need_eval
+  ; "loop with fanout and eval", `Quick, test_check_loop_with_fanout_and_eval
+  ]
+
+let printer_tests =
+  [ "simple node", `Quick, test_print_simple_node
+  ; "node with args", `Quick, test_print_node_with_args
+  ; "node with list arg", `Quick, test_print_node_with_list_arg
+  ; "seq", `Quick, test_print_seq
+  ; "fanout", `Quick, test_print_fanout
+  ; "loop", `Quick, test_print_loop
+  ; "group", `Quick, test_print_group
+  ; "comment", `Quick, test_print_comment
   ]
 
 let () =
@@ -369,4 +504,5 @@ let () =
     [ "Lexer", lexer_tests
     ; "Parser", parser_tests
     ; "Checker", checker_tests
+    ; "Printer", printer_tests
     ]

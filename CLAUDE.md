@@ -19,14 +19,15 @@ Two opam packages defined in `dune-project` (opam files are auto-generated via `
 
 Library modules:
 
-- `Ast` — ADT for DSL expressions: Node, Seq (`>>>`), Par (`***`), Alt (`|||`), Loop, Group
+- `Ast` — ADT for DSL expressions: Node, Seq (`>>>`), Par (`***`), Fanout (`&&&`), Alt (`|||`), Loop, Group
 - `Lexer` — tokenizer, raises `Lex_error` on invalid input
 - `Parser` — recursive descent parser, raises `Parse_error`
 - `Checker` — structural validation (e.g. loop must contain an evaluation node)
+- `Printer` — AST to OCaml constructor format string (for agent verification)
 
 ## CLI Usage
 
-Reads from file argument or stdin. Exits 0 with "OK" on success, exits 1 with error messages on failure.
+Reads from file argument or stdin. Exits 0 with AST output (OCaml constructor format) on success, exits 1 with error messages on failure.
 
 ```
 echo 'a >>> b' | dune exec ocaml-compose-dsl
@@ -64,6 +65,8 @@ git push origin v0.1.0
 ## Known Bugs
 
 - `checker.ml`: `String.sub s 0 5 = "check"` crashes when `String.length n.name = 4` — the guard only checks `>= 4` but `String.sub` needs `>= 5`. Same pattern may affect other substring checks in `scan`.
+- `parser.ml`: Comments consumed by `eat_comments` in `parse_seq_expr`, `parse_alt_expr`, and `parse_par_expr` are silently discarded when `lhs` is not a `Node` (e.g. `Group`, `Loop`, `Fanout`). Only `Node` expressions can carry comments.
+- `parser.ml`: The right-recursive precedence parser (`parse_seq_expr`/`parse_alt_expr`/`parse_par_expr`) is not tail-recursive. Extremely long pipelines (thousands of chained operators) could overflow the OCaml stack. In practice this is unlikely for human-authored workflows. If needed, switch to loop + `List.fold_right` to build right-associative AST iteratively.
 
 ## Plans
 

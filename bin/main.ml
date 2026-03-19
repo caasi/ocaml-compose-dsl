@@ -93,7 +93,7 @@ let () =
     | ast ->
       let errors = Compose_dsl.Checker.check ast in
       if errors = [] then (
-        print_endline "OK";
+        print_endline (Compose_dsl.Printer.to_string ast);
         exit 0)
       else (
         List.iter
