@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0] - 2026-03-19
+
+### Added
+- Numeric literal support — `Number of string` value variant with integers, floats, negatives, and optional unit suffixes (e.g. `100mg`, `-3.14`, `2.5cm`)
+- `number` production in EBNF grammar
+- `parse_value` now handles list items directly (removes duplication, enables nested lists)
+
 ## [0.2.0] - 2026-03-19
 
 ### Added
