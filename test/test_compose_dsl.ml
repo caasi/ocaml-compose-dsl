@@ -277,6 +277,54 @@ let test_parse_single_item_list () =
      | _ -> Alcotest.fail "expected single-item List")
   | _ -> Alcotest.fail "expected Node"
 
+let test_parse_number_value () =
+  let ast = parse_ok "resize(width: 1920)" in
+  match ast with
+  | Ast.Node n ->
+    (match (List.hd n.args).value with
+     | Ast.Number "1920" -> ()
+     | _ -> Alcotest.fail "expected Number value")
+  | _ -> Alcotest.fail "expected Node"
+
+let test_parse_float_value () =
+  let ast = parse_ok "delay(seconds: 3.5)" in
+  match ast with
+  | Ast.Node n ->
+    (match (List.hd n.args).value with
+     | Ast.Number "3.5" -> ()
+     | _ -> Alcotest.fail "expected Number value")
+  | _ -> Alcotest.fail "expected Node"
+
+let test_parse_negative_value () =
+  let ast = parse_ok "adjust(offset: -10)" in
+  match ast with
+  | Ast.Node n ->
+    (match (List.hd n.args).value with
+     | Ast.Number "-10" -> ()
+     | _ -> Alcotest.fail "expected Number value")
+  | _ -> Alcotest.fail "expected Node"
+
+let test_parse_number_in_list () =
+  let ast = parse_ok "a(dims: [1920, 1080])" in
+  match ast with
+  | Ast.Node n ->
+    (match (List.hd n.args).value with
+     | Ast.List [Ast.Number "1920"; Ast.Number "1080"] -> ()
+     | _ -> Alcotest.fail "expected List of Numbers")
+  | _ -> Alcotest.fail "expected Node"
+
+let test_parse_number_with_unit () =
+  let ast = parse_ok "dose(amount: 100mg)" in
+  match ast with
+  | Ast.Node n ->
+    (match (List.hd n.args).value with
+     | Ast.Number "100mg" -> ()
+     | _ -> Alcotest.fail "expected Number with unit")
+  | _ -> Alcotest.fail "expected Node"
+
+let test_parse_number_as_node_name () =
+  parse_fails "42(x: 1)"
+
 (* expr = term , { operator , term } *)
 let test_parse_seq () =
   let ast = parse_ok "a >>> b >>> c" in
@@ -577,6 +625,12 @@ let parser_tests =
   ; "list value", `Quick, test_parse_list_value
   ; "empty list", `Quick, test_parse_empty_list
   ; "single item list", `Quick, test_parse_single_item_list
+  ; "number value", `Quick, test_parse_number_value
+  ; "float value", `Quick, test_parse_float_value
+  ; "negative value", `Quick, test_parse_negative_value
+  ; "number in list", `Quick, test_parse_number_in_list
+  ; "number with unit", `Quick, test_parse_number_with_unit
+  ; "error: number as node name", `Quick, test_parse_number_as_node_name
   ; "sequential", `Quick, test_parse_seq
   ; "parallel", `Quick, test_parse_par
   ; "alternative", `Quick, test_parse_alt
