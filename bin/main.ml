@@ -14,10 +14,72 @@ let read_file path =
   close_in ic;
   s
 
+let usage_text =
+  Printf.sprintf
+    {|ocaml-compose-dsl %s
+A structural checker for Arrow-style DSL pipelines.
+
+Usage:
+  ocaml-compose-dsl [<file>]
+  cat <file> | ocaml-compose-dsl
+  ocaml-compose-dsl --help
+  ocaml-compose-dsl --version
+
+Options:
+  -h, --help     Show this help message
+  -v, --version  Show version
+
+Reads from file argument or stdin.
+Exits 0 with "OK" on valid input, 1 with error messages.|}
+    Version.value
+
+let version_text = Printf.sprintf "ocaml-compose-dsl %s" Version.value
+
+let argv_has flag =
+  let found = ref false in
+  for i = 1 to Array.length Sys.argv - 1 do
+    if Sys.argv.(i) = flag then found := true
+  done;
+  !found
+
+let first_unknown_flag () =
+  let result = ref None in
+  for i = 1 to Array.length Sys.argv - 1 do
+    let a = Sys.argv.(i) in
+    if !result = None
+       && String.length a > 0
+       && a.[0] = '-'
+       && a <> "--help" && a <> "-h"
+       && a <> "--version" && a <> "-v"
+    then result := Some a
+  done;
+  !result
+
+let first_positional_arg () =
+  let result = ref None in
+  for i = 1 to Array.length Sys.argv - 1 do
+    let a = Sys.argv.(i) in
+    if !result = None && (String.length a = 0 || a.[0] <> '-') then
+      result := Some a
+  done;
+  !result
+
 let () =
+  if argv_has "--help" || argv_has "-h" then (
+    print_endline usage_text;
+    exit 0);
+  if argv_has "--version" || argv_has "-v" then (
+    print_endline version_text;
+    exit 0);
+  (match first_unknown_flag () with
+   | Some flag ->
+     Printf.eprintf "unknown option: %s\n%s\n" flag usage_text;
+     exit 1
+   | None -> ());
   let input =
-    if Array.length Sys.argv > 1 then read_file Sys.argv.(1)
-    else read_all_stdin ()
+    match first_positional_arg () with
+    | Some path -> read_file path
+    | None -> read_all_stdin ()
   in
   match Compose_dsl.Lexer.tokenize input with
   | exception Compose_dsl.Lexer.Lex_error (pos, msg) ->
