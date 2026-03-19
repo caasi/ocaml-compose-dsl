@@ -270,6 +270,28 @@ let test_parse_multiline_comments () =
     Alcotest.(check int) "2 comments" 2 (List.length n.comments)
   | _ -> Alcotest.fail "expected Node"
 
+let test_parse_comment_on_group () =
+  let ast =
+    parse_ok {|(a >>> b) -- comment on group
+  >>> c|}
+  in
+  match ast with
+  | Ast.Seq (Ast.Group (Ast.Seq (Ast.Node _, Ast.Node b)), Ast.Node _) ->
+    Alcotest.(check int) "comment attached to rightmost node in group" 1 (List.length b.comments);
+    Alcotest.(check string) "comment text" "comment on group" (List.hd b.comments)
+  | _ -> Alcotest.fail "expected Seq(Group(Seq(a,b)),c)"
+
+let test_parse_comment_on_loop () =
+  let ast =
+    parse_ok {|loop (a >>> evaluate(x: y)) -- loop comment
+  >>> done|}
+  in
+  match ast with
+  | Ast.Seq (Ast.Loop (Ast.Seq (Ast.Node _, Ast.Node e)), Ast.Node _) ->
+    Alcotest.(check int) "comment attached to rightmost node in loop" 1 (List.length e.comments);
+    Alcotest.(check string) "comment text" "loop comment" (List.hd e.comments)
+  | _ -> Alcotest.fail "expected Seq(Loop(...), done)"
+
 let test_parse_fanout () =
   let ast = parse_ok "a &&& b" in
   match ast with
@@ -378,6 +400,14 @@ let test_check_loop_with_fanout_and_eval () =
   let _ = check_ok "loop (a &&& evaluate(criteria: done))" in
   ()
 
+let test_check_loop_with_test () =
+  let _ = check_ok "loop (a >>> test)" in
+  ()
+
+let test_check_loop_with_checking () =
+  let _ = check_ok "loop (a >>> checking)" in
+  ()
+
 (* === Printer tests === *)
 
 let test_print_simple_node () =
@@ -470,6 +500,8 @@ let parser_tests =
   ; "nested loop", `Quick, test_parse_nested_loop
   ; "comments attach to node", `Quick, test_parse_comments_attach_to_node
   ; "multiline comments", `Quick, test_parse_multiline_comments
+  ; "comment on group expr", `Quick, test_parse_comment_on_group
+  ; "comment on loop expr", `Quick, test_parse_comment_on_loop
   ; "error: unclosed paren", `Quick, test_parse_error_unclosed_paren
   ; "error: unclosed group", `Quick, test_parse_error_unclosed_group
   ; "error: missing loop paren", `Quick, test_parse_error_missing_loop_paren
@@ -486,6 +518,8 @@ let checker_tests =
   ; "loop with check", `Quick, test_check_loop_with_check
   ; "nested loops both need eval", `Quick, test_check_nested_loop_both_need_eval
   ; "loop with fanout and eval", `Quick, test_check_loop_with_fanout_and_eval
+  ; "loop with test (4-char name)", `Quick, test_check_loop_with_test
+  ; "loop with checking (check prefix)", `Quick, test_check_loop_with_checking
   ]
 
 let printer_tests =

@@ -19,9 +19,11 @@ let check expr =
         | Node n ->
           if String.length n.name >= 4 &&
              (let s = String.lowercase_ascii n.name in
+              let len = String.length s in
               s = "evaluate" || s = "eval" || s = "check" || s = "test"
               || s = "judge" || s = "verify" || s = "validate"
-              || String.sub s 0 4 = "eval" || String.sub s 0 5 = "check") then
+              || (len >= 4 && String.sub s 0 4 = "eval")
+              || (len >= 5 && String.sub s 0 5 = "check")) then
             has_eval := true
         | Seq (a, b) | Par (a, b) | Fanout (a, b) | Alt (a, b) -> scan a; scan b
         | Loop inner -> scan inner

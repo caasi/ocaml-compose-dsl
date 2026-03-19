@@ -83,14 +83,21 @@ let parse_args st =
   go ();
   List.rev !args
 
+let rec attach_comments_right expr comments =
+  if comments = [] then expr
+  else match expr with
+    | Node n -> Node { n with comments = n.comments @ comments }
+    | Seq (a, b) -> Seq (a, attach_comments_right b comments)
+    | Par (a, b) -> Par (a, attach_comments_right b comments)
+    | Fanout (a, b) -> Fanout (a, attach_comments_right b comments)
+    | Alt (a, b) -> Alt (a, attach_comments_right b comments)
+    | Group inner -> Group (attach_comments_right inner comments)
+    | Loop inner -> Loop (attach_comments_right inner comments)
+
 let rec parse_seq_expr st =
   let lhs = parse_alt_expr st in
   let comments = eat_comments st in
-  let lhs =
-    match lhs with
-    | Node n -> Node { n with comments = n.comments @ comments }
-    | _ -> lhs
-  in
+  let lhs = attach_comments_right lhs comments in
   let t = current st in
   match t.token with
   | Lexer.SEQ -> advance st; Seq (lhs, parse_seq_expr st)
@@ -99,11 +106,7 @@ let rec parse_seq_expr st =
 and parse_alt_expr st =
   let lhs = parse_par_expr st in
   let comments = eat_comments st in
-  let lhs =
-    match lhs with
-    | Node n -> Node { n with comments = n.comments @ comments }
-    | _ -> lhs
-  in
+  let lhs = attach_comments_right lhs comments in
   let t = current st in
   match t.token with
   | Lexer.ALT -> advance st; Alt (lhs, parse_alt_expr st)
@@ -112,11 +115,7 @@ and parse_alt_expr st =
 and parse_par_expr st =
   let lhs = parse_term st in
   let comments = eat_comments st in
-  let lhs =
-    match lhs with
-    | Node n -> Node { n with comments = n.comments @ comments }
-    | _ -> lhs
-  in
+  let lhs = attach_comments_right lhs comments in
   let t = current st in
   match t.token with
   | Lexer.PAR -> advance st; Par (lhs, parse_par_expr st)
