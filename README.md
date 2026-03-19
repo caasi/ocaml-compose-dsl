@@ -15,9 +15,12 @@ The DSL uses Arrow combinators because they sit at the sweet spot between shell 
 ```ebnf
 pipeline = seq_expr ;
 
-seq_expr = alt_expr , { ">>>" , alt_expr } ;       (* sequential — infixr 1 *)
-alt_expr = par_expr , { "|||" , par_expr } ;       (* branch — infixr 2 *)
-par_expr = term , { ( "***" | "&&&" ) , term } ;   (* parallel / fanout — infixr 3 *)
+seq_expr = alt_expr , ">>>" , seq_expr              (* sequential — infixr 1 *)
+         | alt_expr ;
+alt_expr = par_expr , "|||" , alt_expr              (* branch — infixr 2 *)
+         | par_expr ;
+par_expr = term , ( "***" | "&&&" ) , par_expr      (* parallel / fanout — infixr 3 *)
+         | term ;
 
 term     = node
          | "loop" , "(" , seq_expr , ")"            (* feedback loop *)
