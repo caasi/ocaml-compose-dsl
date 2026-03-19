@@ -92,6 +92,24 @@ let test_lex_unexpected_char () =
   | exception Lexer.Lex_error (_, msg) ->
     Alcotest.(check string) "error msg" "unexpected character '@'" msg
 
+let test_lex_fanout_operator () =
+  let tokens = Lexer.tokenize "a &&& b" in
+  let toks = List.map (fun (t : Lexer.located) -> t.token) tokens in
+  Alcotest.(check int) "token count" 4 (List.length toks);
+  Alcotest.(check bool) "has FANOUT" true (List.nth toks 1 = Lexer.FANOUT)
+
+let test_lex_partial_ampersand () =
+  match Lexer.tokenize "a & b" with
+  | _ -> Alcotest.fail "expected lex error"
+  | exception Lexer.Lex_error (_, msg) ->
+    Alcotest.(check string) "error msg" "unexpected character '&'" msg
+
+let test_lex_double_ampersand () =
+  match Lexer.tokenize "a && b" with
+  | _ -> Alcotest.fail "expected lex error"
+  | exception Lexer.Lex_error (_, msg) ->
+    Alcotest.(check string) "error msg" "unexpected character '&'" msg
+
 (* === Parser tests === *)
 
 (* node = ident , [ "(" , [ args ] , ")" ] *)
@@ -325,6 +343,9 @@ let lexer_tests =
   ; "comment", `Quick, test_lex_comment
   ; "loop keyword", `Quick, test_lex_loop_keyword
   ; "unexpected char", `Quick, test_lex_unexpected_char
+  ; "fanout operator", `Quick, test_lex_fanout_operator
+  ; "partial ampersand", `Quick, test_lex_partial_ampersand
+  ; "double ampersand", `Quick, test_lex_double_ampersand
   ]
 
 let parser_tests =

@@ -11,6 +11,7 @@ let check expr =
         add "node has no purpose (no name and no comments)"
     | Seq (a, b) -> go a; go b
     | Par (a, b) -> go a; go b
+    | Fanout (a, b) -> go a; go b
     | Alt (a, b) -> go a; go b
     | Loop body ->
       let has_eval = ref false in
@@ -22,7 +23,7 @@ let check expr =
               || s = "judge" || s = "verify" || s = "validate"
               || String.sub s 0 4 = "eval" || String.sub s 0 5 = "check") then
             has_eval := true
-        | Seq (a, b) | Par (a, b) | Alt (a, b) -> scan a; scan b
+        | Seq (a, b) | Par (a, b) | Fanout (a, b) | Alt (a, b) -> scan a; scan b
         | Loop inner -> scan inner
         | Group inner -> scan inner
       in
