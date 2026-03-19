@@ -1,6 +1,7 @@
 type value =
   | String of string
   | Ident of string
+  | Number of string
   | List of value list
 
 type arg = { key : string; value : value }

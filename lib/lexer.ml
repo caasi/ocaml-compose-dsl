@@ -1,6 +1,7 @@
 type token =
   | IDENT of string
   | STRING of string
+  | NUMBER of string
   | LPAREN
   | RPAREN
   | LBRACKET
