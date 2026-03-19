@@ -19,14 +19,15 @@ Two opam packages defined in `dune-project` (opam files are auto-generated via `
 
 Library modules:
 
-- `Ast` — ADT for DSL expressions: Node, Seq (`>>>`), Par (`***`), Alt (`|||`), Loop, Group
+- `Ast` — ADT for DSL expressions: Node, Seq (`>>>`), Par (`***`), Fanout (`&&&`), Alt (`|||`), Loop, Group
 - `Lexer` — tokenizer, raises `Lex_error` on invalid input
 - `Parser` — recursive descent parser, raises `Parse_error`
 - `Checker` — structural validation (e.g. loop must contain an evaluation node)
+- `Printer` — AST to OCaml constructor format string (for agent verification)
 
 ## CLI Usage
 
-Reads from file argument or stdin. Exits 0 with "OK" on success, exits 1 with error messages on failure.
+Reads from file argument or stdin. Exits 0 with AST output (OCaml constructor format) on success, exits 1 with error messages on failure.
 
 ```
 echo 'a >>> b' | dune exec ocaml-compose-dsl
