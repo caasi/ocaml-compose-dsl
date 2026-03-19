@@ -186,11 +186,13 @@ let test_lex_negative_unit_suffix () =
   in
   Alcotest.(check bool) "has NUMBER -10dB" true has_neg
 
-let test_lex_number_no_unit () =
-  let tokens = Lexer.tokenize "42" in
-  match (List.hd tokens).token with
-  | Lexer.NUMBER "42" -> ()
-  | _ -> Alcotest.fail "expected NUMBER 42 (no unit)"
+let test_lex_number_before_delimiter () =
+  let tokens = Lexer.tokenize "a(x: 42)" in
+  let toks = List.map (fun (t : Lexer.located) -> t.token) tokens in
+  Alcotest.(check bool) "NUMBER then RPAREN"
+    true
+    (List.nth toks 4 = Lexer.NUMBER "42"
+     && List.nth toks 5 = Lexer.RPAREN)
 
 (* === Parser tests === *)
 
@@ -630,7 +632,7 @@ let lexer_tests =
   ; "unit suffix", `Quick, test_lex_unit_suffix
   ; "float unit suffix", `Quick, test_lex_float_unit_suffix
   ; "negative unit suffix", `Quick, test_lex_negative_unit_suffix
-  ; "number no unit", `Quick, test_lex_number_no_unit
+  ; "number before delimiter", `Quick, test_lex_number_before_delimiter
   ]
 
 let parser_tests =
