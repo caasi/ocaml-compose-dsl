@@ -73,6 +73,10 @@ ocaml-compose-dsl pipeline.arr
 
 # From stdin
 echo 'a >>> b' | ocaml-compose-dsl
+
+# Help and version
+ocaml-compose-dsl --help
+ocaml-compose-dsl --version
 ```
 
 Exits `0` with `OK` on valid input, `1` with error messages on structural problems.
