@@ -110,6 +110,90 @@ let test_lex_double_ampersand () =
   | exception Lexer.Lex_error (_, msg) ->
     Alcotest.(check string) "error msg" "unexpected character '&'" msg
 
+let test_lex_integer () =
+  let tokens = Lexer.tokenize "42" in
+  match (List.hd tokens).token with
+  | Lexer.NUMBER "42" -> ()
+  | _ -> Alcotest.fail "expected NUMBER 42"
+
+let test_lex_float () =
+  let tokens = Lexer.tokenize "3.14" in
+  match (List.hd tokens).token with
+  | Lexer.NUMBER "3.14" -> ()
+  | _ -> Alcotest.fail "expected NUMBER 3.14"
+
+let test_lex_negative_integer () =
+  let tokens = Lexer.tokenize "a(x: -5)" in
+  let has_neg =
+    List.exists
+      (fun (t : Lexer.located) ->
+        match t.token with Lexer.NUMBER "-5" -> true | _ -> false)
+      tokens
+  in
+  Alcotest.(check bool) "has NUMBER -5" true has_neg
+
+let test_lex_negative_float () =
+  let tokens = Lexer.tokenize "a(x: -0.5)" in
+  let has_neg =
+    List.exists
+      (fun (t : Lexer.located) ->
+        match t.token with Lexer.NUMBER "-0.5" -> true | _ -> false)
+      tokens
+  in
+  Alcotest.(check bool) "has NUMBER -0.5" true has_neg
+
+let test_lex_negative_is_not_comment () =
+  let tokens = Lexer.tokenize "a(x: -3)" in
+  let has_comment =
+    List.exists
+      (fun (t : Lexer.located) ->
+        match t.token with Lexer.COMMENT _ -> true | _ -> false)
+      tokens
+  in
+  Alcotest.(check bool) "no comment" false has_comment
+
+let test_lex_trailing_dot () =
+  match Lexer.tokenize "a(x: 3.)" with
+  | _ -> Alcotest.fail "expected lex error"
+  | exception Lexer.Lex_error (_, msg) ->
+    Alcotest.(check string) "error msg" "expected digit after '.'" msg
+
+let test_lex_leading_dot () =
+  match Lexer.tokenize "a(x: .5)" with
+  | _ -> Alcotest.fail "expected lex error"
+  | exception Lexer.Lex_error (_, msg) ->
+    Alcotest.(check string) "error msg" "unexpected character '.'" msg
+
+let test_lex_unit_suffix () =
+  let tokens = Lexer.tokenize "100mg" in
+  match (List.hd tokens).token with
+  | Lexer.NUMBER "100mg" -> ()
+  | _ -> Alcotest.fail "expected NUMBER 100mg"
+
+let test_lex_float_unit_suffix () =
+  let tokens = Lexer.tokenize "2.5cm" in
+  match (List.hd tokens).token with
+  | Lexer.NUMBER "2.5cm" -> ()
+  | _ -> Alcotest.fail "expected NUMBER 2.5cm"
+
+let test_lex_negative_unit_suffix () =
+  let tokens = Lexer.tokenize "a(x: -10dB)" in
+  let has_neg =
+    List.exists
+      (fun (t : Lexer.located) ->
+        match t.token with Lexer.NUMBER "-10dB" -> true | _ -> false)
+      tokens
+  in
+  Alcotest.(check bool) "has NUMBER -10dB" true has_neg
+
+let test_lex_number_before_delimiter () =
+  let tokens = Lexer.tokenize "a(x: 42)" in
+  let toks = List.map (fun (t : Lexer.located) -> t.token) tokens in
+  Alcotest.(check bool) "NUMBER then RPAREN"
+    true
+    (List.nth toks 4 = Lexer.NUMBER "42"
+     && List.nth toks 5 = Lexer.RPAREN)
+
 (* === Parser tests === *)
 
 (* node = ident , [ "(" , [ args ] , ")" ] *)
@@ -194,6 +278,54 @@ let test_parse_single_item_list () =
      | Ast.List [ Ast.Ident "one" ] -> ()
      | _ -> Alcotest.fail "expected single-item List")
   | _ -> Alcotest.fail "expected Node"
+
+let test_parse_number_value () =
+  let ast = parse_ok "resize(width: 1920)" in
+  match ast with
+  | Ast.Node n ->
+    (match (List.hd n.args).value with
+     | Ast.Number "1920" -> ()
+     | _ -> Alcotest.fail "expected Number value")
+  | _ -> Alcotest.fail "expected Node"
+
+let test_parse_float_value () =
+  let ast = parse_ok "delay(seconds: 3.5)" in
+  match ast with
+  | Ast.Node n ->
+    (match (List.hd n.args).value with
+     | Ast.Number "3.5" -> ()
+     | _ -> Alcotest.fail "expected Number value")
+  | _ -> Alcotest.fail "expected Node"
+
+let test_parse_negative_value () =
+  let ast = parse_ok "adjust(offset: -10)" in
+  match ast with
+  | Ast.Node n ->
+    (match (List.hd n.args).value with
+     | Ast.Number "-10" -> ()
+     | _ -> Alcotest.fail "expected Number value")
+  | _ -> Alcotest.fail "expected Node"
+
+let test_parse_number_in_list () =
+  let ast = parse_ok "a(dims: [1920, 1080])" in
+  match ast with
+  | Ast.Node n ->
+    (match (List.hd n.args).value with
+     | Ast.List [Ast.Number "1920"; Ast.Number "1080"] -> ()
+     | _ -> Alcotest.fail "expected List of Numbers")
+  | _ -> Alcotest.fail "expected Node"
+
+let test_parse_number_with_unit () =
+  let ast = parse_ok "dose(amount: 100mg)" in
+  match ast with
+  | Ast.Node n ->
+    (match (List.hd n.args).value with
+     | Ast.Number "100mg" -> ()
+     | _ -> Alcotest.fail "expected Number with unit")
+  | _ -> Alcotest.fail "expected Node"
+
+let test_parse_number_as_node_name () =
+  parse_fails "42(x: 1)"
 
 (* expr = term , { operator , term } *)
 let test_parse_seq () =
@@ -451,6 +583,24 @@ let test_print_group () =
   Alcotest.(check string) "group"
     {|Par(Group(Seq(Node("a", [], []), Node("b", [], []))), Node("c", [], []))|} s
 
+let test_print_number_arg () =
+  let ast = parse_ok "resize(width: 1920, height: 1080)" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "number args"
+    {|Node("resize", [width: Number(1920), height: Number(1080)], [])|} s
+
+let test_print_negative_number () =
+  let ast = parse_ok "adjust(offset: -3.14)" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "negative number"
+    {|Node("adjust", [offset: Number(-3.14)], [])|} s
+
+let test_print_number_with_unit () =
+  let ast = parse_ok "dose(amount: 100mg)" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "number with unit"
+    {|Node("dose", [amount: Number(100mg)], [])|} s
+
 let test_print_comment () =
   let ast = parse_ok "a -- this is a comment" in
   let s = Printer.to_string ast in
@@ -472,6 +622,17 @@ let lexer_tests =
   ; "fanout operator", `Quick, test_lex_fanout_operator
   ; "partial ampersand", `Quick, test_lex_partial_ampersand
   ; "double ampersand", `Quick, test_lex_double_ampersand
+  ; "integer literal", `Quick, test_lex_integer
+  ; "float literal", `Quick, test_lex_float
+  ; "negative integer", `Quick, test_lex_negative_integer
+  ; "negative float", `Quick, test_lex_negative_float
+  ; "negative is not comment", `Quick, test_lex_negative_is_not_comment
+  ; "trailing dot invalid", `Quick, test_lex_trailing_dot
+  ; "leading dot invalid", `Quick, test_lex_leading_dot
+  ; "unit suffix", `Quick, test_lex_unit_suffix
+  ; "float unit suffix", `Quick, test_lex_float_unit_suffix
+  ; "negative unit suffix", `Quick, test_lex_negative_unit_suffix
+  ; "number before delimiter", `Quick, test_lex_number_before_delimiter
   ]
 
 let parser_tests =
@@ -484,6 +645,12 @@ let parser_tests =
   ; "list value", `Quick, test_parse_list_value
   ; "empty list", `Quick, test_parse_empty_list
   ; "single item list", `Quick, test_parse_single_item_list
+  ; "number value", `Quick, test_parse_number_value
+  ; "float value", `Quick, test_parse_float_value
+  ; "negative value", `Quick, test_parse_negative_value
+  ; "number in list", `Quick, test_parse_number_in_list
+  ; "number with unit", `Quick, test_parse_number_with_unit
+  ; "error: number as node name", `Quick, test_parse_number_as_node_name
   ; "sequential", `Quick, test_parse_seq
   ; "parallel", `Quick, test_parse_par
   ; "alternative", `Quick, test_parse_alt
@@ -530,6 +697,9 @@ let printer_tests =
   ; "fanout", `Quick, test_print_fanout
   ; "loop", `Quick, test_print_loop
   ; "group", `Quick, test_print_group
+  ; "number arg", `Quick, test_print_number_arg
+  ; "negative number", `Quick, test_print_negative_number
+  ; "number with unit", `Quick, test_print_number_with_unit
   ; "comment", `Quick, test_print_comment
   ]
 

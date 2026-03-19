@@ -34,6 +34,7 @@ args     = arg , { "," , arg } ;
 arg      = ident , ":" , value ;
 
 value    = string
+         | number
          | ident
          | "[" , [ value , { "," , value } ] , "]"
          ;
@@ -41,6 +42,8 @@ value    = string
 ident    = ( letter | "_" ) , { letter | digit | "-" | "_" } ;
 
 string   = '"' , { any char - '"' } , '"' ;
+
+number   = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] , { letter } ;
 
 comment  = "--" , { any char - newline } ;
 ```

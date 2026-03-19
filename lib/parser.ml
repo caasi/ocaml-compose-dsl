@@ -31,11 +31,12 @@ let eat_comments st =
   go ();
   List.rev !comments
 
-let parse_value st =
+let rec parse_value st =
   let t = current st in
   match t.token with
   | Lexer.STRING s -> advance st; String s
   | Lexer.IDENT s -> advance st; Ident s
+  | Lexer.NUMBER s -> advance st; Number s
   | Lexer.LBRACKET ->
     advance st;
     let values = ref [] in
@@ -44,14 +45,7 @@ let parse_value st =
       match t.token with
       | Lexer.RBRACKET -> advance st
       | _ ->
-        let v =
-          let t = current st in
-          match t.token with
-          | Lexer.STRING s -> advance st; String s
-          | Lexer.IDENT s -> advance st; Ident s
-          | _ -> raise (Parse_error (t.pos, "expected value in list"))
-        in
-        values := v :: !values;
+        values := parse_value st :: !values;
         let t = current st in
         (match t.token with
          | Lexer.COMMA -> advance st; go ()
