@@ -91,6 +91,13 @@ loop (
   >>> upload(tag: "v0.1.0")
 ```
 
+```
+resize(width: 1920, height: 1080)
+  >>> compress(quality: 85)
+  >>> dose(amount: 100mg)       -- numeric literals with unit suffixes
+  >>> adjust(offset: -3.14)     -- negative floats supported
+```
+
 ## Usage
 
 ```sh
