@@ -80,6 +80,28 @@ let tokenize input =
     let s = String.sub input start (!i - start) in
     { token = COMMENT s; pos = p }
   in
+  let read_number () =
+    let p = pos () in
+    let start = !i in
+    if !i < len && input.[!i] = '-' then advance ();
+    while !i < len && input.[!i] >= '0' && input.[!i] <= '9' do
+      advance ()
+    done;
+    if !i < len && input.[!i] = '.' then begin
+      advance ();
+      let frac_start = !i in
+      while !i < len && input.[!i] >= '0' && input.[!i] <= '9' do
+        advance ()
+      done;
+      if !i = frac_start then
+        raise (Lex_error (p, "expected digit after '.'"))
+    end;
+    while !i < len && ((input.[!i] >= 'a' && input.[!i] <= 'z') || (input.[!i] >= 'A' && input.[!i] <= 'Z')) do
+      advance ()
+    done;
+    let s = String.sub input start (!i - start) in
+    { token = NUMBER s; pos = p }
+  in
   while !i < len do
     skip_whitespace ();
     if !i >= len then ()
@@ -120,9 +142,15 @@ let tokenize input =
       | '-' ->
         if peek2 () = Some '-' then begin
           tokens := read_comment () :: !tokens
-        end else
-          raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
+        end else begin
+          match peek2 () with
+          | Some c2 when c2 >= '0' && c2 <= '9' ->
+            tokens := read_number () :: !tokens
+          | _ ->
+            raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
+        end
       | '"' -> tokens := read_string () :: !tokens
+      | c when c >= '0' && c <= '9' -> tokens := read_number () :: !tokens
       | c when is_ident_start c -> tokens := read_ident () :: !tokens
       | c -> raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
   done;

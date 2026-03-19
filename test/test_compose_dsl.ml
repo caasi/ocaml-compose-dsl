@@ -110,6 +110,88 @@ let test_lex_double_ampersand () =
   | exception Lexer.Lex_error (_, msg) ->
     Alcotest.(check string) "error msg" "unexpected character '&'" msg
 
+let test_lex_integer () =
+  let tokens = Lexer.tokenize "42" in
+  match (List.hd tokens).token with
+  | Lexer.NUMBER "42" -> ()
+  | _ -> Alcotest.fail "expected NUMBER 42"
+
+let test_lex_float () =
+  let tokens = Lexer.tokenize "3.14" in
+  match (List.hd tokens).token with
+  | Lexer.NUMBER "3.14" -> ()
+  | _ -> Alcotest.fail "expected NUMBER 3.14"
+
+let test_lex_negative_integer () =
+  let tokens = Lexer.tokenize "a(x: -5)" in
+  let has_neg =
+    List.exists
+      (fun (t : Lexer.located) ->
+        match t.token with Lexer.NUMBER "-5" -> true | _ -> false)
+      tokens
+  in
+  Alcotest.(check bool) "has NUMBER -5" true has_neg
+
+let test_lex_negative_float () =
+  let tokens = Lexer.tokenize "a(x: -0.5)" in
+  let has_neg =
+    List.exists
+      (fun (t : Lexer.located) ->
+        match t.token with Lexer.NUMBER "-0.5" -> true | _ -> false)
+      tokens
+  in
+  Alcotest.(check bool) "has NUMBER -0.5" true has_neg
+
+let test_lex_negative_is_not_comment () =
+  let tokens = Lexer.tokenize "a(x: -3)" in
+  let has_comment =
+    List.exists
+      (fun (t : Lexer.located) ->
+        match t.token with Lexer.COMMENT _ -> true | _ -> false)
+      tokens
+  in
+  Alcotest.(check bool) "no comment" false has_comment
+
+let test_lex_trailing_dot () =
+  match Lexer.tokenize "a(x: 3.)" with
+  | _ -> Alcotest.fail "expected lex error"
+  | exception Lexer.Lex_error (_, msg) ->
+    Alcotest.(check string) "error msg" "expected digit after '.'" msg
+
+let test_lex_leading_dot () =
+  match Lexer.tokenize "a(x: .5)" with
+  | _ -> Alcotest.fail "expected lex error"
+  | exception Lexer.Lex_error (_, msg) ->
+    Alcotest.(check string) "error msg" "unexpected character '.'" msg
+
+let test_lex_unit_suffix () =
+  let tokens = Lexer.tokenize "100mg" in
+  match (List.hd tokens).token with
+  | Lexer.NUMBER "100mg" -> ()
+  | _ -> Alcotest.fail "expected NUMBER 100mg"
+
+let test_lex_float_unit_suffix () =
+  let tokens = Lexer.tokenize "2.5cm" in
+  match (List.hd tokens).token with
+  | Lexer.NUMBER "2.5cm" -> ()
+  | _ -> Alcotest.fail "expected NUMBER 2.5cm"
+
+let test_lex_negative_unit_suffix () =
+  let tokens = Lexer.tokenize "a(x: -10dB)" in
+  let has_neg =
+    List.exists
+      (fun (t : Lexer.located) ->
+        match t.token with Lexer.NUMBER "-10dB" -> true | _ -> false)
+      tokens
+  in
+  Alcotest.(check bool) "has NUMBER -10dB" true has_neg
+
+let test_lex_number_no_unit () =
+  let tokens = Lexer.tokenize "42" in
+  match (List.hd tokens).token with
+  | Lexer.NUMBER "42" -> ()
+  | _ -> Alcotest.fail "expected NUMBER 42 (no unit)"
+
 (* === Parser tests === *)
 
 (* node = ident , [ "(" , [ args ] , ")" ] *)
@@ -472,6 +554,17 @@ let lexer_tests =
   ; "fanout operator", `Quick, test_lex_fanout_operator
   ; "partial ampersand", `Quick, test_lex_partial_ampersand
   ; "double ampersand", `Quick, test_lex_double_ampersand
+  ; "integer literal", `Quick, test_lex_integer
+  ; "float literal", `Quick, test_lex_float
+  ; "negative integer", `Quick, test_lex_negative_integer
+  ; "negative float", `Quick, test_lex_negative_float
+  ; "negative is not comment", `Quick, test_lex_negative_is_not_comment
+  ; "trailing dot invalid", `Quick, test_lex_trailing_dot
+  ; "leading dot invalid", `Quick, test_lex_leading_dot
+  ; "unit suffix", `Quick, test_lex_unit_suffix
+  ; "float unit suffix", `Quick, test_lex_float_unit_suffix
+  ; "negative unit suffix", `Quick, test_lex_negative_unit_suffix
+  ; "number no unit", `Quick, test_lex_number_no_unit
   ]
 
 let parser_tests =
