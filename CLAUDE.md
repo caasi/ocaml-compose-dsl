@@ -65,6 +65,7 @@ git push origin v0.1.0
 ## Known Bugs
 
 - `checker.ml`: `String.sub s 0 5 = "check"` crashes when `String.length n.name = 4` — the guard only checks `>= 4` but `String.sub` needs `>= 5`. Same pattern may affect other substring checks in `scan`.
+- `parser.ml`: Comments consumed by `eat_comments` in `parse_seq_expr`, `parse_alt_expr`, and `parse_par_expr` are silently discarded when `lhs` is not a `Node` (e.g. `Group`, `Loop`, `Fanout`). Only `Node` expressions can carry comments.
 
 ## Plans
 
