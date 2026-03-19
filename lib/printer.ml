@@ -3,6 +3,7 @@ open Ast
 let rec value_to_string = function
   | String s -> Printf.sprintf "String(%S)" s
   | Ident s -> Printf.sprintf "Ident(%S)" s
+  | Number s -> Printf.sprintf "Number(%s)" s
   | List vs ->
     Printf.sprintf "List([%s])"
       (String.concat ", " (List.map value_to_string vs))

@@ -581,6 +581,24 @@ let test_print_group () =
   Alcotest.(check string) "group"
     {|Par(Group(Seq(Node("a", [], []), Node("b", [], []))), Node("c", [], []))|} s
 
+let test_print_number_arg () =
+  let ast = parse_ok "resize(width: 1920, height: 1080)" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "number args"
+    {|Node("resize", [width: Number(1920), height: Number(1080)], [])|} s
+
+let test_print_negative_number () =
+  let ast = parse_ok "adjust(offset: -3.14)" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "negative number"
+    {|Node("adjust", [offset: Number(-3.14)], [])|} s
+
+let test_print_number_with_unit () =
+  let ast = parse_ok "dose(amount: 100mg)" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "number with unit"
+    {|Node("dose", [amount: Number(100mg)], [])|} s
+
 let test_print_comment () =
   let ast = parse_ok "a -- this is a comment" in
   let s = Printer.to_string ast in
@@ -677,6 +695,9 @@ let printer_tests =
   ; "fanout", `Quick, test_print_fanout
   ; "loop", `Quick, test_print_loop
   ; "group", `Quick, test_print_group
+  ; "number arg", `Quick, test_print_number_arg
+  ; "negative number", `Quick, test_print_negative_number
+  ; "number with unit", `Quick, test_print_number_with_unit
   ; "comment", `Quick, test_print_comment
   ]
 
