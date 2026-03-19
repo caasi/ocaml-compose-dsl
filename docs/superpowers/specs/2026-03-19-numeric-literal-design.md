@@ -2,7 +2,7 @@
 
 ## Summary
 
-Add numeric literal support to the DSL so node arguments can accept numbers (integers and decimals) as values, stored as raw strings without evaluation.
+Add numeric literal support to the DSL so node arguments can accept numbers (integers and decimals, with optional unit suffixes) as values, stored as raw strings without evaluation.
 
 ## Motivation
 
@@ -22,16 +22,16 @@ type value =
   | List of value list
 ```
 
-The string stores the literal text as written (e.g. `"-3.14"`). No parsing to int/float occurs — consumers decide interpretation.
+The string stores the literal text as written (e.g. `"-3.14"`, `"100mg"`, `"2.5cm"`). No parsing to int/float or unit extraction occurs — consumers decide interpretation.
 
 ### Lexer (`lib/lexer.ml`)
 
 New token: `NUMBER of string`.
 
-Matching rule: optional `-` prefix, one or more digits, optional `.` followed by one or more digits.
+Matching rule: optional `-` prefix, one or more digits, optional `.` followed by one or more digits, optional unit suffix (letters only).
 
 ```
--? [0-9]+ ("." [0-9]+)?
+-? [0-9]+ ("." [0-9]+)? [a-zA-Z]*
 ```
 
 The lexer adds a `read_number` function and two new match arms in the main tokenization loop:
@@ -66,7 +66,7 @@ value    = string
          | "[" , [ value , { "," , value } ] , "]"
          ;
 
-number   = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] ;
+number   = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] , { letter } ;
 ```
 
 ## Files Changed
@@ -78,7 +78,7 @@ number   = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] ;
 | `lib/parser.ml` | Handle `NUMBER` in `parse_value` and list value parsing |
 | `lib/printer.ml` | Handle `Number` in `value_to_string` |
 | `README.md` | Update EBNF grammar |
-| `test/test_compose_dsl.ml` | Add tests for integer, float, negative, number-in-list, and number-as-node-name rejection |
+| `test/test_compose_dsl.ml` | Add tests for integer, float, negative, unit suffix, number-in-list, and number-as-node-name rejection |
 
 ## Edge Cases
 
@@ -87,3 +87,5 @@ number   = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] ;
 - `.5` (no leading digit) is not valid — must be `0.5`
 - `3.` (trailing dot, no fractional digits) is not valid — must be `3.0` or `3`
 - Numbers only appear as arg values or list elements, never as node names (parser rejects `42(x: 1)` with "expected node, '(' or 'loop'")
+- Unit suffix is letters only (`mg`, `cm`, `Hz`), no digits or hyphens — `3.14m2` reads as `Number "3.14m"` followed by a lex error on `2` (digit not at ident start), which is fine since such units are not valid
+- Unit suffix is greedy: `100mg` is one token `NUMBER "100mg"`, not `NUMBER "100"` + `IDENT "mg"` (digits are not `is_ident_start`, so no ident can follow immediately)

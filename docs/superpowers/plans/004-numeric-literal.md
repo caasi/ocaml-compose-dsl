@@ -114,6 +114,34 @@ let test_lex_leading_dot () =
   | _ -> Alcotest.fail "expected lex error"
   | exception Lexer.Lex_error (_, msg) ->
     Alcotest.(check string) "error msg" "unexpected character '.'" msg
+
+let test_lex_unit_suffix () =
+  let tokens = Lexer.tokenize "100mg" in
+  match (List.hd tokens).token with
+  | Lexer.NUMBER "100mg" -> ()
+  | _ -> Alcotest.fail "expected NUMBER 100mg"
+
+let test_lex_float_unit_suffix () =
+  let tokens = Lexer.tokenize "2.5cm" in
+  match (List.hd tokens).token with
+  | Lexer.NUMBER "2.5cm" -> ()
+  | _ -> Alcotest.fail "expected NUMBER 2.5cm"
+
+let test_lex_negative_unit_suffix () =
+  let tokens = Lexer.tokenize "a(x: -10dB)" in
+  let has_neg =
+    List.exists
+      (fun (t : Lexer.located) ->
+        match t.token with Lexer.NUMBER "-10dB" -> true | _ -> false)
+      tokens
+  in
+  Alcotest.(check bool) "has NUMBER -10dB" true has_neg
+
+let test_lex_number_no_unit () =
+  let tokens = Lexer.tokenize "42" in
+  match (List.hd tokens).token with
+  | Lexer.NUMBER "42" -> ()
+  | _ -> Alcotest.fail "expected NUMBER 42 (no unit)"
 ```
 
 Register in `lexer_tests`:
@@ -126,6 +154,10 @@ Register in `lexer_tests`:
   ; "negative is not comment", `Quick, test_lex_negative_is_not_comment
   ; "trailing dot invalid", `Quick, test_lex_trailing_dot
   ; "leading dot invalid", `Quick, test_lex_leading_dot
+  ; "unit suffix", `Quick, test_lex_unit_suffix
+  ; "float unit suffix", `Quick, test_lex_float_unit_suffix
+  ; "negative unit suffix", `Quick, test_lex_negative_unit_suffix
+  ; "number no unit", `Quick, test_lex_number_no_unit
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -154,6 +186,10 @@ Add `read_number` function in `lib/lexer.ml` after `read_comment`:
       if !i = frac_start then
         raise (Lex_error (p, "expected digit after '.'"))
     end;
+    (* optional unit suffix: letters only *)
+    while !i < len && ((input.[!i] >= 'a' && input.[!i] <= 'z') || (input.[!i] >= 'A' && input.[!i] <= 'Z')) do
+      advance ()
+    done;
     let s = String.sub input start (!i - start) in
     { token = NUMBER s; pos = p }
   in
@@ -244,6 +280,15 @@ let test_parse_number_in_list () =
      | _ -> Alcotest.fail "expected List of Numbers")
   | _ -> Alcotest.fail "expected Node"
 
+let test_parse_number_with_unit () =
+  let ast = parse_ok "dose(amount: 100mg)" in
+  match ast with
+  | Ast.Node n ->
+    (match (List.hd n.args).value with
+     | Ast.Number "100mg" -> ()
+     | _ -> Alcotest.fail "expected Number with unit")
+  | _ -> Alcotest.fail "expected Node"
+
 let test_parse_number_as_node_name () =
   parse_fails "42(x: 1)"
 ```
@@ -255,6 +300,7 @@ Register in `parser_tests`:
   ; "float value", `Quick, test_parse_float_value
   ; "negative value", `Quick, test_parse_negative_value
   ; "number in list", `Quick, test_parse_number_in_list
+  ; "number with unit", `Quick, test_parse_number_with_unit
   ; "error: number as node name", `Quick, test_parse_number_as_node_name
 ```
 
@@ -313,6 +359,12 @@ let test_print_negative_number () =
   let s = Printer.to_string ast in
   Alcotest.(check string) "negative number"
     {|Node("adjust", [offset: Number(-3.14)], [])|} s
+
+let test_print_number_with_unit () =
+  let ast = parse_ok "dose(amount: 100mg)" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "number with unit"
+    {|Node("dose", [amount: Number(100mg)], [])|} s
 ```
 
 Register in `printer_tests`:
@@ -320,6 +372,7 @@ Register in `printer_tests`:
 ```ocaml
   ; "number arg", `Quick, test_print_number_arg
   ; "negative number", `Quick, test_print_negative_number
+  ; "number with unit", `Quick, test_print_number_with_unit
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -371,7 +424,7 @@ Add `number` production after `string`:
 ```ebnf
 string   = '"' , { any char - '"' } , '"' ;
 
-number   = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] ;
+number   = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] , { letter } ;
 ```
 
 - [ ] **Step 2: Run full test suite to confirm nothing broke**
