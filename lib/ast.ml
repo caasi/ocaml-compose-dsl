@@ -11,6 +11,7 @@ type expr =
   | Node of node
   | Seq of expr * expr (** [>>>] *)
   | Par of expr * expr (** [***] *)
+  | Fanout of expr * expr (** [&&&] *)
   | Alt of expr * expr (** [|||] *)
   | Loop of expr
   | Group of expr
