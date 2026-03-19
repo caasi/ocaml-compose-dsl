@@ -34,18 +34,23 @@ Matching rule: optional `-` prefix, one or more digits, optional `.` followed by
 -? [0-9]+ ("." [0-9]+)?
 ```
 
-The lexer adds a `read_number` function and a new match arm for digit characters (and `-` when followed by a digit, distinguishing from `--` comments).
+The lexer adds a `read_number` function and two new match arms in the main tokenization loop:
+
+1. `c when c >= '0' && c <= '9'` — digits are not `is_ident_start`, so this arm cannot shadow ident parsing.
+2. `'-'` when followed by a digit (not `'-'`) — distinguishes negative numbers from `--` comments. Since `-` is not `is_ident_start` either, no ambiguity with ident tokens arises.
+
+Note: `-` is a valid `is_ident_char` (used mid-ident, e.g. `my-node`), but `read_ident` is only entered when the first character passes `is_ident_start`. Digits and `-` do not pass `is_ident_start`, so there is no conflict.
 
 ### Parser (`lib/parser.ml`)
 
-`parse_value` gains a `NUMBER s -> Number s` arm. The same arm is added inside list parsing so numbers can appear in lists (e.g. `[1, 2, 3]`).
+`parse_value` gains a `NUMBER s -> Number s` arm. The same arm must also be added inside the list-parsing branch's inline match (which duplicates value matching rather than calling `parse_value` recursively). Both locations must be updated.
 
 ### Printer (`lib/printer.ml`)
 
 `value_to_string` gains:
 
 ```ocaml
-| Number s -> Printf.sprintf "Number(%S)" s
+| Number s -> Printf.sprintf "Number(%s)" s
 ```
 
 ### Checker (`lib/checker.ml`)
@@ -73,7 +78,7 @@ number   = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] ;
 | `lib/parser.ml` | Handle `NUMBER` in `parse_value` and list value parsing |
 | `lib/printer.ml` | Handle `Number` in `value_to_string` |
 | `README.md` | Update EBNF grammar |
-| `test/test_compose_dsl.ml` | Add tests for integer, float, negative, and number-in-list cases |
+| `test/test_compose_dsl.ml` | Add tests for integer, float, negative, number-in-list, and number-as-node-name rejection |
 
 ## Edge Cases
 
@@ -81,4 +86,4 @@ number   = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] ;
 - `-` followed by `-` is a comment, not a negative sign
 - `.5` (no leading digit) is not valid — must be `0.5`
 - `3.` (trailing dot, no fractional digits) is not valid — must be `3.0` or `3`
-- Numbers only appear as arg values or list elements, never as node names
+- Numbers only appear as arg values or list elements, never as node names (parser rejects `42(x: 1)` with "expected node, '(' or 'loop'")
