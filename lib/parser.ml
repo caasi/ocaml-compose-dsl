@@ -83,11 +83,8 @@ let parse_args st =
   go ();
   List.rev !args
 
-let rec parse_expr st =
-  let lhs = parse_term st in
-  parse_binop st lhs
-
-and parse_binop st lhs =
+let rec parse_seq_expr st =
+  let lhs = parse_alt_expr st in
   let comments = eat_comments st in
   let lhs =
     match lhs with
@@ -96,9 +93,34 @@ and parse_binop st lhs =
   in
   let t = current st in
   match t.token with
-  | Lexer.SEQ -> advance st; let rhs = parse_term st in parse_binop st (Seq (lhs, rhs))
-  | Lexer.PAR -> advance st; let rhs = parse_term st in parse_binop st (Par (lhs, rhs))
-  | Lexer.ALT -> advance st; let rhs = parse_term st in parse_binop st (Alt (lhs, rhs))
+  | Lexer.SEQ -> advance st; Seq (lhs, parse_seq_expr st)
+  | _ -> lhs
+
+and parse_alt_expr st =
+  let lhs = parse_par_expr st in
+  let comments = eat_comments st in
+  let lhs =
+    match lhs with
+    | Node n -> Node { n with comments = n.comments @ comments }
+    | _ -> lhs
+  in
+  let t = current st in
+  match t.token with
+  | Lexer.ALT -> advance st; Alt (lhs, parse_alt_expr st)
+  | _ -> lhs
+
+and parse_par_expr st =
+  let lhs = parse_term st in
+  let comments = eat_comments st in
+  let lhs =
+    match lhs with
+    | Node n -> Node { n with comments = n.comments @ comments }
+    | _ -> lhs
+  in
+  let t = current st in
+  match t.token with
+  | Lexer.PAR -> advance st; Par (lhs, parse_par_expr st)
+  | Lexer.FANOUT -> advance st; Fanout (lhs, parse_par_expr st)
   | _ -> lhs
 
 and parse_term st =
@@ -121,19 +143,19 @@ and parse_term st =
   | Lexer.LOOP ->
     advance st;
     expect st (fun t -> t = Lexer.LPAREN) "expected '(' after 'loop'";
-    let body = parse_expr st in
+    let body = parse_seq_expr st in
     expect st (fun t -> t = Lexer.RPAREN) "expected ')' to close 'loop'";
     Loop body
   | Lexer.LPAREN ->
     advance st;
-    let inner = parse_expr st in
+    let inner = parse_seq_expr st in
     expect st (fun t -> t = Lexer.RPAREN) "expected ')'";
     Group inner
   | _ -> raise (Parse_error (t.pos, "expected node, '(' or 'loop'"))
 
 let parse tokens =
   let st = make tokens in
-  let expr = parse_expr st in
+  let expr = parse_seq_expr st in
   let t = current st in
   (match t.token with
    | Lexer.EOF -> ()
