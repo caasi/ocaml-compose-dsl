@@ -49,7 +49,10 @@ let check expr =
       check_question_balance a;
       check_question_balance b;
       go a; go b
-    | Alt (a, b) -> go a; go b
+    | Alt (a, b) ->
+      check_question_balance a;
+      check_question_balance b;
+      go a; go b
     | Loop body ->
       let has_eval = ref false in
       let rec scan = function

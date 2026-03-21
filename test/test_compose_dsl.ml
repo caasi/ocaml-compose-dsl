@@ -774,6 +774,11 @@ let test_check_alt_before_question_still_warns () =
   let warnings = check_ok_with_warnings {|(a ||| b) >>> "ready"? >>> process|} in
   Alcotest.(check int) "one warning" 1 (List.length warnings)
 
+let test_check_question_inside_alt_branch () =
+  (* ? inside an Alt branch has no ||| — should warn *)
+  let warnings = check_ok_with_warnings {|("ready"? >>> process) ||| fallback|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings)
+
 let test_check_loop_eval_inside_question () =
   (* check? wraps an eval node — loop should recognize it *)
   let ast = parse_ok {|loop(check? >>> (exit ||| continue))|} in
@@ -1039,6 +1044,7 @@ let checker_tests =
   ; "question in fanout branch no alt", `Quick, test_check_question_in_fanout_branch_no_alt
   ; "alt before question still warns", `Quick, test_check_alt_before_question_still_warns
   ; "loop eval inside question", `Quick, test_check_loop_eval_inside_question
+  ; "question inside alt branch", `Quick, test_check_question_inside_alt_branch
   ]
 
 let printer_tests =
