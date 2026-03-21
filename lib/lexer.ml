@@ -132,9 +132,11 @@ let tokenize input =
       let p = pos () in
       (* NOTE: byte-level dispatch. All operators/delimiters are ASCII, so
          matching on the raw byte is safe — UTF-8 continuation bytes (0x80-0xBF)
-         never collide with ASCII, and lead bytes (0xC0-0xFF) fall through to
-         the ident branch. To migrate to Uchar.t-based dispatch, change this
-         match and the peek_byte calls above. *)
+         never collide with ASCII. For valid UTF-8 input, the cursor is always
+         on a codepoint boundary, so lead bytes (0xC0-0xFF) fall through to
+         the ident branch where advance() handles them as multi-byte sequences.
+         Malformed continuation bytes at unexpected positions are caught by
+         advance()'s UTF-8 validation. *)
       let c = input.[!i] in
       match c with
       | '(' -> tokens := { token = LPAREN; pos = p } :: !tokens; advance ()
