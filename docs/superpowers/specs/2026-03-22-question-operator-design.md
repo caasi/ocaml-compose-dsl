@@ -86,9 +86,11 @@ The checker currently only produces errors. A warning mechanism is added:
 
 **Rule 1: `?` without matching `|||`**
 
-Walk the AST. When encountering `Question`, set a "pending question" flag. When encountering `Alt`, clear the flag. Scope boundaries are: top-level expression, `Loop` body, and `Group` body. At each scope boundary exit, if the flag is still set, emit the warning.
+Walk the `Seq` chain at the current scope level with an integer counter (not a boolean). Increment the counter when encountering `Question`. Decrement (min 0) when encountering `Alt`. At scope exit, if counter > 0, emit one warning per unmatched `?`.
 
-Scope means the `?` and `|||` must be in the same `Seq` chain (possibly with intermediate steps). A `|||` nested inside a `Par`/`Fanout` branch does **not** count as matching — it belongs to a different structural context.
+**Scope boundaries** (each is checked independently): top-level expression, `Loop` body, `Group` body, each branch of `Par`, and each branch of `Fanout`. The walker does **not** descend into these sub-scopes when scanning the current scope — each boundary spawns its own independent walk.
+
+This means the `?` and `|||` must be in the same `Seq` chain (possibly with intermediate steps). A `|||` nested inside a `Par`/`Fanout` branch, `Group`, or `Loop` does **not** count as matching — it belongs to a different scope.
 
 ```
 warning: '?' without matching '|||' in scope
@@ -120,7 +122,7 @@ Warning format matches existing error format with a `warning:` prefix.
 
 Adding `Question` to `expr` requires updating all existing pattern matches:
 
-- `attach_comments_right`: comments on `node?` attach to the inner node (already handled before `?` is consumed). `Question` itself does not carry additional comments.
+- `attach_comments_right`: when called on `Question (QNode n)`, recurse into the inner node and attach comments there. For `Question (QString _)`, comments are dropped (strings have no comment field). In practice, comments are typically parsed and attached to the inner node before `?` is consumed, so this case is rare.
 - Checker's `Loop` body scan: `Question` is traversed like any other node.
 - Printer: new case for `Question` output.
 
