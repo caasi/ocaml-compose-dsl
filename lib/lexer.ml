@@ -44,9 +44,19 @@ let tokenize input =
   let tokens = Buffer.create 64 |> ignore; ref [] in
   let pos () = { line = !line; col = !col } in
   let advance () =
-    if !i < len && input.[!i] = '\n' then (incr line; col := 1)
-    else incr col;
-    incr i
+    if !i < len then begin
+      let d = String.get_utf_8_uchar input !i in
+      if Uchar.utf_decode_is_valid d then begin
+        let n = Uchar.utf_decode_length d in
+        let u = Uchar.utf_decode_uchar d in
+        if Uchar.equal u (Uchar.of_char '\n') then
+          (incr line; col := 1)
+        else
+          incr col;
+        i := !i + n
+      end else
+        raise (Lex_error (pos (), "invalid UTF-8 byte sequence"))
+    end
   in
   let peek2 () = if !i + 1 < len then Some input.[!i + 1] else None in
   let skip_whitespace () =
