@@ -42,9 +42,11 @@ The main `match c with` dispatch already routes to `read_ident` via `c when is_i
 
 ### Number unit suffix
 
-The unit suffix loop in `read_number` changes from matching `[a-zA-Z]` to matching `is_ident_char`. This allows `500ミリ秒` to parse as `NUMBER "500ミリ秒"`.
+The unit suffix in `read_number` must start with a non-digit (`is_ident_start`-like byte, excluding `-`), then continues with `is_ident_char` (which allows digits). This allows:
 
-Note: this means `100abc123` parses as a single NUMBER `"100abc123"` (digits in unit suffix). This is intentional — the DSL does not validate unit semantics, and real-world units like `h264` or `mp3` contain digits.
+- `500ミリ秒` → NUMBER `"500ミリ秒"`
+- `100m2` → NUMBER `"100m2"` (area unit shorthand)
+- `100` followed by `200` → two separate NUMBER tokens (no suffix on first, digits don't start a suffix)
 
 ### Unchanged components
 
@@ -64,7 +66,8 @@ ident_char  = ? any byte that is not ASCII whitespace,
                 and not one of ( ) [ ] : , > * | & " .
                 ! # $ % ^ + = { } < ; ' ` ~ / ? @ \ ? ;
 
-number      = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] , { ident_char } ;
+unit_start  = ? is_ident_start excluding "-" ? ;
+number      = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] , [ unit_start , { ident_char } ] ;
 ```
 
 ### Trade-offs
@@ -86,5 +89,5 @@ number      = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] , { iden
 | `café >>> naïve` | Seq of two nodes with non-ASCII Latin idents |
 | `α >>> β` | Seq of two nodes with Greek letter idents |
 | `a_名前-test` | Single ident mixing ASCII and Unicode |
-| `100abc123` | NUMBER `"100abc123"` (digits in unit suffix) |
+| `100m2` | NUMBER `"100m2"` (unit suffix starts with letter, then digit) |
 | `### invalid` | Lex error on `#` (reserved punctuation) |
