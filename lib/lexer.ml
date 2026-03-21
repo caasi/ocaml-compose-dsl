@@ -106,9 +106,12 @@ let tokenize input =
       if !i = frac_start then
         raise (Lex_error (p, "expected digit after '.'"))
     end;
-    while !i < len && ((input.[!i] >= 'a' && input.[!i] <= 'z') || (input.[!i] >= 'A' && input.[!i] <= 'Z')) do
-      advance ()
-    done;
+    if !i < len && is_ident_start input.[!i] then begin
+      advance ();
+      while !i < len && is_ident_char input.[!i] do
+        advance ()
+      done
+    end;
     let s = String.sub input start (!i - start) in
     { token = NUMBER s; pos = p }
   in
