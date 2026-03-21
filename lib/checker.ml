@@ -4,6 +4,15 @@ type error = { message : string }
 type warning = { message : string }
 type result = { errors : error list; warnings : warning list }
 
+let rec normalize = function
+  | Group inner -> normalize inner
+  | Seq (a, b) -> Seq (normalize a, normalize b)
+  | Par (a, b) -> Par (normalize a, normalize b)
+  | Fanout (a, b) -> Fanout (normalize a, normalize b)
+  | Alt (a, b) -> Alt (normalize a, normalize b)
+  | Loop body -> Loop (normalize body)
+  | (Node _ | Question _) as e -> e
+
 let check expr =
   let errors = ref [] in
   let warnings = ref [] in
@@ -20,11 +29,11 @@ let check expr =
     | Alt _ -> -1
     | Node _ -> 0
     | Seq (a, b) -> count_question_node a + count_question_seq b
-    | Group inner -> count_question_node inner
+    | Group _ -> 0
     | Par _ | Fanout _ | Loop _ -> 0
   in
   let check_question_balance expr =
-    let n = count_question_seq expr in
+    let n = count_question_seq (normalize expr) in
     let unmatched = max 0 n in
     for _ = 1 to unmatched do
       add_warning "'?' without matching '|||' in scope"
@@ -67,7 +76,6 @@ let check expr =
       check_question_balance body;
       go body
     | Group inner ->
-      check_question_balance inner;
       go inner
     | Question _ -> ()
   in

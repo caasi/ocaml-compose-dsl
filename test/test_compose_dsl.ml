@@ -757,6 +757,10 @@ let test_check_existing_alt_no_warning () =
   let warnings = check_ok_with_warnings {|a ||| b|} in
   Alcotest.(check int) "no warnings" 0 (List.length warnings)
 
+let test_check_question_in_group_with_alt () =
+  let warnings = check_ok_with_warnings {|("ready"?) >>> (a ||| b)|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
 (* === Printer tests === *)
 
 let test_print_simple_node () =
@@ -995,6 +999,7 @@ let checker_tests =
   ; "multiple questions", `Quick, test_check_multiple_questions
   ; "multiple questions unmatched", `Quick, test_check_multiple_questions_unmatched
   ; "existing alt no warning", `Quick, test_check_existing_alt_no_warning
+  ; "question in group with alt", `Quick, test_check_question_in_group_with_alt
   ]
 
 let printer_tests =
