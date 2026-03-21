@@ -104,6 +104,14 @@ resize(width: 1920, height: 1080)
   >>> adjust(offset: -3.14)     -- negative floats supported
 ```
 
+```
+読み込み(ソース: "データ.csv")
+  >>> フィルタ(条件: "年齢 > 18")
+  >>> 出力
+```
+
+Identifiers and unit suffixes accept any non-ASCII UTF-8 codepoint, so the DSL works naturally with non-Latin scripts. Error positions report codepoint-level columns, not byte offsets.
+
 ## Usage
 
 ```sh

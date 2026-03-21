@@ -20,7 +20,7 @@ Two opam packages defined in `dune-project` (opam files are auto-generated via `
 Library modules:
 
 - `Ast` — ADT for DSL expressions: Node, Seq (`>>>`), Par (`***`), Fanout (`&&&`), Alt (`|||`), Loop, Group. Values: String, Ident, Number (with optional unit suffix, e.g. `100mg`), List
-- `Lexer` — tokenizer, raises `Lex_error` on invalid input
+- `Lexer` — tokenizer, raises `Lex_error` on invalid input. Supports Unicode identifiers and unit suffixes (non-ASCII bytes accepted). Column positions track codepoints, not bytes (via `String.get_utf_8_uchar`).
 - `Parser` — recursive descent parser, raises `Parse_error`
 - `Checker` — structural validation (e.g. loop must contain an evaluation node)
 - `Printer` — AST to OCaml constructor format string (for agent verification)
