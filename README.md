@@ -22,9 +22,14 @@ alt_expr = par_expr , "|||" , alt_expr              (* branch — infixr 2 *)
 par_expr = term , ( "***" | "&&&" ) , par_expr      (* parallel / fanout — infixr 3 *)
          | term ;
 
+question_term = string , "?"                       (* question — produces Either *)
+              | node , "?"
+              ;
+
 term     = node
          | "loop" , "(" , seq_expr , ")"            (* feedback loop *)
          | "(" , seq_expr , ")"                    (* grouping *)
+         | question_term
          ;
 
 node     = ident , [ "(" , [ args ] , ")" ] ;
@@ -68,6 +73,7 @@ these types describe the data flow for the agent (and human) reading the pipelin
 | `&&&`    | fanout         | `Arrow a b → Arrow a c → Arrow a (b,c)`       |
 | <code>&#124;&#124;&#124;</code> | fanin / branch | `Arrow a c → Arrow b c → Arrow (Either a b) c` |
 | `loop`   | feedback       | `Arrow (a,s) (b,s) → Arrow a b`               |
+| `?`     | question       | `Arrow a (Either a a)`                        |
 
 `***` is right-associative: `a *** b *** c` types as `(A, (B, C))`.
 Comments can annotate the concrete types when the structure isn't obvious from node names.
@@ -108,6 +114,18 @@ resize(width: 1920, height: 1080)
 読み込み(ソース: "データ.csv")
   >>> フィルタ(条件: "年齢 > 18")
   >>> 出力
+```
+
+```
+"earth is not flat"?
+  >>> (believe ||| doubt)
+```
+
+```
+loop(
+  generate >>> verify >>> "all tests pass"?
+  >>> (continue ||| fix_and_retry)
+)
 ```
 
 Identifiers and unit suffixes accept any non-ASCII UTF-8 codepoint, so the DSL works naturally with non-Latin scripts. Error positions report codepoint-level columns, not byte offsets.
