@@ -40,12 +40,12 @@ value    = string
          ;
 
 ident       = ident_start , { ident_char } ;
-ident_start = ? any byte that is not an ASCII digit, not space, tab,
-                newline, or carriage return, and not one of
-                ( ) [ ] : , > * | & - " . ! # $ % ^ + = { } < ; ' ` ~ / ? @ \ ? ;
-ident_char  = ? any byte that is not space, tab, newline, or carriage return,
-                and not one of
-                ( ) [ ] : , > * | & " . ! # $ % ^ + = { } < ; ' ` ~ / ? @ \ ? ;
+ident_start = ? any byte that is not an ASCII digit, not ASCII whitespace,
+                and not one of ( ) [ ] : , > * | & - " .
+                ! # $ % ^ + = { } < ; ' ` ~ / ? @ \ ? ;
+ident_char  = ? any byte that is not ASCII whitespace,
+                and not one of ( ) [ ] : , > * | & " .
+                ! # $ % ^ + = { } < ; ' ` ~ / ? @ \ ? ;
 
 string   = '"' , { any char - '"' } , '"' ;
 

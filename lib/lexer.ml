@@ -28,7 +28,7 @@ let is_special_ascii c =
   || c = '!' || c = '#' || c = '$' || c = '%' || c = '^' || c = '+'
   || c = '=' || c = '{' || c = '}' || c = '<' || c = ';' || c = '\''
   || c = '`' || c = '~' || c = '/' || c = '?' || c = '@' || c = '\\'
-  || c = ' ' || c = '\t' || c = '\n' || c = '\r'
+  || c = ' ' || c = '\t' || c = '\n' || c = '\r' || c = '\x0b' || c = '\x0c'
 
 let is_ident_start c =
   not (is_special_ascii c) && not (c >= '0' && c <= '9') && c <> '-'
@@ -50,7 +50,7 @@ let tokenize input =
   in
   let peek2 () = if !i + 1 < len then Some input.[!i + 1] else None in
   let skip_whitespace () =
-    while !i < len && (input.[!i] = ' ' || input.[!i] = '\t' || input.[!i] = '\n' || input.[!i] = '\r') do
+    while !i < len && (input.[!i] = ' ' || input.[!i] = '\t' || input.[!i] = '\n' || input.[!i] = '\r' || input.[!i] = '\x0b' || input.[!i] = '\x0c') do
       advance ()
     done
   in
