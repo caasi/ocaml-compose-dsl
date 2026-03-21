@@ -308,6 +308,28 @@ let test_lex_error_col_after_unicode () =
   | exception Lexer.Lex_error (pos, _) ->
     Alcotest.(check int) "error col" 4 pos.col
 
+(* question operator *)
+let test_lex_question () =
+  let tokens = Lexer.tokenize "a?" in
+  let toks = List.map (fun (t : Lexer.located) -> t.token) tokens in
+  Alcotest.(check int) "token count" 3 (List.length toks);
+  Alcotest.(check bool) "IDENT" true (List.nth toks 0 = Lexer.IDENT "a");
+  Alcotest.(check bool) "QUESTION" true (List.nth toks 1 = Lexer.QUESTION);
+  Alcotest.(check bool) "EOF" true (List.nth toks 2 = Lexer.EOF)
+
+let test_lex_question_with_space () =
+  let tokens = Lexer.tokenize "a ?" in
+  let toks = List.map (fun (t : Lexer.located) -> t.token) tokens in
+  Alcotest.(check int) "token count" 3 (List.length toks);
+  Alcotest.(check bool) "QUESTION" true (List.nth toks 1 = Lexer.QUESTION)
+
+let test_lex_question_after_string () =
+  let tokens = Lexer.tokenize {|"hello"?|} in
+  let toks = List.map (fun (t : Lexer.located) -> t.token) tokens in
+  Alcotest.(check int) "token count" 3 (List.length toks);
+  Alcotest.(check bool) "STRING" true (List.nth toks 0 = Lexer.STRING "hello");
+  Alcotest.(check bool) "QUESTION" true (List.nth toks 1 = Lexer.QUESTION)
+
 (* === Parser tests === *)
 
 (* node = ident , [ "(" , [ args ] , ")" ] *)
@@ -797,6 +819,9 @@ let lexer_tests =
   ; "multiline unicode col", `Quick, test_lex_multiline_unicode_col
   ; "malformed UTF-8", `Quick, test_lex_malformed_utf8
   ; "error col after unicode", `Quick, test_lex_error_col_after_unicode
+  ; "question token", `Quick, test_lex_question
+  ; "question with space", `Quick, test_lex_question_with_space
+  ; "question after string", `Quick, test_lex_question_after_string
   ]
 
 let parser_tests =

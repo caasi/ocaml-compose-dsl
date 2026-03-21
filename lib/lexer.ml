@@ -13,6 +13,7 @@ type token =
   | ALT (** [|||] *)
   | FANOUT (** [&&&] *)
   | LOOP
+  | QUESTION
   | COMMENT of string
   | EOF
 
@@ -180,6 +181,7 @@ let tokenize input =
             raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
         end
       | '"' -> tokens := read_string () :: !tokens
+      | '?' -> tokens := { token = QUESTION; pos = p } :: !tokens; advance ()
       | c when c >= '0' && c <= '9' -> tokens := read_number () :: !tokens
       | c when is_ident_start c -> tokens := read_ident () :: !tokens
       | c -> raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
