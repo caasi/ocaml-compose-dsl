@@ -1,17 +1,48 @@
 open Ast
 
 type error = { message : string }
+type warning = { message : string }
+type result = { errors : error list; warnings : warning list }
 
 let check expr =
   let errors = ref [] in
-  let add msg = errors := { message = msg } :: !errors in
+  let warnings = ref [] in
+  let add_error msg = errors := ({ message = msg } : error) :: !errors in
+  let add_warning msg = warnings := ({ message = msg } : warning) :: !warnings in
+  let rec count_question_seq = function
+    | Seq (a, b) ->
+      let qa = count_question_node a in
+      let qb = count_question_seq b in
+      qa + qb
+    | e -> count_question_node e
+  and count_question_node = function
+    | Question _ -> 1
+    | Alt _ -> -1
+    | Node _ -> 0
+    | Seq (a, b) -> count_question_node a + count_question_seq b
+    | Group inner -> count_question_node inner
+    | Par _ | Fanout _ | Loop _ -> 0
+  in
+  let check_question_balance expr =
+    let n = count_question_seq expr in
+    let unmatched = max 0 n in
+    for _ = 1 to unmatched do
+      add_warning "'?' without matching '|||' in scope"
+    done
+  in
   let rec go = function
     | Node n ->
       if n.name = "" && n.comments = [] then
-        add "node has no purpose (no name and no comments)"
+        add_error "node has no purpose (no name and no comments)"
     | Seq (a, b) -> go a; go b
-    | Par (a, b) -> go a; go b
-    | Fanout (a, b) -> go a; go b
+    | Par (a, b) ->
+      check_question_balance a;
+      check_question_balance b;
+      go a; go b
+    | Fanout (a, b) ->
+      check_question_balance a;
+      check_question_balance b;
+      go a; go b
     | Alt (a, b) -> go a; go b
     | Loop body ->
       let has_eval = ref false in
@@ -28,12 +59,18 @@ let check expr =
         | Seq (a, b) | Par (a, b) | Fanout (a, b) | Alt (a, b) -> scan a; scan b
         | Loop inner -> scan inner
         | Group inner -> scan inner
+        | Question _ -> ()
       in
       scan body;
       if not !has_eval then
-        add "loop has no evaluation/termination node (expected a node like 'evaluate', 'check', 'verify', etc.)";
+        add_error "loop has no evaluation/termination node (expected a node like 'evaluate', 'check', 'verify', etc.)";
+      check_question_balance body;
       go body
-    | Group inner -> go inner
+    | Group inner ->
+      check_question_balance inner;
+      go inner
+    | Question _ -> ()
   in
+  check_question_balance expr;
   go expr;
-  List.rev !errors
+  { errors = List.rev !errors; warnings = List.rev !warnings }

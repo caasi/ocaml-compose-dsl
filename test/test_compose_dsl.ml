@@ -11,15 +11,21 @@ let parse_fails input =
 
 let check_ok input =
   let ast = parse_ok input in
-  let errors = Checker.check ast in
-  Alcotest.(check int) "no errors" 0 (List.length errors);
+  let result = Checker.check ast in
+  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
   ast
 
 let check_fails input =
   let ast = parse_ok input in
-  let errors = Checker.check ast in
-  Alcotest.(check bool) "has errors" true (List.length errors > 0);
-  errors
+  let result = Checker.check ast in
+  Alcotest.(check bool) "has errors" true (List.length result.Checker.errors > 0);
+  result.Checker.errors
+
+let check_ok_with_warnings input =
+  let ast = parse_ok input in
+  let result = Checker.check ast in
+  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
+  result.Checker.warnings
 
 (* === Lexer tests === *)
 
@@ -713,6 +719,44 @@ let test_check_loop_with_checking () =
   let _ = check_ok "loop (a >>> checking)" in
   ()
 
+let test_check_question_with_alt () =
+  let warnings = check_ok_with_warnings {|"ready"? >>> (go ||| stop)|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_question_without_alt () =
+  let warnings = check_ok_with_warnings {|"ready"? >>> process >>> done|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings);
+  Alcotest.(check bool) "warning message" true
+    (String.length (List.hd warnings).Checker.message > 0)
+
+let test_check_question_with_intermediate_steps () =
+  let warnings = check_ok_with_warnings {|"ok"? >>> log >>> transform >>> (yes ||| no)|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_question_alt_in_par_no_match () =
+  let warnings = check_ok_with_warnings {|"ready"? >>> a *** (b ||| c)|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings)
+
+let test_check_question_in_loop () =
+  let warnings = check_ok_with_warnings {|loop("pass"? >>> (exit ||| eval))|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_question_in_loop_no_alt () =
+  let warnings = check_ok_with_warnings {|loop("pass"? >>> eval)|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings)
+
+let test_check_multiple_questions () =
+  let warnings = check_ok_with_warnings {|"a"? >>> (x ||| y) >>> "b"? >>> (p ||| q)|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_multiple_questions_unmatched () =
+  let warnings = check_ok_with_warnings {|"a"? >>> "b"? >>> (x ||| y)|} in
+  Alcotest.(check int) "one warning (one unmatched)" 1 (List.length warnings)
+
+let test_check_existing_alt_no_warning () =
+  let warnings = check_ok_with_warnings {|a ||| b|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
 (* === Printer tests === *)
 
 let test_print_simple_node () =
@@ -942,6 +986,15 @@ let checker_tests =
   ; "loop with fanout and eval", `Quick, test_check_loop_with_fanout_and_eval
   ; "loop with test (4-char name)", `Quick, test_check_loop_with_test
   ; "loop with checking (check prefix)", `Quick, test_check_loop_with_checking
+  ; "question with alt", `Quick, test_check_question_with_alt
+  ; "question without alt", `Quick, test_check_question_without_alt
+  ; "question with intermediate steps", `Quick, test_check_question_with_intermediate_steps
+  ; "question alt in par no match", `Quick, test_check_question_alt_in_par_no_match
+  ; "question in loop", `Quick, test_check_question_in_loop
+  ; "question in loop no alt", `Quick, test_check_question_in_loop_no_alt
+  ; "multiple questions", `Quick, test_check_multiple_questions
+  ; "multiple questions unmatched", `Quick, test_check_multiple_questions_unmatched
+  ; "existing alt no warning", `Quick, test_check_existing_alt_no_warning
   ]
 
 let printer_tests =
