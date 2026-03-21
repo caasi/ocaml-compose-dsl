@@ -22,9 +22,19 @@ type located = { token : token; pos : pos }
 
 exception Lex_error of pos * string
 
-let is_ident_start c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c = '_'
+let is_special_ascii c =
+  c = '(' || c = ')' || c = '[' || c = ']' || c = ':' || c = ','
+  || c = '>' || c = '*' || c = '|' || c = '&' || c = '"' || c = '.'
+  || c = '!' || c = '#' || c = '$' || c = '%' || c = '^' || c = '+'
+  || c = '=' || c = '{' || c = '}' || c = '<' || c = ';' || c = '\''
+  || c = '`' || c = '~' || c = '/' || c = '?' || c = '@' || c = '\\'
+  || c = ' ' || c = '\t' || c = '\n' || c = '\r'
 
-let is_ident_char c = is_ident_start c || (c >= '0' && c <= '9') || c = '-'
+let is_ident_start c =
+  not (is_special_ascii c) && not (c >= '0' && c <= '9') && c <> '-'
+
+let is_ident_char c =
+  not (is_special_ascii c)
 
 let tokenize input =
   let len = String.length input in
