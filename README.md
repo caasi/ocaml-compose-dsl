@@ -40,14 +40,14 @@ value    = string
          ;
 
 ident       = ident_start , { ident_char } ;
-ident_start = ? any byte that is not an ASCII digit, not ASCII whitespace,
-                and not one of ( ) [ ] : , > * | & - " .
+ident_start = ? any valid UTF-8 codepoint that is not an ASCII digit,
+                not ASCII whitespace, and not one of ( ) [ ] : , > * | & - " .
                 ! # $ % ^ + = { } < ; ' ` ~ / ? @ \ ? ;
-ident_char  = ? any byte that is not ASCII whitespace,
+ident_char  = ? any valid UTF-8 codepoint that is not ASCII whitespace,
                 and not one of ( ) [ ] : , > * | & " .
                 ! # $ % ^ + = { } < ; ' ` ~ / ? @ \ ? ;
 
-string   = '"' , { any char - '"' } , '"' ;
+string   = '"' , { ? any valid UTF-8 codepoint except '"' ? } , '"' ;
 
 number     = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] , [ ident_start , { ident_char } ] ;
 

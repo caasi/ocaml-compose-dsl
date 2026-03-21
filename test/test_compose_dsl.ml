@@ -236,6 +236,78 @@ let test_lex_unicode_mixed_ident () =
   | Lexer.IDENT "a_名前-test" -> ()
   | _ -> Alcotest.fail "expected IDENT a_名前-test"
 
+let test_lex_unicode_ident_col () =
+  let tokens = Lexer.tokenize "翻譯 >>> b" in
+  match tokens with
+  | tok0 :: tok1 :: tok2 :: _ ->
+    (match tok0.token with
+     | Lexer.IDENT "翻譯" -> ()
+     | _ -> Alcotest.fail "expected IDENT 翻譯");
+    (match tok1.token with
+     | Lexer.SEQ -> ()
+     | _ -> Alcotest.fail "expected SEQ");
+    (match tok2.token with
+     | Lexer.IDENT "b" -> ()
+     | _ -> Alcotest.fail "expected IDENT b");
+    Alcotest.(check int) "翻譯 col" 1 tok0.pos.col;
+    Alcotest.(check int) ">>> col" 4 tok1.pos.col;
+    Alcotest.(check int) "b col" 8 tok2.pos.col
+  | _ -> Alcotest.fail "expected at least 3 tokens"
+
+let test_lex_mixed_unicode_col () =
+  let tokens = Lexer.tokenize "a翻譯b >>> c" in
+  match tokens with
+  | tok0 :: tok1 :: _ ->
+    (match tok0.token with
+     | Lexer.IDENT s -> Alcotest.(check string) "ident" "a翻譯b" s
+     | _ -> Alcotest.fail "expected IDENT a翻譯b");
+    (match tok1.token with
+     | Lexer.SEQ -> ()
+     | _ -> Alcotest.fail "expected SEQ");
+    Alcotest.(check int) "ident col" 1 tok0.pos.col;
+    Alcotest.(check int) ">>> col" 6 tok1.pos.col
+  | _ -> Alcotest.fail "expected at least 2 tokens"
+
+let test_lex_unicode_string_col () =
+  let tokens = Lexer.tokenize {|"翻譯" >>> b|} in
+  match tokens with
+  | tok0 :: tok1 :: tok2 :: _ ->
+    (match tok0.token with
+     | Lexer.STRING "翻譯" -> ()
+     | _ -> Alcotest.fail "expected STRING 翻譯");
+    (match tok1.token with
+     | Lexer.SEQ -> ()
+     | _ -> Alcotest.fail "expected SEQ");
+    (match tok2.token with
+     | Lexer.IDENT "b" -> ()
+     | _ -> Alcotest.fail "expected IDENT b");
+    Alcotest.(check int) "string col" 1 tok0.pos.col;
+    Alcotest.(check int) ">>> col" 6 tok1.pos.col;
+    Alcotest.(check int) "b col" 10 tok2.pos.col
+  | _ -> Alcotest.fail "expected at least 3 tokens"
+
+let test_lex_multiline_unicode_col () =
+  let tokens = Lexer.tokenize "翻譯\nb" in
+  match tokens with
+  | tok0 :: tok1 :: _ ->
+    Alcotest.(check int) "翻譯 line" 1 tok0.pos.line;
+    Alcotest.(check int) "翻譯 col" 1 tok0.pos.col;
+    Alcotest.(check int) "b line" 2 tok1.pos.line;
+    Alcotest.(check int) "b col" 1 tok1.pos.col
+  | _ -> Alcotest.fail "expected at least 2 tokens"
+
+let test_lex_malformed_utf8 () =
+  match Lexer.tokenize "\xff\xfe" with
+  | _ -> Alcotest.fail "expected Lex_error"
+  | exception Lexer.Lex_error (_, msg) ->
+    Alcotest.(check string) "error msg" "invalid UTF-8 byte sequence" msg
+
+let test_lex_error_col_after_unicode () =
+  match Lexer.tokenize "翻譯 @" with
+  | _ -> Alcotest.fail "expected Lex_error"
+  | exception Lexer.Lex_error (pos, _) ->
+    Alcotest.(check int) "error col" 4 pos.col
+
 (* === Parser tests === *)
 
 (* node = ident , [ "(" , [ args ] , ")" ] *)
@@ -719,6 +791,12 @@ let lexer_tests =
   ; "unicode Greek ident", `Quick, test_lex_unicode_greek_ident
   ; "unicode accented ident", `Quick, test_lex_unicode_accented_ident
   ; "unicode mixed ident", `Quick, test_lex_unicode_mixed_ident
+  ; "unicode ident col", `Quick, test_lex_unicode_ident_col
+  ; "mixed unicode col", `Quick, test_lex_mixed_unicode_col
+  ; "unicode string col", `Quick, test_lex_unicode_string_col
+  ; "multiline unicode col", `Quick, test_lex_multiline_unicode_col
+  ; "malformed UTF-8", `Quick, test_lex_malformed_utf8
+  ; "error col after unicode", `Quick, test_lex_error_col_after_unicode
   ]
 
 let parser_tests =

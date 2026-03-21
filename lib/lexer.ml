@@ -44,11 +44,21 @@ let tokenize input =
   let tokens = Buffer.create 64 |> ignore; ref [] in
   let pos () = { line = !line; col = !col } in
   let advance () =
-    if !i < len && input.[!i] = '\n' then (incr line; col := 1)
-    else incr col;
-    incr i
+    if !i < len then begin
+      let d = String.get_utf_8_uchar input !i in
+      if Uchar.utf_decode_is_valid d then begin
+        let n = Uchar.utf_decode_length d in
+        let u = Uchar.utf_decode_uchar d in
+        if Uchar.equal u (Uchar.of_char '\n') then
+          (incr line; col := 1)
+        else
+          incr col;
+        i := !i + n
+      end else
+        raise (Lex_error (pos (), "invalid UTF-8 byte sequence"))
+    end
   in
-  let peek2 () = if !i + 1 < len then Some input.[!i + 1] else None in
+  let peek_byte () = if !i + 1 < len then Some input.[!i + 1] else None in
   let skip_whitespace () =
     while !i < len && (input.[!i] = ' ' || input.[!i] = '\t' || input.[!i] = '\n' || input.[!i] = '\r' || input.[!i] = '\x0b' || input.[!i] = '\x0c') do
       advance ()
@@ -57,14 +67,14 @@ let tokenize input =
   let read_string () =
     let p = pos () in
     advance (); (* skip opening quote *)
-    let buf = Buffer.create 32 in
+    let start = !i in
     while !i < len && input.[!i] <> '"' do
-      Buffer.add_char buf input.[!i];
       advance ()
     done;
     if !i >= len then raise (Lex_error (p, "unterminated string"));
+    let s = String.sub input start (!i - start) in
     advance (); (* skip closing quote *)
-    { token = STRING (Buffer.contents buf); pos = p }
+    { token = STRING s; pos = p }
   in
   let read_ident () =
     let p = pos () in
@@ -120,6 +130,13 @@ let tokenize input =
     if !i >= len then ()
     else
       let p = pos () in
+      (* NOTE: byte-level dispatch. All operators/delimiters are ASCII, so
+         matching on the raw byte is safe — UTF-8 continuation bytes (0x80-0xBF)
+         never collide with ASCII. For valid UTF-8 input, the cursor is always
+         on a codepoint boundary, so lead bytes (0xC0-0xFF) fall through to
+         the ident branch where advance() handles them as multi-byte sequences.
+         Malformed continuation bytes at unexpected positions are caught by
+         advance()'s UTF-8 validation. *)
       let c = input.[!i] in
       match c with
       | '(' -> tokens := { token = LPAREN; pos = p } :: !tokens; advance ()
@@ -129,34 +146,34 @@ let tokenize input =
       | ':' -> tokens := { token = COLON; pos = p } :: !tokens; advance ()
       | ',' -> tokens := { token = COMMA; pos = p } :: !tokens; advance ()
       | '>' ->
-        if peek2 () = Some '>' && !i + 2 < len && input.[!i + 2] = '>' then begin
+        if peek_byte () = Some '>' && !i + 2 < len && input.[!i + 2] = '>' then begin
           tokens := { token = SEQ; pos = p } :: !tokens;
           advance (); advance (); advance ()
         end else
           raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
       | '*' ->
-        if peek2 () = Some '*' && !i + 2 < len && input.[!i + 2] = '*' then begin
+        if peek_byte () = Some '*' && !i + 2 < len && input.[!i + 2] = '*' then begin
           tokens := { token = PAR; pos = p } :: !tokens;
           advance (); advance (); advance ()
         end else
           raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
       | '|' ->
-        if peek2 () = Some '|' && !i + 2 < len && input.[!i + 2] = '|' then begin
+        if peek_byte () = Some '|' && !i + 2 < len && input.[!i + 2] = '|' then begin
           tokens := { token = ALT; pos = p } :: !tokens;
           advance (); advance (); advance ()
         end else
           raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
       | '&' ->
-        if peek2 () = Some '&' && !i + 2 < len && input.[!i + 2] = '&' then begin
+        if peek_byte () = Some '&' && !i + 2 < len && input.[!i + 2] = '&' then begin
           tokens := { token = FANOUT; pos = p } :: !tokens;
           advance (); advance (); advance ()
         end else
           raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
       | '-' ->
-        if peek2 () = Some '-' then begin
+        if peek_byte () = Some '-' then begin
           tokens := read_comment () :: !tokens
         end else begin
-          match peek2 () with
+          match peek_byte () with
           | Some c2 when c2 >= '0' && c2 <= '9' ->
             tokens := read_number () :: !tokens
           | _ ->
