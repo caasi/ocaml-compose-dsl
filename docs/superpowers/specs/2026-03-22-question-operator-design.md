@@ -89,11 +89,13 @@ The checker currently only produces errors. A warning mechanism is added:
 
 **Rule 1: `?` without matching `|||`**
 
-Walk the `Seq` chain at the current scope level with an integer counter (not a boolean). Increment the counter when encountering `Question`. Decrement (min 0) when encountering `Alt`. At scope exit, if counter > 0, emit one warning per unmatched `?`.
+Before counting, the checker runs a **graph reduction** pass that strips all `Group` wrappers from the AST. `Group` is syntactic (for operator precedence), not semantic — it does not create a new execution scope. Without this normalization, `("ready"?) >>> (a ||| b)` would false-positive warn because the `Group` around `Question` would be checked independently.
 
-**Scope boundaries** (each is checked independently): top-level expression, `Loop` body, `Group` body, each branch of `Par`, and each branch of `Fanout`. The walker does **not** descend into these sub-scopes when scanning the current scope — each boundary spawns its own independent walk.
+Walk the normalized `Seq` chain with an integer counter (not a boolean). Increment the counter when encountering `Question`. Decrement (min 0) when encountering `Alt`. At scope exit, if counter > 0, emit one warning per unmatched `?`.
 
-This means the `?` and `|||` must be in the same `Seq` chain (possibly with intermediate steps). A `|||` nested inside a `Par`/`Fanout` branch, `Group`, or `Loop` does **not** count as matching — it belongs to a different scope.
+**Scope boundaries** (each is checked independently): top-level expression, `Loop` body, each branch of `Par`, and each branch of `Fanout`. The walker does **not** descend into these sub-scopes when scanning the current scope — each boundary spawns its own independent walk.
+
+This means the `?` and `|||` must be in the same `Seq` chain (possibly with intermediate steps). A `|||` nested inside a `Par`/`Fanout` branch or `Loop` does **not** count as matching — it belongs to a different scope.
 
 ```
 warning: '?' without matching '|||' in scope
