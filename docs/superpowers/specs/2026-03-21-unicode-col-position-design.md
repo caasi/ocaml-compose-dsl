@@ -57,7 +57,30 @@ in
 
 Available for future use where unicode-aware peeking is needed.
 
-### 3. Main loop dispatch — byte-level, with comment
+### 3. `read_string` fix
+
+`read_string` currently uses `Buffer.add_char buf input.[!i]` (adds one byte) then `advance()`. With the new `advance()` skipping entire codepoints (1-4 bytes), only the first byte of multibyte characters would be added, corrupting unicode string content.
+
+Fix: replace the byte-by-byte `Buffer.add_char` loop with a `String.sub`-based approach (same pattern as `read_ident` and `read_comment`). Record `start` position before the loop, use `String.sub input start (!i - start)` after.
+
+```ocaml
+let read_string () =
+  let p = pos () in
+  advance (); (* skip opening quote *)
+  let start = !i in
+  while !i < len && input.[!i] <> '"' do
+    advance ()
+  done;
+  if !i >= len then raise (Lex_error (p, "unterminated string"));
+  let s = String.sub input start (!i - start) in
+  advance (); (* skip closing quote *)
+  { token = STRING s; pos = p }
+in
+```
+
+Note: the `input.[!i] <> '"'` comparison remains byte-level. This is safe because `'"'` (`0x22`) cannot appear as a continuation byte in valid UTF-8, and malformed UTF-8 is caught by `advance()`.
+
+### 4. Main loop dispatch — byte-level, with comment
 
 The main `while` loop continues to use `input.[!i]` for pattern matching on operators and delimiters. This is safe because:
 
@@ -67,12 +90,14 @@ The main `while` loop continues to use `input.[!i]` for pattern matching on oper
 
 A comment is added to mark this as a future migration point for `Uchar.t`-based dispatch.
 
-### 4. What does NOT change
+`peek2()` is also byte-level (`input.[!i + 1]`), but it is only ever called when sitting on an ASCII byte (`>`, `*`, `|`, `&`, `-`), so `!i + 1` is always the next byte boundary. Safe for the same reason.
+
+### 5. What does NOT change
 
 - `is_ident_start`, `is_ident_char` — byte-level predicates, still correct
 - `pos` type — `{ line : int; col : int }` unchanged
 - Error message format — unchanged
-- `read_string`, `read_comment` byte-level comparisons (`'"'`, `'\n'`) — safe, these are ASCII
+- `read_ident`, `read_comment` — use `String.sub` on byte ranges, correct since `i` is still a byte index
 - README EBNF — grammar is unchanged, only position tracking semantics change
 
 ## Testing
@@ -89,7 +114,8 @@ Unicode-related tests that assert col values need their expected col updated fro
 | Mixed ASCII + unicode col | `a翻譯b` as ident | single ident, next token at col 5 |
 | Malformed UTF-8 | `\xff\xfe` | `Lex_error` with "invalid UTF-8 byte sequence" |
 | Multiline unicode | `翻譯\nb` | `翻譯` at line 1 col 1, `b` at line 2 col 1 |
-| Unicode in string literal col | `"翻譯" >>> b` | string at col 1, `>>>` at col 5, `b` at col 9 |
+| Unicode in string literal col | `"翻譯" >>> b` | string at col 1, `>>>` at col 6, `b` at col 10 |
+| Error position after unicode | `翻譯 @` | `Lex_error` at col 4 |
 
 ## Scope
 
