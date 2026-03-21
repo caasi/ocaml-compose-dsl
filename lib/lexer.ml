@@ -59,6 +59,15 @@ let tokenize input =
     end
   in
   let peek_byte () = if !i + 1 < len then Some input.[!i + 1] else None in
+  let _peek_uchar () =
+    if !i >= len then None
+    else
+      let d = String.get_utf_8_uchar input !i in
+      if Uchar.utf_decode_is_valid d then
+        Some (Uchar.utf_decode_uchar d)
+      else
+        raise (Lex_error (pos (), "invalid UTF-8 byte sequence"))
+  in
   let skip_whitespace () =
     while !i < len && (input.[!i] = ' ' || input.[!i] = '\t' || input.[!i] = '\n' || input.[!i] = '\r' || input.[!i] = '\x0b' || input.[!i] = '\x0c') do
       advance ()
@@ -130,6 +139,11 @@ let tokenize input =
     if !i >= len then ()
     else
       let p = pos () in
+      (* NOTE: byte-level dispatch. All operators/delimiters are ASCII, so
+         matching on the raw byte is safe — UTF-8 continuation bytes (0x80-0xBF)
+         never collide with ASCII, and lead bytes (0xC0-0xFF) fall through to
+         the ident branch. To migrate to Uchar.t-based dispatch, change this
+         match and the peek_byte calls above. *)
       let c = input.[!i] in
       match c with
       | '(' -> tokens := { token = LPAREN; pos = p } :: !tokens; advance ()
