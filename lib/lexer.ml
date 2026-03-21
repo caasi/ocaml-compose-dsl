@@ -67,14 +67,14 @@ let tokenize input =
   let read_string () =
     let p = pos () in
     advance (); (* skip opening quote *)
-    let buf = Buffer.create 32 in
+    let start = !i in
     while !i < len && input.[!i] <> '"' do
-      Buffer.add_char buf input.[!i];
       advance ()
     done;
     if !i >= len then raise (Lex_error (p, "unterminated string"));
+    let s = String.sub input start (!i - start) in
     advance (); (* skip closing quote *)
-    { token = STRING (Buffer.contents buf); pos = p }
+    { token = STRING s; pos = p }
   in
   let read_ident () =
     let p = pos () in
