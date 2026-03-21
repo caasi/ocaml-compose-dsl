@@ -111,7 +111,7 @@ Unicode-related tests that assert col values need their expected col updated fro
 | Test | Input | Expected |
 |------|-------|----------|
 | Unicode ident col | `翻譯 >>> b` | `翻譯` at col 1, `>>>` at col 4, `b` at col 8 |
-| Mixed ASCII + unicode col | `a翻譯b` as ident | single ident, next token at col 5 |
+| Mixed ASCII + unicode col | `a翻譯b >>> c` | ident at col 1, `>>>` at col 6 |
 | Malformed UTF-8 | `\xff\xfe` | `Lex_error` with "invalid UTF-8 byte sequence" |
 | Multiline unicode | `翻譯\nb` | `翻譯` at line 1 col 1, `b` at line 2 col 1 |
 | Unicode in string literal col | `"翻譯" >>> b` | string at col 1, `>>>` at col 6, `b` at col 10 |
