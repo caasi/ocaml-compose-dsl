@@ -2,4 +2,9 @@
 
 (env
  (static
-  (link_flags (:standard -ccopt -static))))
+  (link_flags (:standard -ccopt -static))
+  (ocamlc_flags (:standard -warn-error -8))
+  (ocamlopt_flags (:standard -warn-error -8)))
+ (_
+  (ocamlc_flags (:standard -warn-error -8))
+  (ocamlopt_flags (:standard -warn-error -8))))

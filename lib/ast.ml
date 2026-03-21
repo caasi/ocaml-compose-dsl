@@ -8,6 +8,10 @@ type arg = { key : string; value : value }
 
 type node = { name : string; args : arg list; comments : string list }
 
+type question_term =
+  | QNode of node
+  | QString of string
+
 type expr =
   | Node of node
   | Seq of expr * expr (** [>>>] *)
@@ -16,3 +20,4 @@ type expr =
   | Alt of expr * expr (** [|||] *)
   | Loop of expr
   | Group of expr
+  | Question of question_term
