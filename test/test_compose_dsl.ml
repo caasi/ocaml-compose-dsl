@@ -761,6 +761,27 @@ let test_check_question_in_group_with_alt () =
   let warnings = check_ok_with_warnings {|("ready"?) >>> (a ||| b)|} in
   Alcotest.(check int) "no warnings" 0 (List.length warnings)
 
+let test_check_question_in_fanout_branch () =
+  let warnings = check_ok_with_warnings {|("ready"? >>> (a ||| b)) &&& c|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_question_in_fanout_branch_no_alt () =
+  let warnings = check_ok_with_warnings {|("ready"? >>> process) &&& c|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings)
+
+let test_parse_comment_on_node_question () =
+  let ast = parse_ok "validate -- important\n? >>> (a ||| b)" in
+  match ast with
+  | Ast.Seq (Ast.Question (Ast.QNode { name = "validate"; comments = ["important"]; _ }), _) -> ()
+  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+
+let test_parse_comment_on_string_question () =
+  let ast = parse_ok {|"hello" -- note
+? >>> (a ||| b)|} in
+  match ast with
+  | Ast.Seq (Ast.Question (Ast.QString "hello"), _) -> ()
+  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+
 (* === Printer tests === *)
 
 let test_print_simple_node () =
@@ -979,6 +1000,8 @@ let parser_tests =
   ; "error: bare string alone", `Quick, test_parse_bare_string_alone_error
   ; "question in loop", `Quick, test_parse_question_in_loop
   ; "question in group", `Quick, test_parse_question_in_group
+  ; "comment on node question", `Quick, test_parse_comment_on_node_question
+  ; "comment on string question", `Quick, test_parse_comment_on_string_question
   ]
 
 let checker_tests =
@@ -1000,6 +1023,8 @@ let checker_tests =
   ; "multiple questions unmatched", `Quick, test_check_multiple_questions_unmatched
   ; "existing alt no warning", `Quick, test_check_existing_alt_no_warning
   ; "question in group with alt", `Quick, test_check_question_in_group_with_alt
+  ; "question in fanout branch", `Quick, test_check_question_in_fanout_branch
+  ; "question in fanout branch no alt", `Quick, test_check_question_in_fanout_branch_no_alt
   ]
 
 let printer_tests =

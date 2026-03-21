@@ -29,7 +29,7 @@ let check expr =
     | Alt _ -> -1
     | Node _ -> 0
     | Seq (a, b) -> count_question_node a + count_question_seq b
-    | Group _ -> 0
+    | Group _ -> 0 (* defensive: unreachable after normalize *)
     | Par _ | Fanout _ | Loop _ -> 0
   in
   let check_question_balance expr =
@@ -76,6 +76,9 @@ let check expr =
       check_question_balance body;
       go body
     | Group inner ->
+      (* Group is syntactic (precedence), not a scope boundary.
+         Balance checking happens on the enclosing scope after normalize
+         strips all Group wrappers. *)
       go inner
     | Question _ -> ()
   in
