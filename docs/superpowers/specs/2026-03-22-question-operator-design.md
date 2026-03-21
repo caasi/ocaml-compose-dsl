@@ -61,15 +61,15 @@ The OCaml type system enforces that `Question` can only contain a node or a stri
 
 ## Lexer Changes
 
-Add a `Question` token for the `?` character. The `?` character is already excluded from identifier characters in the existing grammar, so there is no ambiguity.
+Add a `Question` token for the `?` character. The `?` character is already excluded from identifier characters in the existing grammar, so there is no ambiguity. The `| '?' ->` match arm must be added before the catch-all error case in the tokenizer.
 
 ## Parser Changes
 
 In `parse_term`:
 
-1. After parsing a string literal, peek for `?`. If found, consume it and return `Question (QString s)`.
-2. After parsing a node, peek for `?`. If found, consume it and return `Question (QNode n)`.
-3. A bare string without `?` remains invalid as a term (no change to existing behavior).
+1. If the current token is a `STRING`, peek the next token. If it is `QUESTION`, consume both and return `Question (QString s)`. If not, raise a parse error: `"bare string is not a valid term; did you mean to add '?'?"`.
+2. After parsing a node, peek for `?`. If found, consume it and return `Question (QNode n)`. Comments on the node are parsed and attached to the inner node before `?` is consumed.
+3. A bare string without `?` remains invalid as a term (parse error as described above).
 
 Whitespace between the string/node and `?` is handled by the lexer's whitespace skipping — the parser sees only the token stream.
 
@@ -86,11 +86,15 @@ The checker currently only produces errors. A warning mechanism is added:
 
 **Rule 1: `?` without matching `|||`**
 
-If a `Question` appears in a scope but no `Alt` is reachable downstream in the same scope, emit:
+Walk the AST. When encountering `Question`, set a "pending question" flag. When encountering `Alt`, clear the flag. Scope boundaries are: top-level expression, `Loop` body, and `Group` body. At each scope boundary exit, if the flag is still set, emit the warning.
+
+Scope means the `?` and `|||` must be in the same `Seq` chain (possibly with intermediate steps). A `|||` nested inside a `Par`/`Fanout` branch does **not** count as matching — it belongs to a different structural context.
 
 ```
-warning: line N, col M: '?' without matching '|||' in scope
+warning: '?' without matching '|||' in scope
 ```
+
+Warnings do not include line/col positions (the AST does not carry position information). Adding position tracking to the AST is deferred to a future plan.
 
 No other warning rules are added. Specifically, existing `|||` usage without an upstream `?` is **not** warned — this avoids a breaking change for current pipelines.
 
@@ -111,6 +115,14 @@ This is **not enforced** by the checker. The `?` inside `loop` follows the same 
 | Failure | (empty) | error messages | 1 |
 
 Warning format matches existing error format with a `warning:` prefix.
+
+## Pattern Match Exhaustiveness
+
+Adding `Question` to `expr` requires updating all existing pattern matches:
+
+- `attach_comments_right`: comments on `node?` attach to the inner node (already handled before `?` is consumed). `Question` itself does not carry additional comments.
+- Checker's `Loop` body scan: `Question` is traversed like any other node.
+- Printer: new case for `Question` output.
 
 ## Printer Changes
 
@@ -156,3 +168,24 @@ loop(
 -- warns: '?' without matching '|||'
 "is ready"? >>> process >>> done
 ```
+
+### `|||` inside `***` does NOT match `?`
+
+```
+-- warns: '?' without matching '|||' — the ||| is inside a *** branch, different scope
+"ready"? >>> a *** (b ||| c)
+```
+
+### Grouped question
+
+```
+-- valid: ("hello"?) is fine, ? binds inside the group
+("is valid"?) >>> (accept ||| reject)
+```
+
+## Future Work
+
+- **AST position tracking**: add line/col to AST nodes so warnings can report positions.
+- **Let binding / composition**: if pipeline reuse becomes a real need, revisit named sub-pipelines.
+- **`left` / `right` operators**: if explicit Either injection is needed.
+- **Additional warning rules**: `|||` without upstream `?` (currently not warned to avoid breaking changes).
