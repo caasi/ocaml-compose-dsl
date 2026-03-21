@@ -240,6 +240,15 @@ let test_lex_unicode_ident_col () =
   let tokens = Lexer.tokenize "翻譯 >>> b" in
   match tokens with
   | tok0 :: tok1 :: tok2 :: _ ->
+    (match tok0.token with
+     | Lexer.IDENT "翻譯" -> ()
+     | _ -> Alcotest.fail "expected IDENT 翻譯");
+    (match tok1.token with
+     | Lexer.SEQ -> ()
+     | _ -> Alcotest.fail "expected SEQ");
+    (match tok2.token with
+     | Lexer.IDENT "b" -> ()
+     | _ -> Alcotest.fail "expected IDENT b");
     Alcotest.(check int) "翻譯 col" 1 tok0.pos.col;
     Alcotest.(check int) ">>> col" 4 tok1.pos.col;
     Alcotest.(check int) "b col" 8 tok2.pos.col
@@ -252,6 +261,9 @@ let test_lex_mixed_unicode_col () =
     (match tok0.token with
      | Lexer.IDENT s -> Alcotest.(check string) "ident" "a翻譯b" s
      | _ -> Alcotest.fail "expected IDENT a翻譯b");
+    (match tok1.token with
+     | Lexer.SEQ -> ()
+     | _ -> Alcotest.fail "expected SEQ");
     Alcotest.(check int) "ident col" 1 tok0.pos.col;
     Alcotest.(check int) ">>> col" 6 tok1.pos.col
   | _ -> Alcotest.fail "expected at least 2 tokens"
@@ -260,6 +272,15 @@ let test_lex_unicode_string_col () =
   let tokens = Lexer.tokenize {|"翻譯" >>> b|} in
   match tokens with
   | tok0 :: tok1 :: tok2 :: _ ->
+    (match tok0.token with
+     | Lexer.STRING "翻譯" -> ()
+     | _ -> Alcotest.fail "expected STRING 翻譯");
+    (match tok1.token with
+     | Lexer.SEQ -> ()
+     | _ -> Alcotest.fail "expected SEQ");
+    (match tok2.token with
+     | Lexer.IDENT "b" -> ()
+     | _ -> Alcotest.fail "expected IDENT b");
     Alcotest.(check int) "string col" 1 tok0.pos.col;
     Alcotest.(check int) ">>> col" 6 tok1.pos.col;
     Alcotest.(check int) "b col" 10 tok2.pos.col
