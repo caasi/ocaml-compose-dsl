@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0] - 2026-03-21
+
+### Added
+- Unicode identifier support — non-ASCII UTF-8 codepoints accepted in identifiers and number unit suffixes
+- Full ASCII whitespace set — vertical tab (VT) and form feed (FF) now recognized as whitespace
+
+### Fixed
+- Column positions now track codepoints instead of byte offsets, so error messages report correct columns for multibyte characters
+- `read_string` uses `String.sub` to handle multibyte characters correctly
+
 ## [0.3.0] - 2026-03-19
 
 ### Added
