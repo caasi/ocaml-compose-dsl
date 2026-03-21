@@ -780,6 +780,16 @@ let test_print_comment () =
   Alcotest.(check string) "comment"
     {|Node("a", [], ["this is a comment"])|} s
 
+let test_print_question_string () =
+  let ast = parse_ok {|"earth is not flat"? >>> (believe ||| doubt)|} in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "question string" {|Seq(Question(QString("earth is not flat")), Group(Alt(Node("believe", [], []), Node("doubt", [], []))))|} s
+
+let test_print_question_node () =
+  let ast = parse_ok "validate(method: test_suite)? >>> (deploy ||| rollback)" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "question node" {|Seq(Question(QNode("validate", [method: Ident("test_suite")], [])), Group(Alt(Node("deploy", [], []), Node("rollback", [], []))))|} s
+
 (* === Question operator parser tests === *)
 
 let test_parse_string_question () =
@@ -946,6 +956,8 @@ let printer_tests =
   ; "negative number", `Quick, test_print_negative_number
   ; "number with unit", `Quick, test_print_number_with_unit
   ; "comment", `Quick, test_print_comment
+  ; "question string", `Quick, test_print_question_string
+  ; "question node", `Quick, test_print_question_node
   ]
 
 let () =

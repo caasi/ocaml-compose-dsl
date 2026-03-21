@@ -11,11 +11,18 @@ let rec value_to_string = function
 let arg_to_string (a : arg) =
   Printf.sprintf "%s: %s" a.key (value_to_string a.value)
 
-let node_to_string (n : node) =
-  Printf.sprintf "Node(%S, [%s], [%s])"
+let node_to_string_inner (n : node) =
+  Printf.sprintf "%S, [%s], [%s]"
     n.name
     (String.concat ", " (List.map arg_to_string n.args))
     (String.concat ", " (List.map (Printf.sprintf "%S") n.comments))
+
+let node_to_string (n : node) =
+  Printf.sprintf "Node(%s)" (node_to_string_inner n)
+
+let question_term_to_string = function
+  | QNode n -> Printf.sprintf "QNode(%s)" (node_to_string_inner n)
+  | QString s -> Printf.sprintf "QString(%S)" s
 
 let rec to_string = function
   | Node n -> node_to_string n
@@ -25,3 +32,4 @@ let rec to_string = function
   | Alt (a, b) -> Printf.sprintf "Alt(%s, %s)" (to_string a) (to_string b)
   | Loop body -> Printf.sprintf "Loop(%s)" (to_string body)
   | Group inner -> Printf.sprintf "Group(%s)" (to_string inner)
+  | Question qt -> Printf.sprintf "Question(%s)" (question_term_to_string qt)
