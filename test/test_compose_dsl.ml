@@ -194,6 +194,18 @@ let test_lex_number_before_delimiter () =
     (List.nth toks 4 = Lexer.NUMBER "42"
      && List.nth toks 5 = Lexer.RPAREN)
 
+let test_lex_unicode_unit_suffix () =
+  let tokens = Lexer.tokenize "500ミリ秒" in
+  match (List.hd tokens).token with
+  | Lexer.NUMBER "500ミリ秒" -> ()
+  | _ -> Alcotest.fail "expected NUMBER 500ミリ秒"
+
+let test_lex_unit_suffix_with_digit () =
+  let tokens = Lexer.tokenize "100m2" in
+  match (List.hd tokens).token with
+  | Lexer.NUMBER "100m2" -> ()
+  | _ -> Alcotest.fail "expected NUMBER 100m2"
+
 let test_lex_unicode_cjk_ident () =
   let tokens = Lexer.tokenize "翻譯" in
   match (List.hd tokens).token with
@@ -657,6 +669,8 @@ let lexer_tests =
   ; "float unit suffix", `Quick, test_lex_float_unit_suffix
   ; "negative unit suffix", `Quick, test_lex_negative_unit_suffix
   ; "number before delimiter", `Quick, test_lex_number_before_delimiter
+  ; "unicode unit suffix", `Quick, test_lex_unicode_unit_suffix
+  ; "unit suffix with digit", `Quick, test_lex_unit_suffix_with_digit
   ; "unicode CJK ident", `Quick, test_lex_unicode_cjk_ident
   ; "unicode Greek ident", `Quick, test_lex_unicode_greek_ident
   ; "unicode accented ident", `Quick, test_lex_unicode_accented_ident
