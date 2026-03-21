@@ -194,6 +194,30 @@ let test_lex_number_before_delimiter () =
     (List.nth toks 4 = Lexer.NUMBER "42"
      && List.nth toks 5 = Lexer.RPAREN)
 
+let test_lex_unicode_cjk_ident () =
+  let tokens = Lexer.tokenize "翻譯" in
+  match (List.hd tokens).token with
+  | Lexer.IDENT "翻譯" -> ()
+  | _ -> Alcotest.fail "expected IDENT 翻譯"
+
+let test_lex_unicode_greek_ident () =
+  let tokens = Lexer.tokenize "α" in
+  match (List.hd tokens).token with
+  | Lexer.IDENT "α" -> ()
+  | _ -> Alcotest.fail "expected IDENT α"
+
+let test_lex_unicode_accented_ident () =
+  let tokens = Lexer.tokenize "café" in
+  match (List.hd tokens).token with
+  | Lexer.IDENT "café" -> ()
+  | _ -> Alcotest.fail "expected IDENT café"
+
+let test_lex_unicode_mixed_ident () =
+  let tokens = Lexer.tokenize "a_名前-test" in
+  match (List.hd tokens).token with
+  | Lexer.IDENT "a_名前-test" -> ()
+  | _ -> Alcotest.fail "expected IDENT a_名前-test"
+
 (* === Parser tests === *)
 
 (* node = ident , [ "(" , [ args ] , ")" ] *)
@@ -633,6 +657,10 @@ let lexer_tests =
   ; "float unit suffix", `Quick, test_lex_float_unit_suffix
   ; "negative unit suffix", `Quick, test_lex_negative_unit_suffix
   ; "number before delimiter", `Quick, test_lex_number_before_delimiter
+  ; "unicode CJK ident", `Quick, test_lex_unicode_cjk_ident
+  ; "unicode Greek ident", `Quick, test_lex_unicode_greek_ident
+  ; "unicode accented ident", `Quick, test_lex_unicode_accented_ident
+  ; "unicode mixed ident", `Quick, test_lex_unicode_mixed_ident
   ]
 
 let parser_tests =
