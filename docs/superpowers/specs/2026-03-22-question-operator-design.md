@@ -25,11 +25,14 @@ The DSL deliberately avoids a full type system — if you want that, use OCaml d
 The `term` rule is extended:
 
 ```ebnf
+question_term = string , "?"
+              | node , "?"
+              ;
+
 term = node
      | "loop" , "(" , seq_expr , ")"
      | "(" , seq_expr , ")"
-     | string , "?"
-     | node , "?"
+     | question_term
      ;
 ```
 
