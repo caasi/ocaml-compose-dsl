@@ -91,13 +91,17 @@ let () =
       Printf.eprintf "parse error at %d:%d: %s\n" pos.line pos.col msg;
       exit 1
     | ast ->
-      let errors = Compose_dsl.Checker.check ast in
-      if errors = [] then (
+      let result = Compose_dsl.Checker.check ast in
+      List.iter
+        (fun (w : Compose_dsl.Checker.warning) ->
+          Printf.eprintf "warning: %s\n" w.message)
+        result.warnings;
+      if result.errors = [] then (
         print_endline (Compose_dsl.Printer.to_string ast);
         exit 0)
       else (
         List.iter
           (fun (e : Compose_dsl.Checker.error) ->
             Printf.eprintf "check error: %s\n" e.message)
-          errors;
+          result.errors;
         exit 1)

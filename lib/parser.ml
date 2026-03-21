@@ -87,6 +87,8 @@ let rec attach_comments_right expr comments =
     | Alt (a, b) -> Alt (a, attach_comments_right b comments)
     | Group inner -> Group (attach_comments_right inner comments)
     | Loop inner -> Loop (attach_comments_right inner comments)
+    | Question (QNode n) -> Question (QNode { n with comments = n.comments @ comments })
+    | Question (QString _) -> expr
 
 let rec parse_seq_expr st =
   let lhs = parse_alt_expr st in
@@ -120,6 +122,15 @@ and parse_term st =
   let _ = eat_comments st in
   let t = current st in
   match t.token with
+  | Lexer.STRING s ->
+    advance st;
+    let _ = eat_comments st in
+    let t2 = current st in
+    (match t2.token with
+     | Lexer.QUESTION ->
+       advance st;
+       Question (QString s)
+     | _ -> raise (Parse_error (t.pos, "bare string is not a valid term; did you mean to add '?'?")))
   | Lexer.IDENT name ->
     advance st;
     let t = current st in
@@ -129,10 +140,18 @@ and parse_term st =
        let args = parse_args st in
        expect st (fun t -> t = Lexer.RPAREN) "expected ')'";
        let comments = eat_comments st in
-       Node { name; args; comments }
+       let n = { name; args; comments } in
+       let t2 = current st in
+       (match t2.token with
+        | Lexer.QUESTION -> advance st; Question (QNode n)
+        | _ -> Node n)
      | _ ->
        let comments = eat_comments st in
-       Node { name; args = []; comments })
+       let n = { name; args = []; comments } in
+       let t2 = current st in
+       (match t2.token with
+        | Lexer.QUESTION -> advance st; Question (QNode n)
+        | _ -> Node n))
   | Lexer.LOOP ->
     advance st;
     expect st (fun t -> t = Lexer.LPAREN) "expected '(' after 'loop'";
@@ -144,7 +163,7 @@ and parse_term st =
     let inner = parse_seq_expr st in
     expect st (fun t -> t = Lexer.RPAREN) "expected ')'";
     Group inner
-  | _ -> raise (Parse_error (t.pos, "expected node, '(' or 'loop'"))
+  | _ -> raise (Parse_error (t.pos, "expected node, string with '?', '(' or 'loop'"))
 
 let parse tokens =
   let st = make tokens in

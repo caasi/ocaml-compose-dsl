@@ -11,15 +11,21 @@ let parse_fails input =
 
 let check_ok input =
   let ast = parse_ok input in
-  let errors = Checker.check ast in
-  Alcotest.(check int) "no errors" 0 (List.length errors);
+  let result = Checker.check ast in
+  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
   ast
 
 let check_fails input =
   let ast = parse_ok input in
-  let errors = Checker.check ast in
-  Alcotest.(check bool) "has errors" true (List.length errors > 0);
-  errors
+  let result = Checker.check ast in
+  Alcotest.(check bool) "has errors" true (List.length result.Checker.errors > 0);
+  result.Checker.errors
+
+let check_ok_with_warnings input =
+  let ast = parse_ok input in
+  let result = Checker.check ast in
+  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
+  result.Checker.warnings
 
 (* === Lexer tests === *)
 
@@ -307,6 +313,28 @@ let test_lex_error_col_after_unicode () =
   | _ -> Alcotest.fail "expected Lex_error"
   | exception Lexer.Lex_error (pos, _) ->
     Alcotest.(check int) "error col" 4 pos.col
+
+(* question operator *)
+let test_lex_question () =
+  let tokens = Lexer.tokenize "a?" in
+  let toks = List.map (fun (t : Lexer.located) -> t.token) tokens in
+  Alcotest.(check int) "token count" 3 (List.length toks);
+  Alcotest.(check bool) "IDENT" true (List.nth toks 0 = Lexer.IDENT "a");
+  Alcotest.(check bool) "QUESTION" true (List.nth toks 1 = Lexer.QUESTION);
+  Alcotest.(check bool) "EOF" true (List.nth toks 2 = Lexer.EOF)
+
+let test_lex_question_with_space () =
+  let tokens = Lexer.tokenize "a ?" in
+  let toks = List.map (fun (t : Lexer.located) -> t.token) tokens in
+  Alcotest.(check int) "token count" 3 (List.length toks);
+  Alcotest.(check bool) "QUESTION" true (List.nth toks 1 = Lexer.QUESTION)
+
+let test_lex_question_after_string () =
+  let tokens = Lexer.tokenize {|"hello"?|} in
+  let toks = List.map (fun (t : Lexer.located) -> t.token) tokens in
+  Alcotest.(check int) "token count" 3 (List.length toks);
+  Alcotest.(check bool) "STRING" true (List.nth toks 0 = Lexer.STRING "hello");
+  Alcotest.(check bool) "QUESTION" true (List.nth toks 1 = Lexer.QUESTION)
 
 (* === Parser tests === *)
 
@@ -691,6 +719,86 @@ let test_check_loop_with_checking () =
   let _ = check_ok "loop (a >>> checking)" in
   ()
 
+let test_check_question_with_alt () =
+  let warnings = check_ok_with_warnings {|"ready"? >>> (go ||| stop)|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_question_without_alt () =
+  let warnings = check_ok_with_warnings {|"ready"? >>> process >>> done|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings);
+  Alcotest.(check bool) "warning message" true
+    (String.length (List.hd warnings).Checker.message > 0)
+
+let test_check_question_with_intermediate_steps () =
+  let warnings = check_ok_with_warnings {|"ok"? >>> log >>> transform >>> (yes ||| no)|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_question_alt_in_par_no_match () =
+  let warnings = check_ok_with_warnings {|"ready"? >>> a *** (b ||| c)|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings)
+
+let test_check_question_in_loop () =
+  let warnings = check_ok_with_warnings {|loop("pass"? >>> (exit ||| eval))|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_question_in_loop_no_alt () =
+  let warnings = check_ok_with_warnings {|loop("pass"? >>> eval)|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings)
+
+let test_check_multiple_questions () =
+  let warnings = check_ok_with_warnings {|"a"? >>> (x ||| y) >>> "b"? >>> (p ||| q)|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_multiple_questions_unmatched () =
+  let warnings = check_ok_with_warnings {|"a"? >>> "b"? >>> (x ||| y)|} in
+  Alcotest.(check int) "one warning (one unmatched)" 1 (List.length warnings)
+
+let test_check_existing_alt_no_warning () =
+  let warnings = check_ok_with_warnings {|a ||| b|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_question_in_group_with_alt () =
+  let warnings = check_ok_with_warnings {|("ready"?) >>> (a ||| b)|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_question_in_fanout_branch () =
+  let warnings = check_ok_with_warnings {|("ready"? >>> (a ||| b)) &&& c|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_question_in_fanout_branch_no_alt () =
+  let warnings = check_ok_with_warnings {|("ready"? >>> process) &&& c|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings)
+
+let test_check_alt_before_question_still_warns () =
+  (* ||| before ? should NOT cancel it — only downstream ||| matches *)
+  let warnings = check_ok_with_warnings {|(a ||| b) >>> "ready"? >>> process|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings)
+
+let test_check_question_inside_alt_branch () =
+  (* ? inside an Alt branch has no ||| — should warn *)
+  let warnings = check_ok_with_warnings {|("ready"? >>> process) ||| fallback|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings)
+
+let test_check_loop_eval_inside_question () =
+  (* check? wraps an eval node — loop should recognize it *)
+  let ast = parse_ok {|loop(check? >>> (exit ||| continue))|} in
+  let result = Checker.check ast in
+  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
+  Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
+
+let test_parse_comment_on_node_question () =
+  let ast = parse_ok "validate -- important\n? >>> (a ||| b)" in
+  match ast with
+  | Ast.Seq (Ast.Question (Ast.QNode { name = "validate"; comments = ["important"]; _ }), _) -> ()
+  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+
+let test_parse_comment_on_string_question () =
+  let ast = parse_ok {|"hello" -- note
+? >>> (a ||| b)|} in
+  match ast with
+  | Ast.Seq (Ast.Question (Ast.QString "hello"), _) -> ()
+  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+
 (* === Printer tests === *)
 
 let test_print_simple_node () =
@@ -758,6 +866,60 @@ let test_print_comment () =
   Alcotest.(check string) "comment"
     {|Node("a", [], ["this is a comment"])|} s
 
+let test_print_question_string () =
+  let ast = parse_ok {|"earth is not flat"? >>> (believe ||| doubt)|} in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "question string" {|Seq(Question(QString("earth is not flat")), Group(Alt(Node("believe", [], []), Node("doubt", [], []))))|} s
+
+let test_print_question_node () =
+  let ast = parse_ok "validate(method: test_suite)? >>> (deploy ||| rollback)" in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "question node" {|Seq(Question(QNode("validate", [method: Ident("test_suite")], [])), Group(Alt(Node("deploy", [], []), Node("rollback", [], []))))|} s
+
+(* === Question operator parser tests === *)
+
+let test_parse_string_question () =
+  let ast = parse_ok {|"earth is not flat"? >>> (believe ||| doubt)|} in
+  match ast with
+  | Ast.Seq (Ast.Question (Ast.QString "earth is not flat"), Ast.Group (Ast.Alt (Ast.Node _, Ast.Node _))) -> ()
+  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+
+let test_parse_node_question () =
+  let ast = parse_ok "validate(method: test_suite)? >>> (deploy ||| rollback)" in
+  match ast with
+  | Ast.Seq (Ast.Question (Ast.QNode { name = "validate"; _ }), Ast.Group (Ast.Alt _)) -> ()
+  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+
+let test_parse_bare_node_question () =
+  let ast = parse_ok "check? >>> (yes ||| no)" in
+  match ast with
+  | Ast.Seq (Ast.Question (Ast.QNode { name = "check"; args = []; _ }), _) -> ()
+  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+
+let test_parse_question_with_space () =
+  let ast = parse_ok {|"hello" ? >>> (a ||| b)|} in
+  match ast with
+  | Ast.Seq (Ast.Question (Ast.QString "hello"), _) -> ()
+  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+
+let test_parse_bare_string_error () =
+  parse_fails {|"bare string" >>> a|}
+
+let test_parse_bare_string_alone_error () =
+  parse_fails {|"just a string"|}
+
+let test_parse_question_in_loop () =
+  let ast = parse_ok {|loop(generate >>> "all pass"? >>> (exit ||| continue))|} in
+  match ast with
+  | Ast.Loop (Ast.Seq (_, Ast.Seq (Ast.Question (Ast.QString "all pass"), Ast.Group (Ast.Alt _)))) -> ()
+  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+
+let test_parse_question_in_group () =
+  let ast = parse_ok {|("is valid"?) >>> (accept ||| reject)|} in
+  match ast with
+  | Ast.Seq (Ast.Group (Ast.Question (Ast.QString "is valid")), _) -> ()
+  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+
 (* === Test suite === *)
 
 let lexer_tests =
@@ -797,6 +959,9 @@ let lexer_tests =
   ; "multiline unicode col", `Quick, test_lex_multiline_unicode_col
   ; "malformed UTF-8", `Quick, test_lex_malformed_utf8
   ; "error col after unicode", `Quick, test_lex_error_col_after_unicode
+  ; "question token", `Quick, test_lex_question
+  ; "question with space", `Quick, test_lex_question_with_space
+  ; "question after string", `Quick, test_lex_question_after_string
   ]
 
 let parser_tests =
@@ -844,6 +1009,16 @@ let parser_tests =
   ; "plan example 1", `Quick, test_parse_plan_example_1
   ; "plan example 2", `Quick, test_parse_plan_example_2
   ; "plan example 3", `Quick, test_parse_plan_example_3
+  ; "string question", `Quick, test_parse_string_question
+  ; "node question", `Quick, test_parse_node_question
+  ; "bare node question", `Quick, test_parse_bare_node_question
+  ; "question with space", `Quick, test_parse_question_with_space
+  ; "error: bare string", `Quick, test_parse_bare_string_error
+  ; "error: bare string alone", `Quick, test_parse_bare_string_alone_error
+  ; "question in loop", `Quick, test_parse_question_in_loop
+  ; "question in group", `Quick, test_parse_question_in_group
+  ; "comment on node question", `Quick, test_parse_comment_on_node_question
+  ; "comment on string question", `Quick, test_parse_comment_on_string_question
   ]
 
 let checker_tests =
@@ -855,6 +1030,21 @@ let checker_tests =
   ; "loop with fanout and eval", `Quick, test_check_loop_with_fanout_and_eval
   ; "loop with test (4-char name)", `Quick, test_check_loop_with_test
   ; "loop with checking (check prefix)", `Quick, test_check_loop_with_checking
+  ; "question with alt", `Quick, test_check_question_with_alt
+  ; "question without alt", `Quick, test_check_question_without_alt
+  ; "question with intermediate steps", `Quick, test_check_question_with_intermediate_steps
+  ; "question alt in par no match", `Quick, test_check_question_alt_in_par_no_match
+  ; "question in loop", `Quick, test_check_question_in_loop
+  ; "question in loop no alt", `Quick, test_check_question_in_loop_no_alt
+  ; "multiple questions", `Quick, test_check_multiple_questions
+  ; "multiple questions unmatched", `Quick, test_check_multiple_questions_unmatched
+  ; "existing alt no warning", `Quick, test_check_existing_alt_no_warning
+  ; "question in group with alt", `Quick, test_check_question_in_group_with_alt
+  ; "question in fanout branch", `Quick, test_check_question_in_fanout_branch
+  ; "question in fanout branch no alt", `Quick, test_check_question_in_fanout_branch_no_alt
+  ; "alt before question still warns", `Quick, test_check_alt_before_question_still_warns
+  ; "loop eval inside question", `Quick, test_check_loop_eval_inside_question
+  ; "question inside alt branch", `Quick, test_check_question_inside_alt_branch
   ]
 
 let printer_tests =
@@ -869,6 +1059,8 @@ let printer_tests =
   ; "negative number", `Quick, test_print_negative_number
   ; "number with unit", `Quick, test_print_number_with_unit
   ; "comment", `Quick, test_print_comment
+  ; "question string", `Quick, test_print_question_string
+  ; "question node", `Quick, test_print_question_node
   ]
 
 let () =
