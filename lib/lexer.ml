@@ -59,15 +59,6 @@ let tokenize input =
     end
   in
   let peek_byte () = if !i + 1 < len then Some input.[!i + 1] else None in
-  let _peek_uchar () =
-    if !i >= len then None
-    else
-      let d = String.get_utf_8_uchar input !i in
-      if Uchar.utf_decode_is_valid d then
-        Some (Uchar.utf_decode_uchar d)
-      else
-        raise (Lex_error (pos (), "invalid UTF-8 byte sequence"))
-  in
   let skip_whitespace () =
     while !i < len && (input.[!i] = ' ' || input.[!i] = '\t' || input.[!i] = '\n' || input.[!i] = '\r' || input.[!i] = '\x0b' || input.[!i] = '\x0c') do
       advance ()

@@ -238,38 +238,42 @@ let test_lex_unicode_mixed_ident () =
 
 let test_lex_unicode_ident_col () =
   let tokens = Lexer.tokenize "翻譯 >>> b" in
-  let tok0 = List.nth tokens 0 in (* 翻譯 *)
-  let tok1 = List.nth tokens 1 in (* >>> *)
-  let tok2 = List.nth tokens 2 in (* b *)
-  Alcotest.(check int) "翻譯 col" 1 tok0.pos.col;
-  Alcotest.(check int) ">>> col" 4 tok1.pos.col;
-  Alcotest.(check int) "b col" 8 tok2.pos.col
+  match tokens with
+  | tok0 :: tok1 :: tok2 :: _ ->
+    Alcotest.(check int) "翻譯 col" 1 tok0.pos.col;
+    Alcotest.(check int) ">>> col" 4 tok1.pos.col;
+    Alcotest.(check int) "b col" 8 tok2.pos.col
+  | _ -> Alcotest.fail "expected at least 3 tokens"
 
 let test_lex_mixed_unicode_col () =
   let tokens = Lexer.tokenize "a翻譯b >>> c" in
-  let tok0 = List.nth tokens 0 in (* a翻譯b *)
-  let tok1 = List.nth tokens 1 in (* >>> *)
-  Alcotest.(check string) "ident" "a翻譯b" (match tok0.token with Lexer.IDENT s -> s | _ -> "");
-  Alcotest.(check int) "ident col" 1 tok0.pos.col;
-  Alcotest.(check int) ">>> col" 6 tok1.pos.col
+  match tokens with
+  | tok0 :: tok1 :: _ ->
+    (match tok0.token with
+     | Lexer.IDENT s -> Alcotest.(check string) "ident" "a翻譯b" s
+     | _ -> Alcotest.fail "expected IDENT a翻譯b");
+    Alcotest.(check int) "ident col" 1 tok0.pos.col;
+    Alcotest.(check int) ">>> col" 6 tok1.pos.col
+  | _ -> Alcotest.fail "expected at least 2 tokens"
 
 let test_lex_unicode_string_col () =
   let tokens = Lexer.tokenize {|"翻譯" >>> b|} in
-  let tok0 = List.nth tokens 0 in (* "翻譯" *)
-  let tok1 = List.nth tokens 1 in (* >>> *)
-  let tok2 = List.nth tokens 2 in (* b *)
-  Alcotest.(check int) "string col" 1 tok0.pos.col;
-  Alcotest.(check int) ">>> col" 6 tok1.pos.col;
-  Alcotest.(check int) "b col" 10 tok2.pos.col
+  match tokens with
+  | tok0 :: tok1 :: tok2 :: _ ->
+    Alcotest.(check int) "string col" 1 tok0.pos.col;
+    Alcotest.(check int) ">>> col" 6 tok1.pos.col;
+    Alcotest.(check int) "b col" 10 tok2.pos.col
+  | _ -> Alcotest.fail "expected at least 3 tokens"
 
 let test_lex_multiline_unicode_col () =
   let tokens = Lexer.tokenize "翻譯\nb" in
-  let tok0 = List.nth tokens 0 in (* 翻譯 *)
-  let tok1 = List.nth tokens 1 in (* b *)
-  Alcotest.(check int) "翻譯 line" 1 tok0.pos.line;
-  Alcotest.(check int) "翻譯 col" 1 tok0.pos.col;
-  Alcotest.(check int) "b line" 2 tok1.pos.line;
-  Alcotest.(check int) "b col" 1 tok1.pos.col
+  match tokens with
+  | tok0 :: tok1 :: _ ->
+    Alcotest.(check int) "翻譯 line" 1 tok0.pos.line;
+    Alcotest.(check int) "翻譯 col" 1 tok0.pos.col;
+    Alcotest.(check int) "b line" 2 tok1.pos.line;
+    Alcotest.(check int) "b col" 1 tok1.pos.col
+  | _ -> Alcotest.fail "expected at least 2 tokens"
 
 let test_lex_malformed_utf8 () =
   match Lexer.tokenize "\xff\xfe" with
