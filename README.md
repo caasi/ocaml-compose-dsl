@@ -39,11 +39,17 @@ value    = string
          | "[" , [ value , { "," , value } ] , "]"
          ;
 
-ident    = ( letter | "_" ) , { letter | digit | "-" | "_" } ;
+ident       = ident_start , { ident_char } ;
+ident_start = ? any byte that is not an ASCII digit, not ASCII whitespace,
+                and not one of ( ) [ ] : , > * | & - " .
+                ! # $ % ^ + = { } < ; ' ` ~ / ? @ \ ? ;
+ident_char  = ? any byte that is not ASCII whitespace,
+                and not one of ( ) [ ] : , > * | & " .
+                ! # $ % ^ + = { } < ; ' ` ~ / ? @ \ ? ;
 
 string   = '"' , { any char - '"' } , '"' ;
 
-number   = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] , { letter } ;
+number     = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] , [ ident_start , { ident_char } ] ;
 
 comment  = "--" , { any char - newline } ;
 ```

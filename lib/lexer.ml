@@ -22,9 +22,19 @@ type located = { token : token; pos : pos }
 
 exception Lex_error of pos * string
 
-let is_ident_start c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c = '_'
+let is_special_ascii c =
+  c = '(' || c = ')' || c = '[' || c = ']' || c = ':' || c = ','
+  || c = '>' || c = '*' || c = '|' || c = '&' || c = '"' || c = '.'
+  || c = '!' || c = '#' || c = '$' || c = '%' || c = '^' || c = '+'
+  || c = '=' || c = '{' || c = '}' || c = '<' || c = ';' || c = '\''
+  || c = '`' || c = '~' || c = '/' || c = '?' || c = '@' || c = '\\'
+  || c = ' ' || c = '\t' || c = '\n' || c = '\r' || c = '\x0b' || c = '\x0c'
 
-let is_ident_char c = is_ident_start c || (c >= '0' && c <= '9') || c = '-'
+let is_ident_start c =
+  not (is_special_ascii c) && not (c >= '0' && c <= '9') && c <> '-'
+
+let is_ident_char c =
+  not (is_special_ascii c)
 
 let tokenize input =
   let len = String.length input in
@@ -40,7 +50,7 @@ let tokenize input =
   in
   let peek2 () = if !i + 1 < len then Some input.[!i + 1] else None in
   let skip_whitespace () =
-    while !i < len && (input.[!i] = ' ' || input.[!i] = '\t' || input.[!i] = '\n' || input.[!i] = '\r') do
+    while !i < len && (input.[!i] = ' ' || input.[!i] = '\t' || input.[!i] = '\n' || input.[!i] = '\r' || input.[!i] = '\x0b' || input.[!i] = '\x0c') do
       advance ()
     done
   in
@@ -96,9 +106,12 @@ let tokenize input =
       if !i = frac_start then
         raise (Lex_error (p, "expected digit after '.'"))
     end;
-    while !i < len && ((input.[!i] >= 'a' && input.[!i] <= 'z') || (input.[!i] >= 'A' && input.[!i] <= 'Z')) do
-      advance ()
-    done;
+    if !i < len && is_ident_start input.[!i] then begin
+      advance ();
+      while !i < len && is_ident_char input.[!i] do
+        advance ()
+      done
+    end;
     let s = String.sub input start (!i - start) in
     { token = NUMBER s; pos = p }
   in
