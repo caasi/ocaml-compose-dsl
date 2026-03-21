@@ -90,7 +90,7 @@ The main `while` loop continues to use `input.[!i]` for pattern matching on oper
 
 A comment is added to mark this as a future migration point for `Uchar.t`-based dispatch.
 
-`peek2()` is also byte-level (`input.[!i + 1]`), but it is only ever called when sitting on an ASCII byte (`>`, `*`, `|`, `&`, `-`), so `!i + 1` is always the next byte boundary. Safe for the same reason.
+Rename `peek2` to `peek_byte` to clarify it returns a raw byte, not a codepoint. It is only ever called when sitting on an ASCII byte (`>`, `*`, `|`, `&`, `-`), so `!i + 1` is always the next byte boundary. Safe for the same reason.
 
 ### 5. What does NOT change
 
