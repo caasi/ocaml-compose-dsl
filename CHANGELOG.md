@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.0] - 2026-03-22
+
+### Added
+- Question operator `?` — `string?` and `node?` syntax to explicitly mark Either-producing steps for `|||` branching
+- `question_term` AST type (QNode | QString) constraining what `?` can wrap
+- Checker warning mechanism — returns `{ errors; warnings }` instead of just `error list`
+- Well-formedness warning: `?` without matching `|||` in scope
+- Graph reduction (`normalize`) to strip `Group` wrappers before balance checking
+- Helpful parse error for bare strings: `"did you mean to add '?'?"`
+- CLI prints warnings to stderr without affecting exit code
+
 ## [0.4.0] - 2026-03-21
 
 ### Added

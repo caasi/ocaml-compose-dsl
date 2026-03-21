@@ -144,7 +144,7 @@ ocaml-compose-dsl --help
 ocaml-compose-dsl --version
 ```
 
-Exits `0` with AST output (OCaml constructor format) on valid input, `1` with error messages on structural problems.
+Exits `0` with AST output (OCaml constructor format) on valid input, `1` with error messages on structural problems. Well-formedness warnings (e.g. `?` without matching `|||`) are printed to stderr without affecting the exit code.
 
 ## Install
 
