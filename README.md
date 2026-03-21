@@ -49,8 +49,7 @@ ident_char  = ? any byte that is not ASCII whitespace,
 
 string   = '"' , { any char - '"' } , '"' ;
 
-unit_start = ? is_ident_start excluding "-" ? ;
-number     = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] , [ unit_start , { ident_char } ] ;
+number     = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] , [ ident_start , { ident_char } ] ;
 
 comment  = "--" , { any char - newline } ;
 ```
