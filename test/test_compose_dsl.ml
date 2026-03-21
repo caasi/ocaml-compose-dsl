@@ -780,6 +780,50 @@ let test_print_comment () =
   Alcotest.(check string) "comment"
     {|Node("a", [], ["this is a comment"])|} s
 
+(* === Question operator parser tests === *)
+
+let test_parse_string_question () =
+  let ast = parse_ok {|"earth is not flat"? >>> (believe ||| doubt)|} in
+  match ast with
+  | Ast.Seq (Ast.Question (Ast.QString "earth is not flat"), Ast.Group (Ast.Alt (Ast.Node _, Ast.Node _))) -> ()
+  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+
+let test_parse_node_question () =
+  let ast = parse_ok "validate(method: test_suite)? >>> (deploy ||| rollback)" in
+  match ast with
+  | Ast.Seq (Ast.Question (Ast.QNode { name = "validate"; _ }), Ast.Group (Ast.Alt _)) -> ()
+  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+
+let test_parse_bare_node_question () =
+  let ast = parse_ok "check? >>> (yes ||| no)" in
+  match ast with
+  | Ast.Seq (Ast.Question (Ast.QNode { name = "check"; args = []; _ }), _) -> ()
+  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+
+let test_parse_question_with_space () =
+  let ast = parse_ok {|"hello" ? >>> (a ||| b)|} in
+  match ast with
+  | Ast.Seq (Ast.Question (Ast.QString "hello"), _) -> ()
+  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+
+let test_parse_bare_string_error () =
+  parse_fails {|"bare string" >>> a|}
+
+let test_parse_bare_string_alone_error () =
+  parse_fails {|"just a string"|}
+
+let test_parse_question_in_loop () =
+  let ast = parse_ok {|loop(generate >>> "all pass"? >>> (exit ||| continue))|} in
+  match ast with
+  | Ast.Loop (Ast.Seq (_, Ast.Seq (Ast.Question (Ast.QString "all pass"), Ast.Group (Ast.Alt _)))) -> ()
+  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+
+let test_parse_question_in_group () =
+  let ast = parse_ok {|("is valid"?) >>> (accept ||| reject)|} in
+  match ast with
+  | Ast.Seq (Ast.Group (Ast.Question (Ast.QString "is valid")), _) -> ()
+  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+
 (* === Test suite === *)
 
 let lexer_tests =
@@ -869,6 +913,14 @@ let parser_tests =
   ; "plan example 1", `Quick, test_parse_plan_example_1
   ; "plan example 2", `Quick, test_parse_plan_example_2
   ; "plan example 3", `Quick, test_parse_plan_example_3
+  ; "string question", `Quick, test_parse_string_question
+  ; "node question", `Quick, test_parse_node_question
+  ; "bare node question", `Quick, test_parse_bare_node_question
+  ; "question with space", `Quick, test_parse_question_with_space
+  ; "error: bare string", `Quick, test_parse_bare_string_error
+  ; "error: bare string alone", `Quick, test_parse_bare_string_alone_error
+  ; "question in loop", `Quick, test_parse_question_in_loop
+  ; "question in group", `Quick, test_parse_question_in_group
   ]
 
 let checker_tests =
