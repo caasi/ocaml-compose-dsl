@@ -194,6 +194,12 @@ let test_lex_number_before_delimiter () =
     (List.nth toks 4 = Lexer.NUMBER "42"
      && List.nth toks 5 = Lexer.RPAREN)
 
+let test_lex_reserved_hash () =
+  match Lexer.tokenize "#invalid" with
+  | _ -> Alcotest.fail "expected lex error"
+  | exception Lexer.Lex_error (_, msg) ->
+    Alcotest.(check string) "error msg" "unexpected character '#'" msg
+
 let test_lex_unicode_unit_suffix () =
   let tokens = Lexer.tokenize "500ミリ秒" in
   match (List.hd tokens).token with
@@ -706,6 +712,7 @@ let lexer_tests =
   ; "float unit suffix", `Quick, test_lex_float_unit_suffix
   ; "negative unit suffix", `Quick, test_lex_negative_unit_suffix
   ; "number before delimiter", `Quick, test_lex_number_before_delimiter
+  ; "reserved hash", `Quick, test_lex_reserved_hash
   ; "unicode unit suffix", `Quick, test_lex_unicode_unit_suffix
   ; "unit suffix with digit", `Quick, test_lex_unit_suffix_with_digit
   ; "unicode CJK ident", `Quick, test_lex_unicode_cjk_ident
