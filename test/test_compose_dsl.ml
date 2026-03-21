@@ -502,6 +502,43 @@ let test_parse_group_overrides_precedence () =
   | Ast.Fanout (Ast.Group (Ast.Seq (Ast.Node _, Ast.Node _)), Ast.Node _) -> ()
   | _ -> Alcotest.fail "expected Fanout(Group(Seq(a,b)), c)"
 
+let test_parse_unicode_node_with_args () =
+  let ast = parse_ok {|翻譯(來源: "日文")|} in
+  match ast with
+  | Ast.Node n ->
+    Alcotest.(check string) "name" "翻譯" n.name;
+    Alcotest.(check int) "1 arg" 1 (List.length n.args);
+    Alcotest.(check string) "arg key" "來源" (List.hd n.args).key;
+    (match (List.hd n.args).value with
+     | Ast.String "日文" -> ()
+     | _ -> Alcotest.fail "expected String value")
+  | _ -> Alcotest.fail "expected Node"
+
+let test_parse_unicode_seq () =
+  let ast = parse_ok "café >>> naïve" in
+  match ast with
+  | Ast.Seq (Ast.Node a, Ast.Node b) ->
+    Alcotest.(check string) "lhs" "café" a.name;
+    Alcotest.(check string) "rhs" "naïve" b.name
+  | _ -> Alcotest.fail "expected Seq"
+
+let test_parse_greek_seq () =
+  let ast = parse_ok "α >>> β" in
+  match ast with
+  | Ast.Seq (Ast.Node a, Ast.Node b) ->
+    Alcotest.(check string) "lhs" "α" a.name;
+    Alcotest.(check string) "rhs" "β" b.name
+  | _ -> Alcotest.fail "expected Seq"
+
+let test_parse_unicode_unit_value () =
+  let ast = parse_ok "wait(duration: 500ミリ秒)" in
+  match ast with
+  | Ast.Node n ->
+    (match (List.hd n.args).value with
+     | Ast.Number "500ミリ秒" -> ()
+     | _ -> Alcotest.fail "expected Number with unicode unit")
+  | _ -> Alcotest.fail "expected Node"
+
 (* error cases *)
 let test_parse_error_unclosed_paren () =
   match parse_ok "a(" with
@@ -711,6 +748,10 @@ let parser_tests =
   ; "multiline comments", `Quick, test_parse_multiline_comments
   ; "comment on group expr", `Quick, test_parse_comment_on_group
   ; "comment on loop expr", `Quick, test_parse_comment_on_loop
+  ; "unicode node with args", `Quick, test_parse_unicode_node_with_args
+  ; "unicode seq", `Quick, test_parse_unicode_seq
+  ; "Greek letter seq", `Quick, test_parse_greek_seq
+  ; "unicode unit in arg value", `Quick, test_parse_unicode_unit_value
   ; "error: unclosed paren", `Quick, test_parse_error_unclosed_paren
   ; "error: unclosed group", `Quick, test_parse_error_unclosed_group
   ; "error: missing loop paren", `Quick, test_parse_error_missing_loop_paren
