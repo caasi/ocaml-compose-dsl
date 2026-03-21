@@ -18,23 +18,20 @@ let check expr =
   let warnings = ref [] in
   let add_error msg = errors := ({ message = msg } : error) :: !errors in
   let add_warning msg = warnings := ({ message = msg } : warning) :: !warnings in
-  let rec count_question_seq = function
+  (* Left-to-right fold over Seq chains: +1 for Question, -1 (with
+     saturation at 0) for Alt. Only downstream ||| can match upstream ?. *)
+  let rec scan_questions counter = function
+    | Question _ -> counter + 1
+    | Alt _ -> max 0 (counter - 1)
+    | Node _ -> counter
     | Seq (a, b) ->
-      let qa = count_question_node a in
-      let qb = count_question_seq b in
-      qa + qb
-    | e -> count_question_node e
-  and count_question_node = function
-    | Question _ -> 1
-    | Alt _ -> -1
-    | Node _ -> 0
-    | Seq (a, b) -> count_question_node a + count_question_seq b
-    | Group _ -> 0 (* defensive: unreachable after normalize *)
-    | Par _ | Fanout _ | Loop _ -> 0
+      let counter' = scan_questions counter a in
+      scan_questions counter' b
+    | Group _ -> counter (* defensive: unreachable after normalize *)
+    | Par _ | Fanout _ | Loop _ -> counter
   in
   let check_question_balance expr =
-    let n = count_question_seq (normalize expr) in
-    let unmatched = max 0 n in
+    let unmatched = scan_questions 0 (normalize expr) in
     for _ = 1 to unmatched do
       add_warning "'?' without matching '|||' in scope"
     done
@@ -68,7 +65,8 @@ let check expr =
         | Seq (a, b) | Par (a, b) | Fanout (a, b) | Alt (a, b) -> scan a; scan b
         | Loop inner -> scan inner
         | Group inner -> scan inner
-        | Question _ -> ()
+        | Question (QNode n) -> scan (Node n)
+        | Question (QString _) -> ()
       in
       scan body;
       if not !has_eval then

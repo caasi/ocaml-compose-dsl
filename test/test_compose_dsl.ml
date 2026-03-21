@@ -769,6 +769,18 @@ let test_check_question_in_fanout_branch_no_alt () =
   let warnings = check_ok_with_warnings {|("ready"? >>> process) &&& c|} in
   Alcotest.(check int) "one warning" 1 (List.length warnings)
 
+let test_check_alt_before_question_still_warns () =
+  (* ||| before ? should NOT cancel it — only downstream ||| matches *)
+  let warnings = check_ok_with_warnings {|(a ||| b) >>> "ready"? >>> process|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings)
+
+let test_check_loop_eval_inside_question () =
+  (* check? wraps an eval node — loop should recognize it *)
+  let ast = parse_ok {|loop(check? >>> (exit ||| continue))|} in
+  let result = Checker.check ast in
+  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
+  Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
+
 let test_parse_comment_on_node_question () =
   let ast = parse_ok "validate -- important\n? >>> (a ||| b)" in
   match ast with
@@ -1025,6 +1037,8 @@ let checker_tests =
   ; "question in group with alt", `Quick, test_check_question_in_group_with_alt
   ; "question in fanout branch", `Quick, test_check_question_in_fanout_branch
   ; "question in fanout branch no alt", `Quick, test_check_question_in_fanout_branch_no_alt
+  ; "alt before question still warns", `Quick, test_check_alt_before_question_still_warns
+  ; "loop eval inside question", `Quick, test_check_loop_eval_inside_question
   ]
 
 let printer_tests =
