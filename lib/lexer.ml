@@ -17,9 +17,8 @@ type token =
   | COMMENT of string
   | EOF
 
-type pos = { line : int; col : int }
-
-type located = { token : token; pos : pos }
+open Ast
+type located = { token : token; loc : loc }
 
 exception Lex_error of pos * string
 
@@ -75,7 +74,7 @@ let tokenize input =
     if !i >= len then raise (Lex_error (p, "unterminated string"));
     let s = String.sub input start (!i - start) in
     advance (); (* skip closing quote *)
-    { token = STRING s; pos = p }
+    { token = STRING s; loc = { start = p; end_ = pos () } }
   in
   let read_ident () =
     let p = pos () in
@@ -85,7 +84,7 @@ let tokenize input =
     done;
     let s = String.sub input start (!i - start) in
     let tok = if s = "loop" then LOOP else IDENT s in
-    { token = tok; pos = p }
+    { token = tok; loc = { start = p; end_ = pos () } }
   in
   let read_comment () =
     let p = pos () in
@@ -99,7 +98,7 @@ let tokenize input =
       advance ()
     done;
     let s = String.sub input start (!i - start) in
-    { token = COMMENT s; pos = p }
+    { token = COMMENT s; loc = { start = p; end_ = pos () } }
   in
   let read_number () =
     let p = pos () in
@@ -124,7 +123,7 @@ let tokenize input =
       done
     end;
     let s = String.sub input start (!i - start) in
-    { token = NUMBER s; pos = p }
+    { token = NUMBER s; loc = { start = p; end_ = pos () } }
   in
   while !i < len do
     skip_whitespace ();
@@ -140,34 +139,34 @@ let tokenize input =
          advance()'s UTF-8 validation. *)
       let c = input.[!i] in
       match c with
-      | '(' -> tokens := { token = LPAREN; pos = p } :: !tokens; advance ()
-      | ')' -> tokens := { token = RPAREN; pos = p } :: !tokens; advance ()
-      | '[' -> tokens := { token = LBRACKET; pos = p } :: !tokens; advance ()
-      | ']' -> tokens := { token = RBRACKET; pos = p } :: !tokens; advance ()
-      | ':' -> tokens := { token = COLON; pos = p } :: !tokens; advance ()
-      | ',' -> tokens := { token = COMMA; pos = p } :: !tokens; advance ()
+      | '(' -> advance (); tokens := { token = LPAREN; loc = { start = p; end_ = pos () } } :: !tokens
+      | ')' -> advance (); tokens := { token = RPAREN; loc = { start = p; end_ = pos () } } :: !tokens
+      | '[' -> advance (); tokens := { token = LBRACKET; loc = { start = p; end_ = pos () } } :: !tokens
+      | ']' -> advance (); tokens := { token = RBRACKET; loc = { start = p; end_ = pos () } } :: !tokens
+      | ':' -> advance (); tokens := { token = COLON; loc = { start = p; end_ = pos () } } :: !tokens
+      | ',' -> advance (); tokens := { token = COMMA; loc = { start = p; end_ = pos () } } :: !tokens
       | '>' ->
         if peek_byte () = Some '>' && !i + 2 < len && input.[!i + 2] = '>' then begin
-          tokens := { token = SEQ; pos = p } :: !tokens;
-          advance (); advance (); advance ()
+          advance (); advance (); advance ();
+          tokens := { token = SEQ; loc = { start = p; end_ = pos () } } :: !tokens
         end else
           raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
       | '*' ->
         if peek_byte () = Some '*' && !i + 2 < len && input.[!i + 2] = '*' then begin
-          tokens := { token = PAR; pos = p } :: !tokens;
-          advance (); advance (); advance ()
+          advance (); advance (); advance ();
+          tokens := { token = PAR; loc = { start = p; end_ = pos () } } :: !tokens
         end else
           raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
       | '|' ->
         if peek_byte () = Some '|' && !i + 2 < len && input.[!i + 2] = '|' then begin
-          tokens := { token = ALT; pos = p } :: !tokens;
-          advance (); advance (); advance ()
+          advance (); advance (); advance ();
+          tokens := { token = ALT; loc = { start = p; end_ = pos () } } :: !tokens
         end else
           raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
       | '&' ->
         if peek_byte () = Some '&' && !i + 2 < len && input.[!i + 2] = '&' then begin
-          tokens := { token = FANOUT; pos = p } :: !tokens;
-          advance (); advance (); advance ()
+          advance (); advance (); advance ();
+          tokens := { token = FANOUT; loc = { start = p; end_ = pos () } } :: !tokens
         end else
           raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
       | '-' ->
@@ -181,10 +180,10 @@ let tokenize input =
             raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
         end
       | '"' -> tokens := read_string () :: !tokens
-      | '?' -> tokens := { token = QUESTION; pos = p } :: !tokens; advance ()
+      | '?' -> advance (); tokens := { token = QUESTION; loc = { start = p; end_ = pos () } } :: !tokens
       | c when c >= '0' && c <= '9' -> tokens := read_number () :: !tokens
       | c when is_ident_start c -> tokens := read_ident () :: !tokens
       | c -> raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
   done;
   let p = pos () in
-  List.rev ({ token = EOF; pos = p } :: !tokens)
+  List.rev ({ token = EOF; loc = { start = p; end_ = p } } :: !tokens)
