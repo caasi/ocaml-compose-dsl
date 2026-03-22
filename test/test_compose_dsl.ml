@@ -17,11 +17,6 @@ let check_ok input =
   Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
   ast
 
-let check_fails input =
-  let ast = parse_ok input in
-  let result = Checker.check ast in
-  Alcotest.(check bool) "has errors" true (List.length result.Checker.errors > 0);
-  result.Checker.errors
 
 let check_ok_with_warnings input =
   let ast = parse_ok input in
@@ -651,39 +646,6 @@ let test_parse_plan_example_3 () =
 
 (* === Checker tests === *)
 
-let test_check_loop_no_eval () =
-  let errors = check_fails "loop (a >>> b)" in
-  let msg = (List.hd errors).message in
-  Alcotest.(check bool) "mentions eval" true
-    (String.length msg > 0)
-
-let test_check_loop_with_evaluate () =
-  let _ = check_ok "loop (a >>> evaluate(criteria: done))" in
-  ()
-
-let test_check_loop_with_verify () =
-  let _ = check_ok "loop (a >>> verify(method: tests))" in
-  ()
-
-let test_check_loop_with_check () =
-  let _ = check_ok "loop (a >>> check(result: ok))" in
-  ()
-
-let test_check_nested_loop_both_need_eval () =
-  let errors = check_fails "loop (a >>> loop (b >>> c))" in
-  Alcotest.(check int) "2 errors" 2 (List.length errors)
-
-let test_check_loop_with_fanout_and_eval () =
-  let _ = check_ok "loop (a &&& evaluate(criteria: done))" in
-  ()
-
-let test_check_loop_with_test () =
-  let _ = check_ok "loop (a >>> test)" in
-  ()
-
-let test_check_loop_with_checking () =
-  let _ = check_ok "loop (a >>> checking)" in
-  ()
 
 let test_check_question_with_alt () =
   let warnings = check_ok_with_warnings {|"ready"? >>> (go ||| stop)|} in
@@ -745,12 +707,14 @@ let test_check_question_inside_alt_branch () =
   let warnings = check_ok_with_warnings {|("ready"? >>> process) ||| fallback|} in
   Alcotest.(check int) "one warning" 1 (List.length warnings)
 
-let test_check_loop_eval_inside_question () =
-  (* check? wraps an eval node — loop should recognize it *)
-  let ast = parse_ok {|loop(check? >>> (exit ||| continue))|} in
-  let result = Checker.check ast in
-  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
-  Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
+
+let test_check_loop_plain_no_error () =
+  let result = Checker.check (parse_ok "loop (a >>> b)") in
+  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
+
+let test_check_loop_unicode_no_error () =
+  let result = Checker.check (parse_ok "loop (掃描 >>> 檢查)") in
+  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
 
 let test_parse_comment_on_node_question () =
   let ast = parse_ok "validate -- important\n? >>> (a ||| b)" in
@@ -887,11 +851,6 @@ let test_parse_question_in_group () =
 
 (* === Checker loc tests === *)
 
-let test_check_loop_no_eval_loc () =
-  let errors = check_fails "loop (a >>> b)" in
-  let e = List.hd errors in
-  Alcotest.(check int) "error start line" 1 e.loc.start.line;
-  Alcotest.(check int) "error start col" 1 e.loc.start.col
 
 let test_check_question_warning_loc () =
   let warnings = check_ok_with_warnings {|"ready"? >>> process >>> done|} in
@@ -899,11 +858,6 @@ let test_check_question_warning_loc () =
   Alcotest.(check int) "warning start line" 1 w.loc.start.line;
   Alcotest.(check int) "warning start col" 1 w.loc.start.col
 
-let test_check_multiline_loc () =
-  let errors = check_fails "a >>>\nloop (b >>> c)" in
-  let e = List.hd errors in
-  Alcotest.(check int) "error start line" 2 e.loc.start.line;
-  Alcotest.(check int) "error start col" 1 e.loc.start.col
 
 (* === Parser loc span tests === *)
 
@@ -1105,14 +1059,8 @@ let parser_tests =
   ]
 
 let checker_tests =
-  [ "loop no eval", `Quick, test_check_loop_no_eval
-  ; "loop with evaluate", `Quick, test_check_loop_with_evaluate
-  ; "loop with verify", `Quick, test_check_loop_with_verify
-  ; "loop with check", `Quick, test_check_loop_with_check
-  ; "nested loops both need eval", `Quick, test_check_nested_loop_both_need_eval
-  ; "loop with fanout and eval", `Quick, test_check_loop_with_fanout_and_eval
-  ; "loop with test (4-char name)", `Quick, test_check_loop_with_test
-  ; "loop with checking (check prefix)", `Quick, test_check_loop_with_checking
+  [ "loop plain no error", `Quick, test_check_loop_plain_no_error
+  ; "loop with unicode nodes", `Quick, test_check_loop_unicode_no_error
   ; "question with alt", `Quick, test_check_question_with_alt
   ; "question without alt", `Quick, test_check_question_without_alt
   ; "question with intermediate steps", `Quick, test_check_question_with_intermediate_steps
@@ -1126,11 +1074,8 @@ let checker_tests =
   ; "question in fanout branch", `Quick, test_check_question_in_fanout_branch
   ; "question in fanout branch no alt", `Quick, test_check_question_in_fanout_branch_no_alt
   ; "alt before question still warns", `Quick, test_check_alt_before_question_still_warns
-  ; "loop eval inside question", `Quick, test_check_loop_eval_inside_question
   ; "question inside alt branch", `Quick, test_check_question_inside_alt_branch
-  ; "loop no eval loc", `Quick, test_check_loop_no_eval_loc
   ; "question warning loc", `Quick, test_check_question_warning_loc
-  ; "multiline error loc", `Quick, test_check_multiline_loc
   ]
 
 let printer_tests =
