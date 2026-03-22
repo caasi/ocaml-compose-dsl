@@ -976,7 +976,7 @@ let test_parse_node_loc () =
 let test_parse_seq_loc () =
   let ast = parse_ok "a >>> b" in
   Alcotest.(check int) "start col" 1 ast.loc.start.col;
-  Alcotest.(check int) "end col" 7 ast.loc.end_.col
+  Alcotest.(check int) "end col" 8 ast.loc.end_.col
 
 let test_parse_group_loc () =
   let ast = parse_ok "(a >>> b)" in
