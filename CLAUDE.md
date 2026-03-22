@@ -53,6 +53,14 @@ Two GitHub Actions workflows in `.github/workflows/`:
 
 macOS x86_64 binary is **not built in CI** (Rosetta cross-compile doesn't work with OCaml — `ocamlopt` emits arm64 assembly regardless of shell arch). It must be built locally and uploaded via `scripts/release-macos-x86_64.sh`.
 
+### Version Bumps
+
+When bumping the version in `dune-project`, also update:
+1. `CLAUDE.md` — if any module descriptions or behavior changed
+2. `README.md` — reflect new features or changes
+3. `CHANGELOG.md` — add entry for the new version
+4. Run `dune build` to regenerate opam files
+
 ### Releasing
 
 ```sh
