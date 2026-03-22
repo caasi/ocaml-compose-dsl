@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.1] - 2026-03-22
+
+### Added
+- Regression test `test_check_loop_plain_no_error` to prevent eval check from being reintroduced
+- Version bump checklist in CLAUDE.md
+
+### Fixed
+- Stale Checker module description in CLAUDE.md (still referenced removed eval check)
+- Hardcoded line numbers in spec replaced with match arm references
+- Plan 009 marked as completed
+
+## [0.6.0] - 2026-03-22
+
+### Removed
+- Loop evaluation node check from checker — loops no longer require English-named evaluation nodes (`evaluate`, `check`, `verify`, etc.). This was a semantic concern, not structural; the `?` + `|||` warning mechanism remains as a language-agnostic structural hint. (closes #12)
+
 ## [0.5.0] - 2026-03-22
 
 ### Added
