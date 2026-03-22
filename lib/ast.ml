@@ -1,3 +1,6 @@
+type pos = { line : int; col : int }
+type loc = { start : pos; end_ : pos }
+
 type value =
   | String of string
   | Ident of string
@@ -12,7 +15,8 @@ type question_term =
   | QNode of node
   | QString of string
 
-type expr =
+type expr = { loc : loc; desc : expr_desc }
+and expr_desc =
   | Node of node
   | Seq of expr * expr (** [>>>] *)
   | Par of expr * expr (** [***] *)

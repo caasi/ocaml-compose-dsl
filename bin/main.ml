@@ -94,7 +94,7 @@ let () =
       let result = Compose_dsl.Checker.check ast in
       List.iter
         (fun (w : Compose_dsl.Checker.warning) ->
-          Printf.eprintf "warning: %s\n" w.message)
+          Printf.eprintf "warning at %d:%d: %s\n" w.loc.start.line w.loc.start.col w.message)
         result.warnings;
       if result.errors = [] then (
         print_endline (Compose_dsl.Printer.to_string ast);
@@ -102,6 +102,6 @@ let () =
       else (
         List.iter
           (fun (e : Compose_dsl.Checker.error) ->
-            Printf.eprintf "check error: %s\n" e.message)
+            Printf.eprintf "check error at %d:%d: %s\n" e.loc.start.line e.loc.start.col e.message)
           result.errors;
         exit 1)

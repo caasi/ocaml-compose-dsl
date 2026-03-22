@@ -1,10 +1,17 @@
 open Ast
 
-exception Parse_error of Lexer.pos * string
+exception Parse_error of pos * string
 
-type state = { mutable tokens : Lexer.located list }
+type state = {
+  mutable tokens : Lexer.located list;
+  mutable last_loc : loc;
+}
 
-let make tokens = { tokens }
+let dummy_loc = { start = { line = 1; col = 1 }; end_ = { line = 1; col = 1 } }
+
+let make tokens = { tokens; last_loc = dummy_loc }
+
+let mk_expr loc desc : expr = { loc; desc }
 
 let current st =
   match st.tokens with
@@ -14,12 +21,14 @@ let current st =
 let advance st =
   match st.tokens with
   | [] -> failwith "unexpected end of token stream"
-  | _ :: rest -> st.tokens <- rest
+  | t :: rest ->
+    st.last_loc <- t.loc;
+    st.tokens <- rest
 
 let expect st tok_match msg =
   let t = current st in
   if tok_match t.token then advance st
-  else raise (Parse_error (t.pos, msg))
+  else raise (Parse_error (t.loc.start, msg))
 
 let eat_comments st =
   let comments = ref [] in
@@ -50,11 +59,11 @@ let rec parse_value st =
         (match t.token with
          | Lexer.COMMA -> advance st; go ()
          | Lexer.RBRACKET -> advance st
-         | _ -> raise (Parse_error (t.pos, "expected ',' or ']'")))
+         | _ -> raise (Parse_error (t.loc.start, "expected ',' or ']'")))
     in
     go ();
     List (List.rev !values)
-  | _ -> raise (Parse_error (t.pos, "expected value"))
+  | _ -> raise (Parse_error (t.loc.start, "expected value"))
 
 let parse_args st =
   let args = ref [] in
@@ -71,24 +80,24 @@ let parse_args st =
       (match t.token with
        | Lexer.COMMA -> advance st; go ()
        | Lexer.RPAREN -> ()
-       | _ -> raise (Parse_error (t.pos, "expected ',' or ')'")))
-    | _ -> raise (Parse_error (t.pos, "expected argument name or ')'"))
+       | _ -> raise (Parse_error (t.loc.start, "expected ',' or ')'")))
+    | _ -> raise (Parse_error (t.loc.start, "expected argument name or ')'"))
   in
   go ();
   List.rev !args
 
-let rec attach_comments_right expr comments =
-  if comments = [] then expr
-  else match expr with
-    | Node n -> Node { n with comments = n.comments @ comments }
-    | Seq (a, b) -> Seq (a, attach_comments_right b comments)
-    | Par (a, b) -> Par (a, attach_comments_right b comments)
-    | Fanout (a, b) -> Fanout (a, attach_comments_right b comments)
-    | Alt (a, b) -> Alt (a, attach_comments_right b comments)
-    | Group inner -> Group (attach_comments_right inner comments)
-    | Loop inner -> Loop (attach_comments_right inner comments)
-    | Question (QNode n) -> Question (QNode { n with comments = n.comments @ comments })
-    | Question (QString _) -> expr
+let rec attach_comments_right (e : expr) comments =
+  if comments = [] then e
+  else match e.desc with
+    | Node n -> { e with desc = Node { n with comments = n.comments @ comments } }
+    | Seq (a, b) -> { e with desc = Seq (a, attach_comments_right b comments) }
+    | Par (a, b) -> { e with desc = Par (a, attach_comments_right b comments) }
+    | Fanout (a, b) -> { e with desc = Fanout (a, attach_comments_right b comments) }
+    | Alt (a, b) -> { e with desc = Alt (a, attach_comments_right b comments) }
+    | Group inner -> { e with desc = Group (attach_comments_right inner comments) }
+    | Loop inner -> { e with desc = Loop (attach_comments_right inner comments) }
+    | Question (QNode n) -> { e with desc = Question (QNode { n with comments = n.comments @ comments }) }
+    | Question (QString _) -> e
 
 let rec parse_seq_expr st =
   let lhs = parse_alt_expr st in
@@ -96,7 +105,8 @@ let rec parse_seq_expr st =
   let lhs = attach_comments_right lhs comments in
   let t = current st in
   match t.token with
-  | Lexer.SEQ -> advance st; Seq (lhs, parse_seq_expr st)
+  | Lexer.SEQ -> advance st; let rhs = parse_seq_expr st in
+    mk_expr { start = lhs.loc.start; end_ = rhs.loc.end_ } (Seq (lhs, rhs))
   | _ -> lhs
 
 and parse_alt_expr st =
@@ -105,7 +115,8 @@ and parse_alt_expr st =
   let lhs = attach_comments_right lhs comments in
   let t = current st in
   match t.token with
-  | Lexer.ALT -> advance st; Alt (lhs, parse_alt_expr st)
+  | Lexer.ALT -> advance st; let rhs = parse_alt_expr st in
+    mk_expr { start = lhs.loc.start; end_ = rhs.loc.end_ } (Alt (lhs, rhs))
   | _ -> lhs
 
 and parse_par_expr st =
@@ -114,8 +125,10 @@ and parse_par_expr st =
   let lhs = attach_comments_right lhs comments in
   let t = current st in
   match t.token with
-  | Lexer.PAR -> advance st; Par (lhs, parse_par_expr st)
-  | Lexer.FANOUT -> advance st; Fanout (lhs, parse_par_expr st)
+  | Lexer.PAR -> advance st; let rhs = parse_par_expr st in
+    mk_expr { start = lhs.loc.start; end_ = rhs.loc.end_ } (Par (lhs, rhs))
+  | Lexer.FANOUT -> advance st; let rhs = parse_par_expr st in
+    mk_expr { start = lhs.loc.start; end_ = rhs.loc.end_ } (Fanout (lhs, rhs))
   | _ -> lhs
 
 and parse_term st =
@@ -129,41 +142,49 @@ and parse_term st =
     (match t2.token with
      | Lexer.QUESTION ->
        advance st;
-       Question (QString s)
-     | _ -> raise (Parse_error (t.pos, "bare string is not a valid term; did you mean to add '?'?")))
+       mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Question (QString s))
+     | _ -> raise (Parse_error (t.loc.start, "bare string is not a valid term; did you mean to add '?'?")))
   | Lexer.IDENT name ->
     advance st;
-    let t = current st in
-    (match t.token with
+    let t_next = current st in
+    (match t_next.token with
      | Lexer.LPAREN ->
        advance st;
        let args = parse_args st in
-       expect st (fun t -> t = Lexer.RPAREN) "expected ')'";
+       expect st (fun tok -> tok = Lexer.RPAREN) "expected ')'";
+       let rparen_end = st.last_loc.end_ in
        let comments = eat_comments st in
        let n = { name; args; comments } in
        let t2 = current st in
        (match t2.token with
-        | Lexer.QUESTION -> advance st; Question (QNode n)
-        | _ -> Node n)
+        | Lexer.QUESTION ->
+          advance st;
+          mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Question (QNode n))
+        | _ ->
+          mk_expr { start = t.loc.start; end_ = rparen_end } (Node n))
      | _ ->
+       let ident_end = st.last_loc.end_ in
        let comments = eat_comments st in
        let n = { name; args = []; comments } in
        let t2 = current st in
        (match t2.token with
-        | Lexer.QUESTION -> advance st; Question (QNode n)
-        | _ -> Node n))
+        | Lexer.QUESTION ->
+          advance st;
+          mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Question (QNode n))
+        | _ ->
+          mk_expr { start = t.loc.start; end_ = ident_end } (Node n)))
   | Lexer.LOOP ->
     advance st;
-    expect st (fun t -> t = Lexer.LPAREN) "expected '(' after 'loop'";
+    expect st (fun tok -> tok = Lexer.LPAREN) "expected '(' after 'loop'";
     let body = parse_seq_expr st in
-    expect st (fun t -> t = Lexer.RPAREN) "expected ')' to close 'loop'";
-    Loop body
+    expect st (fun tok -> tok = Lexer.RPAREN) "expected ')' to close 'loop'";
+    mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Loop body)
   | Lexer.LPAREN ->
     advance st;
     let inner = parse_seq_expr st in
-    expect st (fun t -> t = Lexer.RPAREN) "expected ')'";
-    Group inner
-  | _ -> raise (Parse_error (t.pos, "expected node, string with '?', '(' or 'loop'"))
+    expect st (fun tok -> tok = Lexer.RPAREN) "expected ')'";
+    mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Group inner)
+  | _ -> raise (Parse_error (t.loc.start, "expected node, string with '?', '(' or 'loop'"))
 
 let parse tokens =
   let st = make tokens in
@@ -171,5 +192,5 @@ let parse tokens =
   let t = current st in
   (match t.token with
    | Lexer.EOF -> ()
-   | _ -> raise (Parse_error (t.pos, "expected end of input")));
+   | _ -> raise (Parse_error (t.loc.start, "expected end of input")));
   expr
