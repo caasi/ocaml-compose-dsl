@@ -55,19 +55,21 @@ macOS x86_64 binary is **not built in CI** (Rosetta cross-compile doesn't work w
 
 ### Version Bumps
 
-When bumping the version in `dune-project`, also update:
-1. `CLAUDE.md` — if any module descriptions or behavior changed
-2. `README.md` — reflect new features or changes
-3. `CHANGELOG.md` — add entry for the new version
-4. Run `dune build` to regenerate opam files
+```
+bump(file: dune-project)
+  >>> (update_docs(file: CLAUDE.md) &&& update_docs(file: README.md) &&& update_docs(file: CHANGELOG.md))
+  >>> build -- dune build to regenerate opam files
+  >>> test  -- dune test to confirm nothing broke
+  >>> commit
+```
 
 ### Releasing
 
-```sh
-git tag v0.1.0
-git push origin v0.1.0
-# After CI release completes, upload macOS x86_64 from local Intel Mac:
-./scripts/release-macos-x86_64.sh v0.1.0
+```
+tag(format: "vX.Y.Z")
+  >>> push(remote: origin, tag: "vX.Y.Z")
+  >>> wait_ci -- wait for CI release workflow to complete
+  >>> run(script: scripts/release-macos-x86_64.sh) -- local Intel Mac upload
 ```
 
 ## Known Bugs
