@@ -752,6 +752,10 @@ let test_check_loop_eval_inside_question () =
   Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
   Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
 
+let test_check_loop_unicode_no_error () =
+  let result = Checker.check (parse_ok "loop (掃描 >>> 檢查)") in
+  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
+
 let test_parse_comment_on_node_question () =
   let ast = parse_ok "validate -- important\n? >>> (a ||| b)" in
   match ast.desc with
@@ -1105,7 +1109,8 @@ let parser_tests =
   ]
 
 let checker_tests =
-  [ "loop no eval", `Quick, test_check_loop_no_eval
+  [ "loop with unicode nodes", `Quick, test_check_loop_unicode_no_error
+  ; "loop no eval", `Quick, test_check_loop_no_eval
   ; "loop with evaluate", `Quick, test_check_loop_with_evaluate
   ; "loop with verify", `Quick, test_check_loop_with_verify
   ; "loop with check", `Quick, test_check_loop_with_check
