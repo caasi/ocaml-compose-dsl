@@ -19,6 +19,8 @@ type pos = { line: int; col: int }
 type loc = { start: pos; end_: pos }
 ```
 
+**Semantics**: `loc` is a half-open interval `[start, end_)`. `end_` points to the codepoint position immediately after the last character of the span. This means `end_.col - start.col` gives the length for single-line spans.
+
 `expr` is split into a wrapper and a descriptor:
 
 ```ocaml
@@ -38,52 +40,69 @@ and expr_desc =
 
 ## Lexer Changes
 
-`Lexer.pos` is replaced by `Ast.pos` (same structure, single source of truth):
+`Lexer.pos` is replaced by `Ast.pos`. `Lexer.located` now carries a full `loc` (start + end) instead of just a start `pos`:
 
 ```ocaml
 open Ast
 
 (* type pos removed — now uses Ast.pos *)
-type located = { token: token; pos: pos }
+type located = { token: token; loc: loc }
 exception Lex_error of pos * string
 ```
+
+Each token's `loc.start` is captured before consuming, and `loc.end_` is the `pos()` value immediately after consuming the last character of the token (half-open interval). The lexer already tracks a cursor position that advances past each token — `pos()` after consuming naturally gives the correct `end_`.
+
+The `EOF` token gets a zero-width span: `{ start = final_pos; end_ = final_pos }`.
 
 Lexer behavior is unchanged. All existing `pos` references now resolve to `Ast.pos`.
 
 ## Parser Changes
 
+### Exception type
+
+`Parse_error` changes from `Lexer.pos` to `Ast.pos`:
+
+```ocaml
+exception Parse_error of pos * string
+```
+
+This is the same structure — only the module path changes.
+
 ### State
 
-Add `last_pos` to track the position of the most recently consumed token:
+Add `last_loc` to track the loc of the most recently consumed token:
 
 ```ocaml
 type state = {
   mutable tokens: located list;
-  mutable last_pos: pos;
+  mutable last_loc: loc;
 }
 ```
 
-`advance` updates `last_pos` before dropping the token.
+Initial value of `last_loc`: `{ start = { line = 1; col = 1 }; end_ = { line = 1; col = 1 } }`. This is only used if no token has been consumed yet, which cannot happen for valid parse paths (the first call to `parse_term` always consumes at least one token before `last_loc` is read).
+
+`advance` updates `last_loc` to the current token's `loc` before dropping it.
 
 ### Expression construction
 
-A helper builds `expr` from start/end positions:
+A helper builds `expr` from a combined loc:
 
 ```ocaml
-let mk_expr start end_ desc : expr =
-  { loc = { start; end_ }; desc }
+let mk_expr loc desc : expr = { loc; desc }
 ```
 
 ### Position capture strategy
 
-- **start**: captured from `(current st).pos` at the beginning of each parse function
-- **end\_**: taken from `st.last_pos` after the last token of the expression is consumed
+- **start**: captured from `(current st).loc.start` at the beginning of each parse function
+- **end\_**: taken from `st.last_loc.end_` after the last token of the expression is consumed
+
+For single-token expressions (e.g., a bare `Node`), the token's own `loc` can be used directly.
 
 ### Affected functions
 
-- `parse_term`: each branch (`IDENT`, `STRING`, `LOOP`, `LPAREN`) records start at entry, uses `st.last_pos` as end after consuming closing tokens
-- `parse_seq_expr` / `parse_alt_expr` / `parse_par_expr`: binary operators use `lhs.loc.start` as start, `st.last_pos` (after parsing rhs) as end
-- `attach_comments_right`: signature changes to destructure `{ loc; desc }` and rewrap — `loc` is preserved unchanged
+- `parse_term`: each branch (`IDENT`, `STRING`, `LOOP`, `LPAREN`) records start at entry, uses `st.last_loc.end_` as end after consuming closing tokens. For single-token nodes, use the token's `loc` directly.
+- `parse_seq_expr` / `parse_alt_expr` / `parse_par_expr`: binary operators build loc as `{ start = lhs.loc.start; end_ = rhs.loc.end_ }` where `rhs` is the recursively parsed right-hand side. Note: `eat_comments` between lhs and the operator will advance `last_loc` as a side effect, but this is harmless because binary operators use sub-expression locs (`lhs.loc.start`, `rhs.loc.end_`) rather than raw `last_loc`.
+- `attach_comments_right`: uses `{ e with desc = ... }` pattern to preserve loc while updating the descriptor. The `Question (QString _)` branch returns `e` unchanged (comments are dropped for bare strings — existing behavior). This is preferred over explicit destructuring for conciseness and correctness.
 
 ### Return type
 
@@ -105,8 +124,9 @@ type result = { errors: error list; warnings: warning list }
 - `go` extracts `loc` from `expr.loc` for each diagnostic:
   - Loop without eval node → error with the `Loop` expr's loc
   - Question/alt balance warning → loc of the enclosing scope expr
-- `normalize` operates on `expr` (preserving loc through structural transformations, stripping `Group` wrappers)
+- `normalize` operates on `expr`, preserving loc through structural transformations. For `Group` stripping: the Group's loc is discarded and the inner expr's loc is kept (i.e., `{ desc = Group inner; _ } -> normalize inner`). For all other variants, loc is preserved via `{ e with desc = ... }` reconstruction.
 - `scan_questions` matches on `expr.desc`
+- The inner `scan` function inside the `Loop` branch also matches on `expr.desc`. The existing `Question (QNode n) -> scan (Node n)` line must construct a full `expr` record: `scan { loc = e.loc; desc = Node n }` (reusing the parent's loc, since `scan` only inspects node names and never reads loc).
 
 Check logic itself is unchanged — only the plumbing of positional information is added.
 
@@ -130,18 +150,20 @@ let rec to_string (e : expr) =
 
 ### Mechanical changes
 
-- Tests that pattern-match on `Ast.Node`, `Ast.Seq`, etc. must destructure `.desc`:
-  ```ocaml
-  (* before *)
-  | Ast.Seq (Ast.Node _, Ast.Node _) -> ()
-  (* after *)
-  match (parse_ok "a >>> b").desc with
-  | Seq ({ desc = Node _; _ }, { desc = Node _; _ }) -> ()
-  ```
-- Add a test helper to reduce verbosity:
-  ```ocaml
-  let desc_of input = (parse_ok input).desc
-  ```
+~60 lines in `test_compose_dsl.ml` directly pattern-match on `Ast.Node`, `Ast.Seq`, etc. These must destructure `.desc`:
+
+```ocaml
+(* before *)
+| Ast.Seq (Ast.Node _, Ast.Node _) -> ()
+(* after *)
+match (parse_ok "a >>> b").desc with
+| Seq ({ desc = Node _; _ }, { desc = Node _; _ }) -> ()
+```
+
+Mitigation strategies for verbosity:
+- Add a test helper: `let desc_of input = (parse_ok input).desc`
+- Use `let open Ast in` to drop module prefixes
+- Where possible, convert structural pattern-match tests to round-trip tests (parse → print → compare string), since Printer output is unchanged. This reduces the number of tests that need mechanical rewriting.
 
 ### New tests
 
@@ -158,6 +180,20 @@ Printf.eprintf "warning at %d:%d: %s\n" w.loc.start.line w.loc.start.col w.messa
 (* errors *)
 Printf.eprintf "check error at %d:%d: %s\n" e.loc.start.line e.loc.start.col e.message
 ```
+
+Lex error and parse error handling: `Lexer.Lex_error` and `Parser.Parse_error` both carry `Ast.pos` now (previously `Lexer.pos`). The fields are identical, so `main.ml` pattern matches work unchanged — only the qualified type path differs.
+
+## Implementation Order
+
+1. **Ast**: add `pos`, `loc`, split `expr` → `expr` + `expr_desc`
+2. **Lexer**: remove local `pos`, use `Ast.pos`/`Ast.loc`, change `located` to `{ token; loc }`
+3. **Parser**: update state, capture locs, produce `{ loc; desc }` exprs (depends on 1 + 2)
+4. **Printer**: match on `.desc` (depends on 1)
+5. **Checker**: add loc to diagnostics, match on `.desc` (depends on 1)
+6. **CLI**: update diagnostic format strings (depends on 5)
+7. **Tests**: mechanical rewrites + new loc tests (depends on all above)
+
+Steps 3–5 can proceed in parallel after 1–2. Note: the codebase will not compile in intermediate states — all modules must be updated together for a successful build.
 
 ## Future Extensibility
 
