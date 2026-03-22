@@ -50,7 +50,7 @@ After the change, `Loop body ->` becomes:
 | `test_check_loop_with_fanout_and_eval` | 676 | Tests eval name recognition |
 | `test_check_loop_with_test` | 680 | Tests eval name recognition |
 | `test_check_loop_with_checking` | 684 | Tests eval name recognition |
-| `test_check_loop_eval_inside_question` | 748 | Tests eval recognition through `?` |
+| `test_check_loop_eval_inside_question` | 748 | Tests eval recognition through `?` — would still pass but its purpose (eval name detection) is no longer meaningful |
 | `test_check_loop_no_eval_loc` | 890 | Tests error loc for removed error |
 | `test_check_multiline_loc` | 902 | Tests error loc for removed error |
 
