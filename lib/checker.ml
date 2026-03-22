@@ -1,26 +1,28 @@
 open Ast
 
-type error = { message : string }
-type warning = { message : string }
+type error = { loc : loc; message : string }
+type warning = { loc : loc; message : string }
 type result = { errors : error list; warnings : warning list }
 
-let rec normalize = function
+let rec normalize (e : expr) : expr =
+  match e.desc with
   | Group inner -> normalize inner
-  | Seq (a, b) -> Seq (normalize a, normalize b)
-  | Par (a, b) -> Par (normalize a, normalize b)
-  | Fanout (a, b) -> Fanout (normalize a, normalize b)
-  | Alt (a, b) -> Alt (normalize a, normalize b)
-  | Loop body -> Loop (normalize body)
-  | (Node _ | Question _) as e -> e
+  | Seq (a, b) -> { e with desc = Seq (normalize a, normalize b) }
+  | Par (a, b) -> { e with desc = Par (normalize a, normalize b) }
+  | Fanout (a, b) -> { e with desc = Fanout (normalize a, normalize b) }
+  | Alt (a, b) -> { e with desc = Alt (normalize a, normalize b) }
+  | Loop body -> { e with desc = Loop (normalize body) }
+  | Node _ | Question _ -> e
 
-let check expr =
+let check (expr : expr) =
   let errors = ref [] in
   let warnings = ref [] in
-  let add_error msg = errors := ({ message = msg } : error) :: !errors in
-  let add_warning msg = warnings := ({ message = msg } : warning) :: !warnings in
+  let add_error loc msg = errors := ({ loc; message = msg } : error) :: !errors in
+  let add_warning loc msg = warnings := ({ loc; message = msg } : warning) :: !warnings in
   (* Left-to-right fold over Seq chains: +1 for Question, -1 (with
      saturation at 0) for Alt. Only downstream ||| can match upstream ?. *)
-  let rec scan_questions counter = function
+  let rec scan_questions counter (e : expr) =
+    match e.desc with
     | Question _ -> counter + 1
     | Alt _ -> max 0 (counter - 1)
     | Node _ -> counter
@@ -30,16 +32,17 @@ let check expr =
     | Group _ -> counter (* defensive: unreachable after normalize *)
     | Par _ | Fanout _ | Loop _ -> counter
   in
-  let check_question_balance expr =
-    let unmatched = scan_questions 0 (normalize expr) in
+  let check_question_balance (e : expr) =
+    let unmatched = scan_questions 0 (normalize e) in
     for _ = 1 to unmatched do
-      add_warning "'?' without matching '|||' in scope"
+      add_warning e.loc "'?' without matching '|||' in scope"
     done
   in
-  let rec go = function
+  let rec go (e : expr) =
+    match e.desc with
     | Node n ->
       if n.name = "" && n.comments = [] then
-        add_error "node has no purpose (no name and no comments)"
+        add_error e.loc "node has no purpose (no name and no comments)"
     | Seq (a, b) -> go a; go b
     | Par (a, b) ->
       check_question_balance a;
@@ -55,7 +58,8 @@ let check expr =
       go a; go b
     | Loop body ->
       let has_eval = ref false in
-      let rec scan = function
+      let rec scan (e : expr) =
+        match e.desc with
         | Node n ->
           if String.length n.name >= 4 &&
              (let s = String.lowercase_ascii n.name in
@@ -68,12 +72,12 @@ let check expr =
         | Seq (a, b) | Par (a, b) | Fanout (a, b) | Alt (a, b) -> scan a; scan b
         | Loop inner -> scan inner
         | Group inner -> scan inner
-        | Question (QNode n) -> scan (Node n)
+        | Question (QNode n) -> scan { loc = e.loc; desc = Node n }
         | Question (QString _) -> ()
       in
       scan body;
       if not !has_eval then
-        add_error "loop has no evaluation/termination node (expected a node like 'evaluate', 'check', 'verify', etc.)";
+        add_error e.loc "loop has no evaluation/termination node (expected a node like 'evaluate', 'check', 'verify', etc.)";
       check_question_balance body;
       go body
     | Group inner ->
