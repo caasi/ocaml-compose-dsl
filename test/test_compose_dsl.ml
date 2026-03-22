@@ -4,6 +4,8 @@ let parse_ok input =
   let tokens = Lexer.tokenize input in
   Parser.parse tokens
 
+let desc_of input = (parse_ok input).desc
+
 let parse_fails input =
   match parse_ok input with
   | _ -> Alcotest.fail "expected parse error"
@@ -255,9 +257,9 @@ let test_lex_unicode_ident_col () =
     (match tok2.token with
      | Lexer.IDENT "b" -> ()
      | _ -> Alcotest.fail "expected IDENT b");
-    Alcotest.(check int) "翻譯 col" 1 tok0.pos.col;
-    Alcotest.(check int) ">>> col" 4 tok1.pos.col;
-    Alcotest.(check int) "b col" 8 tok2.pos.col
+    Alcotest.(check int) "翻譯 col" 1 tok0.loc.start.col;
+    Alcotest.(check int) ">>> col" 4 tok1.loc.start.col;
+    Alcotest.(check int) "b col" 8 tok2.loc.start.col
   | _ -> Alcotest.fail "expected at least 3 tokens"
 
 let test_lex_mixed_unicode_col () =
@@ -270,8 +272,8 @@ let test_lex_mixed_unicode_col () =
     (match tok1.token with
      | Lexer.SEQ -> ()
      | _ -> Alcotest.fail "expected SEQ");
-    Alcotest.(check int) "ident col" 1 tok0.pos.col;
-    Alcotest.(check int) ">>> col" 6 tok1.pos.col
+    Alcotest.(check int) "ident col" 1 tok0.loc.start.col;
+    Alcotest.(check int) ">>> col" 6 tok1.loc.start.col
   | _ -> Alcotest.fail "expected at least 2 tokens"
 
 let test_lex_unicode_string_col () =
@@ -287,19 +289,19 @@ let test_lex_unicode_string_col () =
     (match tok2.token with
      | Lexer.IDENT "b" -> ()
      | _ -> Alcotest.fail "expected IDENT b");
-    Alcotest.(check int) "string col" 1 tok0.pos.col;
-    Alcotest.(check int) ">>> col" 6 tok1.pos.col;
-    Alcotest.(check int) "b col" 10 tok2.pos.col
+    Alcotest.(check int) "string col" 1 tok0.loc.start.col;
+    Alcotest.(check int) ">>> col" 6 tok1.loc.start.col;
+    Alcotest.(check int) "b col" 10 tok2.loc.start.col
   | _ -> Alcotest.fail "expected at least 3 tokens"
 
 let test_lex_multiline_unicode_col () =
   let tokens = Lexer.tokenize "翻譯\nb" in
   match tokens with
   | tok0 :: tok1 :: _ ->
-    Alcotest.(check int) "翻譯 line" 1 tok0.pos.line;
-    Alcotest.(check int) "翻譯 col" 1 tok0.pos.col;
-    Alcotest.(check int) "b line" 2 tok1.pos.line;
-    Alcotest.(check int) "b col" 1 tok1.pos.col
+    Alcotest.(check int) "翻譯 line" 1 tok0.loc.start.line;
+    Alcotest.(check int) "翻譯 col" 1 tok0.loc.start.col;
+    Alcotest.(check int) "b line" 2 tok1.loc.start.line;
+    Alcotest.(check int) "b col" 1 tok1.loc.start.col
   | _ -> Alcotest.fail "expected at least 2 tokens"
 
 let test_lex_malformed_utf8 () =
@@ -340,8 +342,7 @@ let test_lex_question_after_string () =
 
 (* node = ident , [ "(" , [ args ] , ")" ] *)
 let test_parse_node_with_args () =
-  let ast = parse_ok "read(source: \"data.csv\")" in
-  match ast with
+  match desc_of "read(source: \"data.csv\")" with
   | Ast.Node n ->
     Alcotest.(check string) "name" "read" n.name;
     Alcotest.(check int) "1 arg" 1 (List.length n.args);
@@ -349,16 +350,14 @@ let test_parse_node_with_args () =
   | _ -> Alcotest.fail "expected Node"
 
 let test_parse_node_no_parens () =
-  let ast = parse_ok "count" in
-  match ast with
+  match desc_of "count" with
   | Ast.Node n ->
     Alcotest.(check string) "name" "count" n.name;
     Alcotest.(check int) "0 args" 0 (List.length n.args)
   | _ -> Alcotest.fail "expected Node"
 
 let test_parse_node_empty_parens () =
-  let ast = parse_ok "noop()" in
-  match ast with
+  match desc_of "noop()" with
   | Ast.Node n ->
     Alcotest.(check string) "name" "noop" n.name;
     Alcotest.(check int) "0 args" 0 (List.length n.args)
@@ -366,8 +365,7 @@ let test_parse_node_empty_parens () =
 
 (* args = arg , { "," , arg } *)
 let test_parse_multiple_args () =
-  let ast = parse_ok "load(from: cache, key: k, ttl: \"60\")" in
-  match ast with
+  match desc_of "load(from: cache, key: k, ttl: \"60\")" with
   | Ast.Node n ->
     Alcotest.(check int) "3 args" 3 (List.length n.args);
     Alcotest.(check string) "arg1" "from" (List.nth n.args 0).key;
@@ -377,8 +375,7 @@ let test_parse_multiple_args () =
 
 (* value = string | ident | "[" , [ value , { "," , value } ] , "]" *)
 let test_parse_string_value () =
-  let ast = parse_ok "a(x: \"hello\")" in
-  match ast with
+  match desc_of "a(x: \"hello\")" with
   | Ast.Node n ->
     (match (List.hd n.args).value with
      | Ast.String "hello" -> ()
@@ -386,8 +383,7 @@ let test_parse_string_value () =
   | _ -> Alcotest.fail "expected Node"
 
 let test_parse_ident_value () =
-  let ast = parse_ok "a(x: csv)" in
-  match ast with
+  match desc_of "a(x: csv)" with
   | Ast.Node n ->
     (match (List.hd n.args).value with
      | Ast.Ident "csv" -> ()
@@ -395,8 +391,7 @@ let test_parse_ident_value () =
   | _ -> Alcotest.fail "expected Node"
 
 let test_parse_list_value () =
-  let ast = parse_ok "collect(fields: [name, email, age])" in
-  match ast with
+  match desc_of "collect(fields: [name, email, age])" with
   | Ast.Node n ->
     (match (List.hd n.args).value with
      | Ast.List vs -> Alcotest.(check int) "3 items" 3 (List.length vs)
@@ -404,8 +399,7 @@ let test_parse_list_value () =
   | _ -> Alcotest.fail "expected Node"
 
 let test_parse_empty_list () =
-  let ast = parse_ok "a(x: [])" in
-  match ast with
+  match desc_of "a(x: [])" with
   | Ast.Node n ->
     (match (List.hd n.args).value with
      | Ast.List vs -> Alcotest.(check int) "0 items" 0 (List.length vs)
@@ -413,8 +407,7 @@ let test_parse_empty_list () =
   | _ -> Alcotest.fail "expected Node"
 
 let test_parse_single_item_list () =
-  let ast = parse_ok "a(x: [one])" in
-  match ast with
+  match desc_of "a(x: [one])" with
   | Ast.Node n ->
     (match (List.hd n.args).value with
      | Ast.List [ Ast.Ident "one" ] -> ()
@@ -422,8 +415,7 @@ let test_parse_single_item_list () =
   | _ -> Alcotest.fail "expected Node"
 
 let test_parse_number_value () =
-  let ast = parse_ok "resize(width: 1920)" in
-  match ast with
+  match desc_of "resize(width: 1920)" with
   | Ast.Node n ->
     (match (List.hd n.args).value with
      | Ast.Number "1920" -> ()
@@ -431,8 +423,7 @@ let test_parse_number_value () =
   | _ -> Alcotest.fail "expected Node"
 
 let test_parse_float_value () =
-  let ast = parse_ok "delay(seconds: 3.5)" in
-  match ast with
+  match desc_of "delay(seconds: 3.5)" with
   | Ast.Node n ->
     (match (List.hd n.args).value with
      | Ast.Number "3.5" -> ()
@@ -440,8 +431,7 @@ let test_parse_float_value () =
   | _ -> Alcotest.fail "expected Node"
 
 let test_parse_negative_value () =
-  let ast = parse_ok "adjust(offset: -10)" in
-  match ast with
+  match desc_of "adjust(offset: -10)" with
   | Ast.Node n ->
     (match (List.hd n.args).value with
      | Ast.Number "-10" -> ()
@@ -449,8 +439,7 @@ let test_parse_negative_value () =
   | _ -> Alcotest.fail "expected Node"
 
 let test_parse_number_in_list () =
-  let ast = parse_ok "a(dims: [1920, 1080])" in
-  match ast with
+  match desc_of "a(dims: [1920, 1080])" with
   | Ast.Node n ->
     (match (List.hd n.args).value with
      | Ast.List [Ast.Number "1920"; Ast.Number "1080"] -> ()
@@ -458,8 +447,7 @@ let test_parse_number_in_list () =
   | _ -> Alcotest.fail "expected Node"
 
 let test_parse_number_with_unit () =
-  let ast = parse_ok "dose(amount: 100mg)" in
-  match ast with
+  match desc_of "dose(amount: 100mg)" with
   | Ast.Node n ->
     (match (List.hd n.args).value with
      | Ast.Number "100mg" -> ()
@@ -471,53 +459,44 @@ let test_parse_number_as_node_name () =
 
 (* expr = term , { operator , term } *)
 let test_parse_seq () =
-  let ast = parse_ok "a >>> b >>> c" in
-  match ast with
-  | Ast.Seq (Ast.Node _, Ast.Seq (Ast.Node _, Ast.Node _)) -> ()
+  match desc_of "a >>> b >>> c" with
+  | Ast.Seq ({ desc = Ast.Node _; _ }, { desc = Ast.Seq ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }) -> ()
   | _ -> Alcotest.fail "expected right-associative Seq"
 
 let test_parse_par () =
-  let ast = parse_ok "a *** b" in
-  match ast with
-  | Ast.Par (Ast.Node _, Ast.Node _) -> ()
+  match desc_of "a *** b" with
+  | Ast.Par ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }) -> ()
   | _ -> Alcotest.fail "expected Par"
 
 let test_parse_alt () =
-  let ast = parse_ok "a ||| b" in
-  match ast with
-  | Ast.Alt (Ast.Node _, Ast.Node _) -> ()
+  match desc_of "a ||| b" with
+  | Ast.Alt ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }) -> ()
   | _ -> Alcotest.fail "expected Alt"
 
 let test_parse_mixed_operators () =
-  (* a >>> b *** c ||| d = a >>> ((b *** c) ||| d) *)
-  let ast = parse_ok "a >>> b *** c ||| d" in
-  match ast with
-  | Ast.Seq (Ast.Node _, Ast.Alt (Ast.Par (Ast.Node _, Ast.Node _), Ast.Node _)) -> ()
+  match desc_of "a >>> b *** c ||| d" with
+  | Ast.Seq ({ desc = Ast.Node _; _ }, { desc = Ast.Alt ({ desc = Ast.Par ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }, { desc = Ast.Node _; _ }); _ }) -> ()
   | _ -> Alcotest.fail "expected precedence: >>> < ||| < ***"
 
 (* term = node | "loop" , "(" , expr , ")" | "(" , expr , ")" *)
 let test_parse_group () =
-  let ast = parse_ok "(a >>> b) *** c" in
-  match ast with
-  | Ast.Par (Ast.Group (Ast.Seq _), Ast.Node _) -> ()
+  match desc_of "(a >>> b) *** c" with
+  | Ast.Par ({ desc = Ast.Group { desc = Ast.Seq _; _ }; _ }, { desc = Ast.Node _; _ }) -> ()
   | _ -> Alcotest.fail "expected Par with grouped Seq"
 
 let test_parse_nested_groups () =
-  let ast = parse_ok "((a >>> b))" in
-  match ast with
-  | Ast.Group (Ast.Group (Ast.Seq _)) -> ()
+  match desc_of "((a >>> b))" with
+  | Ast.Group { desc = Ast.Group { desc = Ast.Seq _; _ }; _ } -> ()
   | _ -> Alcotest.fail "expected nested Group"
 
 let test_parse_loop () =
-  let ast = parse_ok "loop (a >>> evaluate(criteria: pass))" in
-  match ast with
-  | Ast.Loop (Ast.Seq _) -> ()
+  match desc_of "loop (a >>> evaluate(criteria: pass))" with
+  | Ast.Loop { desc = Ast.Seq _; _ } -> ()
   | _ -> Alcotest.fail "expected Loop"
 
 let test_parse_nested_loop () =
-  let ast = parse_ok "loop (a >>> loop (b >>> check(x: y)) >>> evaluate(r: done))" in
-  match ast with
-  | Ast.Loop (Ast.Seq (Ast.Node _, Ast.Seq (Ast.Loop _, Ast.Node _))) -> ()
+  match desc_of "loop (a >>> loop (b >>> check(x: y)) >>> evaluate(r: done))" with
+  | Ast.Loop { desc = Ast.Seq ({ desc = Ast.Node _; _ }, { desc = Ast.Seq ({ desc = Ast.Loop _; _ }, { desc = Ast.Node _; _ }); _ }); _ } -> ()
   | _ -> Alcotest.fail "expected nested Loop"
 
 (* comment attachment *)
@@ -527,8 +506,8 @@ let test_parse_comments_attach_to_node () =
       {|read(source: "data.csv") -- read the source
   >>> write(dest: "out.csv") -- write output|}
   in
-  match ast with
-  | Ast.Seq (Ast.Node r, Ast.Node w) ->
+  match ast.desc with
+  | Ast.Seq ({ desc = Ast.Node r; _ }, { desc = Ast.Node w; _ }) ->
     Alcotest.(check int) "read comments" 1 (List.length r.comments);
     Alcotest.(check int) "write comments" 1 (List.length w.comments)
   | _ -> Alcotest.fail "expected Seq"
@@ -539,7 +518,7 @@ let test_parse_multiline_comments () =
       {|read(source: "data.csv") -- read the source
                                -- ref: Read, cat|}
   in
-  match ast with
+  match ast.desc with
   | Ast.Node n ->
     Alcotest.(check int) "2 comments" 2 (List.length n.comments)
   | _ -> Alcotest.fail "expected Node"
@@ -549,8 +528,8 @@ let test_parse_comment_on_group () =
     parse_ok {|(a >>> b) -- comment on group
   >>> c|}
   in
-  match ast with
-  | Ast.Seq (Ast.Group (Ast.Seq (Ast.Node _, Ast.Node b)), Ast.Node _) ->
+  match ast.desc with
+  | Ast.Seq ({ desc = Ast.Group { desc = Ast.Seq ({ desc = Ast.Node _; _ }, { desc = Ast.Node b; _ }); _ }; _ }, { desc = Ast.Node _; _ }) ->
     Alcotest.(check int) "comment attached to rightmost node in group" 1 (List.length b.comments);
     Alcotest.(check string) "comment text" "comment on group" (List.hd b.comments)
   | _ -> Alcotest.fail "expected Seq(Group(Seq(a,b)),c)"
@@ -560,57 +539,47 @@ let test_parse_comment_on_loop () =
     parse_ok {|loop (a >>> evaluate(x: y)) -- loop comment
   >>> done|}
   in
-  match ast with
-  | Ast.Seq (Ast.Loop (Ast.Seq (Ast.Node _, Ast.Node e)), Ast.Node _) ->
+  match ast.desc with
+  | Ast.Seq ({ desc = Ast.Loop { desc = Ast.Seq ({ desc = Ast.Node _; _ }, { desc = Ast.Node e; _ }); _ }; _ }, { desc = Ast.Node _; _ }) ->
     Alcotest.(check int) "comment attached to rightmost node in loop" 1 (List.length e.comments);
     Alcotest.(check string) "comment text" "loop comment" (List.hd e.comments)
   | _ -> Alcotest.fail "expected Seq(Loop(...), done)"
 
 let test_parse_fanout () =
-  let ast = parse_ok "a &&& b" in
-  match ast with
-  | Ast.Fanout (Ast.Node _, Ast.Node _) -> ()
+  match desc_of "a &&& b" with
+  | Ast.Fanout ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }) -> ()
   | _ -> Alcotest.fail "expected Fanout"
 
 let test_parse_precedence_seq_fanout () =
-  (* a >>> b &&& c >>> d  =  a >>> ((b &&& c) >>> d)  right-assoc *)
-  let ast = parse_ok "a >>> b &&& c >>> d" in
-  match ast with
-  | Ast.Seq (Ast.Node _, Ast.Seq (Ast.Fanout (Ast.Node _, Ast.Node _), Ast.Node _)) -> ()
+  match desc_of "a >>> b &&& c >>> d" with
+  | Ast.Seq ({ desc = Ast.Node _; _ }, { desc = Ast.Seq ({ desc = Ast.Fanout ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }, { desc = Ast.Node _; _ }); _ }) -> ()
   | _ -> Alcotest.fail "expected Seq(a, Seq(Fanout(b,c), d))"
 
 let test_parse_precedence_alt_par () =
-  (* a ||| b *** c  =  a ||| (b *** c)  precedence *)
-  let ast = parse_ok "a ||| b *** c" in
-  match ast with
-  | Ast.Alt (Ast.Node _, Ast.Par (Ast.Node _, Ast.Node _)) -> ()
+  match desc_of "a ||| b *** c" with
+  | Ast.Alt ({ desc = Ast.Node _; _ }, { desc = Ast.Par ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }) -> ()
   | _ -> Alcotest.fail "expected Alt(a, Par(b,c))"
 
 let test_parse_par_fanout_same_prec () =
-  (* a *** b &&& c  =  a *** (b &&& c)  right-assoc, same precedence *)
-  let ast = parse_ok "a *** b &&& c" in
-  match ast with
-  | Ast.Par (Ast.Node _, Ast.Fanout (Ast.Node _, Ast.Node _)) -> ()
+  match desc_of "a *** b &&& c" with
+  | Ast.Par ({ desc = Ast.Node _; _ }, { desc = Ast.Fanout ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }) -> ()
   | _ -> Alcotest.fail "expected Par(a, Fanout(b,c))"
 
 let test_parse_mixed_all_precedence () =
-  let ast = parse_ok "a >>> b ||| c &&& d *** e" in
-  match ast with
-  | Ast.Seq (Ast.Node _,
-      Ast.Alt (Ast.Node _,
-        Ast.Fanout (Ast.Node _,
-          Ast.Par (Ast.Node _, Ast.Node _)))) -> ()
+  match desc_of "a >>> b ||| c &&& d *** e" with
+  | Ast.Seq ({ desc = Ast.Node _; _ },
+      { desc = Ast.Alt ({ desc = Ast.Node _; _ },
+        { desc = Ast.Fanout ({ desc = Ast.Node _; _ },
+          { desc = Ast.Par ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }); _ }); _ }) -> ()
   | _ -> Alcotest.fail "expected Seq(a, Alt(b, Fanout(c, Par(d, e))))"
 
 let test_parse_group_overrides_precedence () =
-  let ast = parse_ok "(a >>> b) &&& c" in
-  match ast with
-  | Ast.Fanout (Ast.Group (Ast.Seq (Ast.Node _, Ast.Node _)), Ast.Node _) -> ()
+  match desc_of "(a >>> b) &&& c" with
+  | Ast.Fanout ({ desc = Ast.Group { desc = Ast.Seq ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }; _ }, { desc = Ast.Node _; _ }) -> ()
   | _ -> Alcotest.fail "expected Fanout(Group(Seq(a,b)), c)"
 
 let test_parse_unicode_node_with_args () =
-  let ast = parse_ok {|翻譯(來源: "日文")|} in
-  match ast with
+  match desc_of {|翻譯(來源: "日文")|} with
   | Ast.Node n ->
     Alcotest.(check string) "name" "翻譯" n.name;
     Alcotest.(check int) "1 arg" 1 (List.length n.args);
@@ -621,24 +590,21 @@ let test_parse_unicode_node_with_args () =
   | _ -> Alcotest.fail "expected Node"
 
 let test_parse_unicode_seq () =
-  let ast = parse_ok "café >>> naïve" in
-  match ast with
-  | Ast.Seq (Ast.Node a, Ast.Node b) ->
+  match desc_of "café >>> naïve" with
+  | Ast.Seq ({ desc = Ast.Node a; _ }, { desc = Ast.Node b; _ }) ->
     Alcotest.(check string) "lhs" "café" a.name;
     Alcotest.(check string) "rhs" "naïve" b.name
   | _ -> Alcotest.fail "expected Seq"
 
 let test_parse_greek_seq () =
-  let ast = parse_ok "α >>> β" in
-  match ast with
-  | Ast.Seq (Ast.Node a, Ast.Node b) ->
+  match desc_of "α >>> β" with
+  | Ast.Seq ({ desc = Ast.Node a; _ }, { desc = Ast.Node b; _ }) ->
     Alcotest.(check string) "lhs" "α" a.name;
     Alcotest.(check string) "rhs" "β" b.name
   | _ -> Alcotest.fail "expected Seq"
 
 let test_parse_unicode_unit_value () =
-  let ast = parse_ok "wait(duration: 500ミリ秒)" in
-  match ast with
+  match desc_of "wait(duration: 500ミリ秒)" with
   | Ast.Node n ->
     (match (List.hd n.args).value with
      | Ast.Number "500ミリ秒" -> ()
@@ -788,15 +754,15 @@ let test_check_loop_eval_inside_question () =
 
 let test_parse_comment_on_node_question () =
   let ast = parse_ok "validate -- important\n? >>> (a ||| b)" in
-  match ast with
-  | Ast.Seq (Ast.Question (Ast.QNode { name = "validate"; comments = ["important"]; _ }), _) -> ()
+  match ast.desc with
+  | Ast.Seq ({ desc = Ast.Question (Ast.QNode { name = "validate"; comments = ["important"]; _ }); _ }, _) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
 let test_parse_comment_on_string_question () =
   let ast = parse_ok {|"hello" -- note
 ? >>> (a ||| b)|} in
-  match ast with
-  | Ast.Seq (Ast.Question (Ast.QString "hello"), _) -> ()
+  match ast.desc with
+  | Ast.Seq ({ desc = Ast.Question (Ast.QString "hello"); _ }, _) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
 (* === Printer tests === *)
@@ -880,26 +846,25 @@ let test_print_question_node () =
 
 let test_parse_string_question () =
   let ast = parse_ok {|"earth is not flat"? >>> (believe ||| doubt)|} in
-  match ast with
-  | Ast.Seq (Ast.Question (Ast.QString "earth is not flat"), Ast.Group (Ast.Alt (Ast.Node _, Ast.Node _))) -> ()
+  match ast.desc with
+  | Ast.Seq ({ desc = Ast.Question (Ast.QString "earth is not flat"); _ }, { desc = Ast.Group { desc = Ast.Alt ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }; _ }) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
 let test_parse_node_question () =
   let ast = parse_ok "validate(method: test_suite)? >>> (deploy ||| rollback)" in
-  match ast with
-  | Ast.Seq (Ast.Question (Ast.QNode { name = "validate"; _ }), Ast.Group (Ast.Alt _)) -> ()
+  match ast.desc with
+  | Ast.Seq ({ desc = Ast.Question (Ast.QNode { name = "validate"; _ }); _ }, { desc = Ast.Group { desc = Ast.Alt _; _ }; _ }) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
 let test_parse_bare_node_question () =
-  let ast = parse_ok "check? >>> (yes ||| no)" in
-  match ast with
-  | Ast.Seq (Ast.Question (Ast.QNode { name = "check"; args = []; _ }), _) -> ()
-  | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
+  match desc_of "check? >>> (yes ||| no)" with
+  | Ast.Seq ({ desc = Ast.Question (Ast.QNode { name = "check"; args = []; _ }); _ }, _) -> ()
+  | _ -> Alcotest.fail "expected Question(QNode check)"
 
 let test_parse_question_with_space () =
   let ast = parse_ok {|"hello" ? >>> (a ||| b)|} in
-  match ast with
-  | Ast.Seq (Ast.Question (Ast.QString "hello"), _) -> ()
+  match ast.desc with
+  | Ast.Seq ({ desc = Ast.Question (Ast.QString "hello"); _ }, _) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
 let test_parse_bare_string_error () =
@@ -910,14 +875,14 @@ let test_parse_bare_string_alone_error () =
 
 let test_parse_question_in_loop () =
   let ast = parse_ok {|loop(generate >>> "all pass"? >>> (exit ||| continue))|} in
-  match ast with
-  | Ast.Loop (Ast.Seq (_, Ast.Seq (Ast.Question (Ast.QString "all pass"), Ast.Group (Ast.Alt _)))) -> ()
+  match ast.desc with
+  | Ast.Loop { desc = Ast.Seq (_, { desc = Ast.Seq ({ desc = Ast.Question (Ast.QString "all pass"); _ }, { desc = Ast.Group { desc = Ast.Alt _; _ }; _ }); _ }); _ } -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
 let test_parse_question_in_group () =
   let ast = parse_ok {|("is valid"?) >>> (accept ||| reject)|} in
-  match ast with
-  | Ast.Seq (Ast.Group (Ast.Question (Ast.QString "is valid")), _) -> ()
+  match ast.desc with
+  | Ast.Seq ({ desc = Ast.Group { desc = Ast.Question (Ast.QString "is valid"); _ }; _ }, _) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
 (* === Test suite === *)
