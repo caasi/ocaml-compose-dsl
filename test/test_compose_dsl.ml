@@ -885,6 +885,110 @@ let test_parse_question_in_group () =
   | Ast.Seq ({ desc = Ast.Group { desc = Ast.Question (Ast.QString "is valid"); _ }; _ }, _) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
+(* === Checker loc tests === *)
+
+let test_check_loop_no_eval_loc () =
+  let errors = check_fails "loop (a >>> b)" in
+  let e = List.hd errors in
+  Alcotest.(check int) "error start line" 1 e.loc.start.line;
+  Alcotest.(check int) "error start col" 1 e.loc.start.col
+
+let test_check_question_warning_loc () =
+  let warnings = check_ok_with_warnings {|"ready"? >>> process >>> done|} in
+  let w = List.hd warnings in
+  Alcotest.(check int) "warning start line" 1 w.loc.start.line;
+  Alcotest.(check int) "warning start col" 1 w.loc.start.col
+
+let test_check_multiline_loc () =
+  let errors = check_fails "a >>>\nloop (b >>> c)" in
+  let e = List.hd errors in
+  Alcotest.(check int) "error start line" 2 e.loc.start.line;
+  Alcotest.(check int) "error start col" 1 e.loc.start.col
+
+(* === Parser loc span tests === *)
+
+let test_parse_node_loc () =
+  let ast = parse_ok "abc" in
+  Alcotest.(check int) "start line" 1 ast.loc.start.line;
+  Alcotest.(check int) "start col" 1 ast.loc.start.col;
+  Alcotest.(check int) "end col" 4 ast.loc.end_.col
+
+let test_parse_seq_loc () =
+  let ast = parse_ok "a >>> b" in
+  Alcotest.(check int) "start col" 1 ast.loc.start.col;
+  Alcotest.(check int) "end col" 8 ast.loc.end_.col
+
+let test_parse_group_loc () =
+  let ast = parse_ok "(a >>> b)" in
+  Alcotest.(check int) "start col" 1 ast.loc.start.col;
+  Alcotest.(check int) "end col" 10 ast.loc.end_.col
+
+let test_parse_loop_loc () =
+  let ast = parse_ok "loop(a >>> eval)" in
+  Alcotest.(check int) "start col" 1 ast.loc.start.col;
+  Alcotest.(check int) "end col" 17 ast.loc.end_.col
+
+let test_parse_multiline_loc () =
+  let ast = parse_ok "a >>>\nb" in
+  Alcotest.(check int) "start line" 1 ast.loc.start.line;
+  Alcotest.(check int) "end line" 2 ast.loc.end_.line;
+  Alcotest.(check int) "end col" 2 ast.loc.end_.col
+
+let test_parse_question_loc () =
+  let ast = parse_ok {|"ok"?|} in
+  Alcotest.(check int) "start col" 1 ast.loc.start.col;
+  Alcotest.(check int) "end col" 6 ast.loc.end_.col
+
+let test_parse_node_with_args_loc () =
+  let ast = parse_ok "a(x: y)" in
+  Alcotest.(check int) "start col" 1 ast.loc.start.col;
+  Alcotest.(check int) "end col" 8 ast.loc.end_.col
+
+let test_parse_unicode_node_loc () =
+  let ast = parse_ok "翻譯" in
+  Alcotest.(check int) "start col" 1 ast.loc.start.col;
+  Alcotest.(check int) "end col (codepoints)" 3 ast.loc.end_.col
+
+(* === Lexer loc span tests === *)
+
+let test_lex_ident_loc_span () =
+  let tokens = Lexer.tokenize "abc" in
+  let t = List.hd tokens in
+  Alcotest.(check int) "start col" 1 t.loc.start.col;
+  Alcotest.(check int) "end col" 4 t.loc.end_.col
+
+let test_lex_operator_loc_span () =
+  let tokens = Lexer.tokenize "a >>> b" in
+  let seq_tok = List.nth tokens 1 in
+  Alcotest.(check int) ">>> start col" 3 seq_tok.loc.start.col;
+  Alcotest.(check int) ">>> end col" 6 seq_tok.loc.end_.col
+
+let test_lex_string_loc_span () =
+  let tokens = Lexer.tokenize {|"hello"|} in
+  let t = List.hd tokens in
+  Alcotest.(check int) "start col" 1 t.loc.start.col;
+  Alcotest.(check int) "end col" 8 t.loc.end_.col
+
+let test_lex_question_loc_span () =
+  let tokens = Lexer.tokenize "a?" in
+  let q_tok = List.nth tokens 1 in
+  Alcotest.(check int) "? start col" 2 q_tok.loc.start.col;
+  Alcotest.(check int) "? end col" 3 q_tok.loc.end_.col
+
+let test_lex_eof_loc_span () =
+  let tokens = Lexer.tokenize "a" in
+  let eof_tok = List.nth tokens 1 in
+  (match eof_tok.token with
+   | Lexer.EOF ->
+     Alcotest.(check int) "eof start = end" eof_tok.loc.start.col eof_tok.loc.end_.col
+   | _ -> Alcotest.fail "expected EOF")
+
+let test_lex_unicode_ident_loc_span () =
+  let tokens = Lexer.tokenize "翻譯" in
+  let t = List.hd tokens in
+  Alcotest.(check int) "start col" 1 t.loc.start.col;
+  Alcotest.(check int) "end col (codepoints)" 3 t.loc.end_.col
+
 (* === Test suite === *)
 
 let lexer_tests =
@@ -927,6 +1031,12 @@ let lexer_tests =
   ; "question token", `Quick, test_lex_question
   ; "question with space", `Quick, test_lex_question_with_space
   ; "question after string", `Quick, test_lex_question_after_string
+  ; "ident loc span", `Quick, test_lex_ident_loc_span
+  ; "operator loc span", `Quick, test_lex_operator_loc_span
+  ; "string loc span", `Quick, test_lex_string_loc_span
+  ; "question loc span", `Quick, test_lex_question_loc_span
+  ; "eof loc span", `Quick, test_lex_eof_loc_span
+  ; "unicode ident loc span", `Quick, test_lex_unicode_ident_loc_span
   ]
 
 let parser_tests =
@@ -984,6 +1094,14 @@ let parser_tests =
   ; "question in group", `Quick, test_parse_question_in_group
   ; "comment on node question", `Quick, test_parse_comment_on_node_question
   ; "comment on string question", `Quick, test_parse_comment_on_string_question
+  ; "node loc span", `Quick, test_parse_node_loc
+  ; "seq loc span", `Quick, test_parse_seq_loc
+  ; "group loc span", `Quick, test_parse_group_loc
+  ; "loop loc span", `Quick, test_parse_loop_loc
+  ; "multiline loc span", `Quick, test_parse_multiline_loc
+  ; "question loc span", `Quick, test_parse_question_loc
+  ; "node with args loc span", `Quick, test_parse_node_with_args_loc
+  ; "unicode node loc span", `Quick, test_parse_unicode_node_loc
   ]
 
 let checker_tests =
@@ -1010,6 +1128,9 @@ let checker_tests =
   ; "alt before question still warns", `Quick, test_check_alt_before_question_still_warns
   ; "loop eval inside question", `Quick, test_check_loop_eval_inside_question
   ; "question inside alt branch", `Quick, test_check_question_inside_alt_branch
+  ; "loop no eval loc", `Quick, test_check_loop_no_eval_loc
+  ; "question warning loc", `Quick, test_check_question_warning_loc
+  ; "multiline error loc", `Quick, test_check_multiline_loc
   ]
 
 let printer_tests =
