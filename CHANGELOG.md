@@ -2,19 +2,29 @@
 
 ## [0.6.1] - 2026-03-22
 
+### Removed
+- Loop evaluation node check from checker — loops no longer require English-named evaluation nodes (`evaluate`, `check`, `verify`, etc.). This was a semantic concern, not structural; the `?` + `|||` warning mechanism remains as a language-agnostic structural hint. (closes #12)
+
 ### Added
 - Regression test `test_check_loop_plain_no_error` to prevent eval check from being reintroduced
 - Version bump checklist in CLAUDE.md
 
 ### Fixed
 - Stale Checker module description in CLAUDE.md (still referenced removed eval check)
-- Hardcoded line numbers in spec replaced with match arm references
-- Plan 009 marked as completed
 
 ## [0.6.0] - 2026-03-22
 
-### Removed
-- Loop evaluation node check from checker — loops no longer require English-named evaluation nodes (`evaluate`, `check`, `verify`, etc.). This was a semantic concern, not structural; the `?` + `|||` warning mechanism remains as a language-agnostic structural hint. (closes #12)
+### Added
+- AST location tracking — `pos` and `loc` types for all tokens and expressions
+- Location spans on all `expr` nodes (parser captures start/end positions)
+- Lexer emits `loc` spans on all tokens, tracking codepoint-level positions
+- Checker attaches `loc` to all errors and warnings
+- CLI displays `line:col` in error and warning output
+- Loc span tests for lexer, parser, and checker diagnostics
+
+### Changed
+- `expr` split into `expr` (with `loc`) and `expr_desc` (the payload) — pattern matches use `expr.desc`
+- Printer matches on `expr.desc` (output unchanged)
 
 ## [0.5.0] - 2026-03-22
 
