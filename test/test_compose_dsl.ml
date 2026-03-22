@@ -708,6 +708,10 @@ let test_check_question_inside_alt_branch () =
   Alcotest.(check int) "one warning" 1 (List.length warnings)
 
 
+let test_check_loop_plain_no_error () =
+  let result = Checker.check (parse_ok "loop (a >>> b)") in
+  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
+
 let test_check_loop_unicode_no_error () =
   let result = Checker.check (parse_ok "loop (掃描 >>> 檢查)") in
   Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
@@ -1055,7 +1059,8 @@ let parser_tests =
   ]
 
 let checker_tests =
-  [ "loop with unicode nodes", `Quick, test_check_loop_unicode_no_error
+  [ "loop plain no error", `Quick, test_check_loop_plain_no_error
+  ; "loop with unicode nodes", `Quick, test_check_loop_unicode_no_error
   ; "question with alt", `Quick, test_check_question_with_alt
   ; "question without alt", `Quick, test_check_question_without_alt
   ; "question with intermediate steps", `Quick, test_check_question_with_intermediate_steps

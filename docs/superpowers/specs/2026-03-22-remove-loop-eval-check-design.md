@@ -24,7 +24,7 @@ Remove the loop evaluation node check entirely (issue option 3).
 
 ### `lib/checker.ml`
 
-Remove the `has_eval` scanning logic from the `Loop body ->` branch (lines 60–80). The branch should retain:
+Remove the `has_eval` scanning logic from the `Loop body ->` match arm. The branch should retain:
 - `check_question_balance body` (question/alt balance warnings)
 - `go body` (recursive structural checking)
 

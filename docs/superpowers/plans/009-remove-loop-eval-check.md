@@ -3,6 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Remove the hardcoded English-only loop evaluation node check from the checker, closing issue #12.
+**Status:** Completed (2026-03-22)
 
 **Architecture:** Delete the `has_eval` scanning logic from `checker.ml`'s `Loop body ->` branch, remove 11 tests that exist solely to exercise that logic, and verify the remaining `?`/`|||` warning tests still pass.
 
