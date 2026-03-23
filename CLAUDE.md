@@ -36,11 +36,9 @@ dune exec ocaml-compose-dsl -- pipeline.arrow
 
 ## After Any Implementation Change
 
-1. Verify the EBNF in `README.md` still matches the parser/lexer behavior
+1. Verify the EBNF in `README.md` still matches the parser/lexer behavior — the EBNF is the language spec, if they diverge either fix the parser or update the EBNF
 2. Update or add tests in `test/test_compose_dsl.ml` to cover the change
 3. Run `dune test` and confirm all tests pass
-
-The EBNF is the language spec. If the parser diverges from the EBNF, either fix the parser or update the EBNF — they must stay in sync.
 
 ## CI/CD
 
