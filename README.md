@@ -179,7 +179,7 @@ Exits `0` with AST output in a constructor-style format (e.g. `TypeAnn(Node(...)
 
 ## Literate Arrow Documents
 
-Arrow DSL is designed to work in literate documents — files where natural language prose and Arrow code blocks coexist. Use fenced code blocks with the `arrow` language tag:
+Arrow DSL is designed to work inside natural language documents. Use fenced code blocks with the `arrow` language tag to embed workflow definitions and lightweight type constraints alongside prose — no special file extension or evaluator required. Any Markdown document can be a literate Arrow document.
 
 ````markdown
 ## Deployment
@@ -191,9 +191,13 @@ build :: Source -> Artifact
   >>> test :: Artifact -> Verified
   >>> deploy(env: production) :: Verified -> Released
 ```
+
+The `:: Source -> Artifact` annotations serve as simple type
+constraints that document what each step expects and produces,
+making the workflow reviewable by both humans and agents.
 ````
 
-Convention: `.arrow.md` for literate documents, `.arr` for standalone DSL files.
+Convention: `.arr` for standalone DSL files. For literate documents, just use regular `.md` — the `arrow` code blocks speak for themselves.
 
 ## Install
 

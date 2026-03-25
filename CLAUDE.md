@@ -1,6 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. It is written as a **literate Arrow document** — prose mixed with `arrow` code blocks that describe workflows using the Arrow-style DSL defined in this project.
+
+> **Skill:** This project ships a `/compose` skill for Claude Code. Use it to validate DSL syntax, plan tool composition, or write pipelines. If the skill is not installed, you can check the [README](./README.md) for grammar and semantics, or search the internet for `ocaml-compose-dsl` / `compose skill claude code`.
+>
+> **Binary:** `ocaml-compose-dsl` (or `dune exec ocaml-compose-dsl`) can validate any `arrow` code block — pipe a snippet through it to check syntax.
 
 ## Build Commands
 
@@ -17,7 +21,13 @@ Two opam packages defined in `dune-project` (opam files are auto-generated via `
 - **ocaml-compose-dsl** — the CLI executable (`bin/main.ml`), depends on the library
 - **ocaml-compose-dsl-lib** — the library (`lib/`), exposed as `compose_dsl`
 
-Library modules:
+Library modules form a pipeline themselves:
+
+```arrow
+Lexer :: String -> Token
+  >>> Parser :: Token -> Ast
+  >>> Checker :: Ast -> Result
+```
 
 - `Ast` — ADT for DSL expressions: Node, Seq (`>>>`), Par (`***`), Fanout (`&&&`), Alt (`|||`), Loop, Group, Question (`?`). Values: String, Ident, Number (with optional unit suffix, e.g. `100mg`), List. Question uses `question_term` (QNode | QString) to constrain what `?` can wrap. Expressions carry optional `type_ann` (`:: Ident -> Ident`) for documentation.
 - `Lexer` — tokenizer, raises `Lex_error` on invalid input. Supports Unicode identifiers and unit suffixes (non-ASCII bytes accepted). Column positions track codepoints, not bytes (via `String.get_utf_8_uchar`). Tokens include `DOUBLE_COLON` (`::`) and `ARROW` (`->`); `read_ident` uses lookahead to stop before `->` so that `A->B` tokenizes correctly despite `-` being a valid identifier character.
@@ -31,14 +41,21 @@ Reads from file argument or stdin. Exits 0 with AST output (constructor-style fo
 
 ```
 echo 'a >>> b' | dune exec ocaml-compose-dsl
-dune exec ocaml-compose-dsl -- pipeline.arrow
+dune exec ocaml-compose-dsl -- pipeline.arr
 ```
 
 ## After Any Implementation Change
 
-1. Verify the EBNF in `README.md` still matches the parser/lexer behavior — the EBNF is the language spec, if they diverge either fix the parser or update the EBNF
-2. Update or add tests in `test/test_compose_dsl.ml` to cover the change
-3. Run `dune test` and confirm all tests pass
+Every code change should follow this workflow:
+
+```arrow
+implement :: Code -> Code
+  >>> verify_ebnf :: Code -> Spec   -- check README.md EBNF still matches parser/lexer
+  >>> update_tests :: Spec -> Test  -- update or add tests in test/test_compose_dsl.ml
+  >>> dune_test :: Test -> Pass     -- run dune test, confirm all pass
+```
+
+The EBNF in `README.md` is the language spec. If parser behavior and EBNF diverge, either fix the parser or update the EBNF.
 
 ## CI/CD
 
@@ -53,7 +70,7 @@ macOS x86_64 binary is **not built in CI** (Rosetta cross-compile doesn't work w
 
 ### Version Bumps
 
-```
+```arrow
 bump(file: dune-project)
   >>> (update_docs(file: CLAUDE.md) &&& update_docs(file: README.md) &&& update_docs(file: CHANGELOG.md))
   >>> build -- dune build to regenerate opam files
@@ -63,7 +80,7 @@ bump(file: dune-project)
 
 ### Releasing
 
-```
+```arrow
 tag(format: "vX.Y.Z")
   >>> push(remote: origin, tag: "vX.Y.Z")
   >>> wait_ci -- wait for CI release workflow to complete
