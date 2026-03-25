@@ -81,7 +81,8 @@ let tokenize input =
   let read_ident () =
     let p = pos () in
     let start = !i in
-    while !i < len && is_ident_char input.[!i] do
+    while !i < len && is_ident_char input.[!i]
+          && not (input.[!i] = '-' && !i + 1 < len && input.[!i + 1] = '>') do
       advance ()
     done;
     let s = String.sub input start (!i - start) in

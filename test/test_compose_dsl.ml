@@ -1007,6 +1007,30 @@ let test_lex_arrow_not_negative () =
   | [ { token = NUMBER "-3"; _ }; { token = ARROW; _ }; { token = IDENT "B"; _ }; { token = EOF; _ } ] -> ()
   | _ -> Alcotest.fail "-> after number should be ARROW"
 
+let test_lex_arrow_no_whitespace () =
+  let tokens = Lexer.tokenize "A->B" in
+  match tokens with
+  | [ { token = IDENT "A"; _ }; { token = ARROW; _ }; { token = IDENT "B"; _ }; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "-> without whitespace should tokenize correctly"
+
+let test_lex_arrow_no_whitespace_in_type_ann () =
+  let tokens = Lexer.tokenize "node::A->B" in
+  match tokens with
+  | [ { token = IDENT "node"; _ }; { token = DOUBLE_COLON; _ }; { token = IDENT "A"; _ }; { token = ARROW; _ }; { token = IDENT "B"; _ }; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "type annotation without whitespace should tokenize correctly"
+
+let test_parse_type_ann_no_whitespace () =
+  let ast = parse_ok "node::A->B" in
+  Alcotest.(check (option (pair string string))) "type_ann"
+    (Some ("A", "B"))
+    (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
+
+let test_lex_ident_with_hyphen_before_arrow () =
+  let tokens = Lexer.tokenize "my-node->B" in
+  match tokens with
+  | [ { token = IDENT "my-node"; _ }; { token = ARROW; _ }; { token = IDENT "B"; _ }; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "hyphenated ident before -> should not consume the arrow"
+
 let test_parse_type_ann_bare_node () =
   let ast = parse_ok "node :: A -> B" in
   Alcotest.(check (option (pair string string))) "type_ann"
@@ -1151,6 +1175,9 @@ let lexer_tests =
   ; "type annotation tokens", `Quick, test_lex_type_annotation
   ; "colon still works", `Quick, test_lex_colon_still_works
   ; "arrow not negative", `Quick, test_lex_arrow_not_negative
+  ; "arrow no whitespace", `Quick, test_lex_arrow_no_whitespace
+  ; "arrow no whitespace in type ann", `Quick, test_lex_arrow_no_whitespace_in_type_ann
+  ; "ident with hyphen before arrow", `Quick, test_lex_ident_with_hyphen_before_arrow
   ]
 
 let parser_tests =
@@ -1216,6 +1243,7 @@ let parser_tests =
   ; "question loc span", `Quick, test_parse_question_loc
   ; "node with args loc span", `Quick, test_parse_node_with_args_loc
   ; "unicode node loc span", `Quick, test_parse_unicode_node_loc
+  ; "type ann no whitespace", `Quick, test_parse_type_ann_no_whitespace
   ; "type ann bare node", `Quick, test_parse_type_ann_bare_node
   ; "type ann node with args", `Quick, test_parse_type_ann_node_with_args
   ; "type ann optional", `Quick, test_parse_type_ann_optional
