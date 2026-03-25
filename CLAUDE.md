@@ -20,10 +20,10 @@ Two opam packages defined in `dune-project` (opam files are auto-generated via `
 Library modules:
 
 - `Ast` — ADT for DSL expressions: Node, Seq (`>>>`), Par (`***`), Fanout (`&&&`), Alt (`|||`), Loop, Group, Question (`?`). Values: String, Ident, Number (with optional unit suffix, e.g. `100mg`), List. Question uses `question_term` (QNode | QString) to constrain what `?` can wrap. Expressions carry optional `type_ann` (`:: Ident -> Ident`) for documentation.
-- `Lexer` — tokenizer, raises `Lex_error` on invalid input. Supports Unicode identifiers and unit suffixes (non-ASCII bytes accepted). Column positions track codepoints, not bytes (via `String.get_utf_8_uchar`).
+- `Lexer` — tokenizer, raises `Lex_error` on invalid input. Supports Unicode identifiers and unit suffixes (non-ASCII bytes accepted). Column positions track codepoints, not bytes (via `String.get_utf_8_uchar`). Tokens include `DOUBLE_COLON` (`::`) and `ARROW` (`->`); `read_ident` uses lookahead to stop before `->` so that `A->B` tokenizes correctly despite `-` being a valid identifier character.
 - `Parser` — recursive descent parser, raises `Parse_error`
 - `Checker` — structural validation and well-formedness warnings. Returns `{ errors; warnings }`. Warnings: e.g. `?` without matching `|||`. Uses `normalize` (graph reduction) to strip `Group` wrappers before balance checking.
-- `Printer` — AST to constructor-style format string (for agent verification)
+- `Printer` — AST to constructor-style format string (for agent verification). Type annotations are wrapped as `TypeAnn(expr, "input", "output")`.
 
 ## CLI Usage
 

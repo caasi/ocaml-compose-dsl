@@ -55,6 +55,9 @@ ident_start = ? any valid UTF-8 codepoint that is not an ASCII digit,
 ident_char  = ? any valid UTF-8 codepoint that is not ASCII whitespace,
                 and not one of ( ) [ ] : , > * | & " .
                 ! # $ % ^ + = { } < ; ' ` ~ / ? @ \ ? ;
+                (* note: "-" is a valid ident_char, but the lexer stops
+                   before "->" so that the arrow token is recognized
+                   even without surrounding whitespace *)
 
 string   = '"' , { ? any valid UTF-8 codepoint except '"' ? } , '"' ;
 
