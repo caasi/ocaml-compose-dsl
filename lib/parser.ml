@@ -11,7 +11,7 @@ let dummy_loc = { start = { line = 1; col = 1 }; end_ = { line = 1; col = 1 } }
 
 let make tokens = { tokens; last_loc = dummy_loc }
 
-let mk_expr loc desc : expr = { loc; desc }
+let mk_expr loc desc : expr = { loc; desc; type_ann = None }
 
 let current st =
   match st.tokens with
