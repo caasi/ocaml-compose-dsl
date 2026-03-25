@@ -91,6 +91,10 @@ tag(format: "vX.Y.Z")
 
 - `parser.ml`: The right-recursive precedence parser (`parse_seq_expr`/`parse_alt_expr`/`parse_par_expr`) is not tail-recursive. Extremely long pipelines (thousands of chained operators) could overflow the OCaml stack. In practice this is unlikely for human-authored workflows. If needed, switch to loop + `List.fold_right` to build right-associative AST iteratively.
 
+## Future Ideas
+
+- **Arrow laws rewriting** — after plan 012 (lambda/let binding) lands and we have a reducer, add an optimization pass that applies Arrow algebraic laws to simplify pipeline structure. Sits between reduce and check: `parse >>> reduce >>> optimize >>> check`. Candidates: associativity normalization, functor law for `***` (`(a *** b) >>> (c *** d)` → `(a >>> c) *** (b >>> d)`), identity elimination.
+
 ## Plans
 
 - prefix any plan with 3 digits starts from 000
