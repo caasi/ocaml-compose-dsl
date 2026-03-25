@@ -1007,6 +1007,87 @@ let test_lex_arrow_not_negative () =
   | [ { token = NUMBER "-3"; _ }; { token = ARROW; _ }; { token = IDENT "B"; _ }; { token = EOF; _ } ] -> ()
   | _ -> Alcotest.fail "-> after number should be ARROW"
 
+let test_parse_type_ann_bare_node () =
+  let ast = parse_ok "node :: A -> B" in
+  Alcotest.(check (option (pair string string))) "type_ann"
+    (Some ("A", "B"))
+    (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
+
+let test_parse_type_ann_node_with_args () =
+  let ast = parse_ok "fetch(url: \"x\") :: URL -> HTML" in
+  Alcotest.(check (option (pair string string))) "type_ann"
+    (Some ("URL", "HTML"))
+    (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
+
+let test_parse_type_ann_optional () =
+  let ast = parse_ok "node" in
+  Alcotest.(check bool) "no type_ann" true (ast.type_ann = None)
+
+let test_parse_type_ann_in_seq () =
+  let ast = parse_ok "a :: X -> Y >>> b :: Y -> Z" in
+  match ast.desc with
+  | Ast.Seq (a, b) ->
+    Alcotest.(check (option (pair string string))) "lhs type"
+      (Some ("X", "Y"))
+      (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) a.type_ann);
+    Alcotest.(check (option (pair string string))) "rhs type"
+      (Some ("Y", "Z"))
+      (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) b.type_ann)
+  | _ -> Alcotest.fail "expected Seq"
+
+let test_parse_type_ann_mixed () =
+  let ast = parse_ok "a :: X -> Y >>> b >>> c :: Y -> Z" in
+  match ast.desc with
+  | Ast.Seq (a, Ast.{ desc = Seq (b, c); _ }) ->
+    Alcotest.(check bool) "a has type" true (a.type_ann <> None);
+    Alcotest.(check bool) "b has no type" true (b.type_ann = None);
+    Alcotest.(check bool) "c has type" true (c.type_ann <> None)
+  | _ -> Alcotest.fail "expected Seq(a, Seq(b, c))"
+
+let test_parse_type_ann_on_group () =
+  let ast = parse_ok "(a >>> b) :: X -> Y" in
+  Alcotest.(check (option (pair string string))) "group type_ann"
+    (Some ("X", "Y"))
+    (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
+
+let test_parse_type_ann_on_loop () =
+  let ast = parse_ok "loop(body) :: A -> B" in
+  Alcotest.(check (option (pair string string))) "loop type_ann"
+    (Some ("A", "B"))
+    (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
+
+let test_parse_type_ann_on_question () =
+  let ast = parse_ok "\"ok\"? :: A -> Result" in
+  Alcotest.(check (option (pair string string))) "question type_ann"
+    (Some ("A", "Result"))
+    (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
+
+let test_parse_type_ann_unicode () =
+  let ast = parse_ok "処理 :: 入力 -> 出力" in
+  Alcotest.(check (option (pair string string))) "unicode type_ann"
+    (Some ("入力", "出力"))
+    (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
+
+let test_parse_type_ann_with_comment () =
+  let ast = parse_ok "node :: A -> B -- some comment" in
+  Alcotest.(check (option (pair string string))) "type_ann"
+    (Some ("A", "B"))
+    (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
+
+let test_parse_type_ann_incomplete_error () =
+  (match parse_ok "node :: A" with
+   | _ -> Alcotest.fail "expected parse error"
+   | exception Parser.Parse_error (_, msg) ->
+     Alcotest.(check bool) "error mentions ->" true
+       (String.length msg > 0))
+
+let test_parse_type_ann_missing_output_error () =
+  (match parse_ok "node :: A ->" with
+   | _ -> Alcotest.fail "expected parse error"
+   | exception Parser.Parse_error (_, msg) ->
+     Alcotest.(check bool) "error mentions type name" true
+       (String.length msg > 0))
+
 (* === Test suite === *)
 
 let lexer_tests =
@@ -1125,6 +1206,18 @@ let parser_tests =
   ; "question loc span", `Quick, test_parse_question_loc
   ; "node with args loc span", `Quick, test_parse_node_with_args_loc
   ; "unicode node loc span", `Quick, test_parse_unicode_node_loc
+  ; "type ann bare node", `Quick, test_parse_type_ann_bare_node
+  ; "type ann node with args", `Quick, test_parse_type_ann_node_with_args
+  ; "type ann optional", `Quick, test_parse_type_ann_optional
+  ; "type ann in seq", `Quick, test_parse_type_ann_in_seq
+  ; "type ann mixed", `Quick, test_parse_type_ann_mixed
+  ; "type ann on group", `Quick, test_parse_type_ann_on_group
+  ; "type ann on loop", `Quick, test_parse_type_ann_on_loop
+  ; "type ann on question", `Quick, test_parse_type_ann_on_question
+  ; "type ann unicode", `Quick, test_parse_type_ann_unicode
+  ; "type ann with comment", `Quick, test_parse_type_ann_with_comment
+  ; "type ann incomplete error", `Quick, test_parse_type_ann_incomplete_error
+  ; "type ann missing output error", `Quick, test_parse_type_ann_missing_output_error
   ]
 
 let checker_tests =

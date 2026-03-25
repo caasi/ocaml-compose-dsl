@@ -99,6 +99,25 @@ let rec attach_comments_right (e : expr) comments =
     | Question (QNode n) -> { e with desc = Question (QNode { n with comments = n.comments @ comments }) }
     | Question (QString _) -> e
 
+let parse_type_ann st =
+  let t = current st in
+  match t.token with
+  | Lexer.DOUBLE_COLON ->
+    advance st;
+    let t_in = current st in
+    (match t_in.token with
+     | Lexer.IDENT input ->
+       advance st;
+       expect st (fun tok -> tok = Lexer.ARROW) "expected '->' in type annotation";
+       let t_out = current st in
+       (match t_out.token with
+        | Lexer.IDENT output ->
+          advance st;
+          Some { input; output }
+        | _ -> raise (Parse_error (t_out.loc.start, "expected type name after '->'")))
+     | _ -> raise (Parse_error (t_in.loc.start, "expected type name after '::'")))
+  | _ -> None
+
 let rec parse_seq_expr st =
   let lhs = parse_alt_expr st in
   let comments = eat_comments st in
@@ -121,6 +140,11 @@ and parse_alt_expr st =
 
 and parse_par_expr st =
   let lhs = parse_term st in
+  let type_ann = parse_type_ann st in
+  let lhs = match type_ann with
+    | None -> lhs
+    | Some _ -> { lhs with type_ann; loc = { lhs.loc with end_ = st.last_loc.end_ } }
+  in
   let comments = eat_comments st in
   let lhs = attach_comments_right lhs comments in
   let t = current st in
