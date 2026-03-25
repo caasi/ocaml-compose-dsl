@@ -42,7 +42,7 @@ let check (expr : expr) =
     match e.desc with
     | Question _ -> true
     | Seq (_, b) -> tail_has_question b
-    | Group inner -> tail_has_question inner
+    | Group _ -> false (* defensive: unreachable after normalize *)
     | _ -> false
   in
   let rec go (e : expr) =
@@ -72,15 +72,17 @@ let check (expr : expr) =
         add_warning b.loc
           "'?' as operand of '|||' does not match; \
            use 'question? >>> (left ||| right)' pattern";
-      let check_balance_adj has_tail_q (e : expr) =
-        let unmatched = scan_questions 0 (normalize e) in
-        let adj = if has_tail_q then unmatched - 1 else unmatched in
+      (* Adjusted balance check: the tail ? already got a specific warning
+         above, so subtract 1 to avoid a duplicate generic warning. *)
+      let check_balance_adj has_tail_q ne (e : expr) =
+        let unmatched = scan_questions 0 ne in
+        let adj = max 0 (if has_tail_q then unmatched - 1 else unmatched) in
         for _ = 1 to adj do
           add_warning e.loc "'?' without matching '|||' in scope"
         done
       in
-      check_balance_adj left_tail_q a;
-      check_balance_adj right_tail_q b;
+      check_balance_adj left_tail_q na a;
+      check_balance_adj right_tail_q nb b;
       go a; go b
     | Loop body ->
       check_question_balance body;

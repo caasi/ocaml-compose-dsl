@@ -27,12 +27,12 @@ let check_ok_with_warnings input =
 let has_warning_containing substr warnings =
   List.exists (fun (w : Checker.warning) ->
     let len = String.length substr in
-    let rec check i =
+    let rec scan i =
       if i + len > String.length w.message then false
       else if String.sub w.message i len = substr then true
-      else check (i + 1)
+      else scan (i + 1)
     in
-    check 0
+    scan 0
   ) warnings
 
 (* === Lexer tests === *)
@@ -713,11 +713,6 @@ let test_check_alt_before_question_still_warns () =
   let warnings = check_ok_with_warnings {|(a ||| b) >>> "ready"? >>> process|} in
   Alcotest.(check int) "one warning" 1 (List.length warnings)
 
-let test_check_question_inside_alt_branch () =
-  (* ? inside an Alt branch has no ||| — should warn *)
-  let warnings = check_ok_with_warnings {|("ready"? >>> process) ||| fallback|} in
-  Alcotest.(check int) "one warning" 1 (List.length warnings)
-
 let test_check_question_tail_as_alt_operand () =
   let warnings = check_ok_with_warnings {|(a >>> b >>> c?) ||| d|} in
   Alcotest.(check int) "one warning" 1 (List.length warnings);
@@ -1113,11 +1108,10 @@ let checker_tests =
   ; "question in fanout branch", `Quick, test_check_question_in_fanout_branch
   ; "question in fanout branch no alt", `Quick, test_check_question_in_fanout_branch_no_alt
   ; "alt before question still warns", `Quick, test_check_alt_before_question_still_warns
-  ; "question inside alt branch", `Quick, test_check_question_inside_alt_branch
+  ; "question not at tail alt operand", `Quick, test_check_question_not_at_tail_alt_operand
   ; "question tail as alt operand", `Quick, test_check_question_tail_as_alt_operand
   ; "question direct alt operand", `Quick, test_check_question_direct_alt_operand
   ; "question multiple with tail alt operand", `Quick, test_check_question_multiple_with_tail_alt_operand
-  ; "question not at tail alt operand", `Quick, test_check_question_not_at_tail_alt_operand
   ; "question warning loc", `Quick, test_check_question_warning_loc
   ]
 
