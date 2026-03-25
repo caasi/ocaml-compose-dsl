@@ -977,6 +977,36 @@ let test_lex_unicode_ident_loc_span () =
   Alcotest.(check int) "start col" 1 t.loc.start.col;
   Alcotest.(check int) "end col (codepoints)" 3 t.loc.end_.col
 
+let test_lex_double_colon () =
+  let tokens = Lexer.tokenize "a :: B" in
+  match tokens with
+  | [ { token = IDENT "a"; _ }; { token = DOUBLE_COLON; _ }; { token = IDENT "B"; _ }; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "expected IDENT DOUBLE_COLON IDENT"
+
+let test_lex_arrow () =
+  let tokens = Lexer.tokenize "A -> B" in
+  match tokens with
+  | [ { token = IDENT "A"; _ }; { token = ARROW; _ }; { token = IDENT "B"; _ }; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "expected IDENT ARROW IDENT"
+
+let test_lex_type_annotation () =
+  let tokens = Lexer.tokenize "node :: Input -> Output" in
+  match tokens with
+  | [ { token = IDENT "node"; _ }; { token = DOUBLE_COLON; _ }; { token = IDENT "Input"; _ }; { token = ARROW; _ }; { token = IDENT "Output"; _ }; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "expected full type annotation token sequence"
+
+let test_lex_colon_still_works () =
+  let tokens = Lexer.tokenize "key: value" in
+  match tokens with
+  | [ { token = IDENT "key"; _ }; { token = COLON; _ }; { token = IDENT "value"; _ }; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "single colon should still produce COLON"
+
+let test_lex_arrow_not_negative () =
+  let tokens = Lexer.tokenize "-3 -> B" in
+  match tokens with
+  | [ { token = NUMBER "-3"; _ }; { token = ARROW; _ }; { token = IDENT "B"; _ }; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "-> after number should be ARROW"
+
 (* === Test suite === *)
 
 let lexer_tests =
@@ -1025,6 +1055,11 @@ let lexer_tests =
   ; "question loc span", `Quick, test_lex_question_loc_span
   ; "eof loc span", `Quick, test_lex_eof_loc_span
   ; "unicode ident loc span", `Quick, test_lex_unicode_ident_loc_span
+  ; "double colon", `Quick, test_lex_double_colon
+  ; "arrow token", `Quick, test_lex_arrow
+  ; "type annotation tokens", `Quick, test_lex_type_annotation
+  ; "colon still works", `Quick, test_lex_colon_still_works
+  ; "arrow not negative", `Quick, test_lex_arrow_not_negative
   ]
 
 let parser_tests =
