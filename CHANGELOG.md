@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.0] - 2026-03-25
+
+### Added
+- Type annotation syntax (`:: Ident -> Ident`) — optional annotations on nodes and terms to document data flow (e.g. `fetch :: URL -> HTML`)
+- `DOUBLE_COLON` and `ARROW` tokens in lexer; lexer lookahead stops `read_ident` before `->` so `A->B` tokenizes correctly
+- Printer outputs type annotations as `TypeAnn(expr, "input", "output")`
+- Literate Arrow document convention — any Markdown file can embed `arrow` code blocks, no special extension needed
+- `/compose` skill reference in CLAUDE.md for agent discoverability
+- CLAUDE.md rewritten as a literate Arrow document
+
+### Fixed
+- Lexer: `read_ident` no longer consumes `->` as part of an identifier when no whitespace separates them (#18)
+- Checker: specific warning when `?` is used as a `|||` operand (#16)
+- `--help` text now reflects AST output instead of "OK"
+
 ## [0.6.1] - 2026-03-22
 
 ### Removed
