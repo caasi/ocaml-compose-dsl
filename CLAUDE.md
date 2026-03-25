@@ -23,11 +23,11 @@ Library modules:
 - `Lexer` — tokenizer, raises `Lex_error` on invalid input. Supports Unicode identifiers and unit suffixes (non-ASCII bytes accepted). Column positions track codepoints, not bytes (via `String.get_utf_8_uchar`).
 - `Parser` — recursive descent parser, raises `Parse_error`
 - `Checker` — structural validation and well-formedness warnings. Returns `{ errors; warnings }`. Warnings: e.g. `?` without matching `|||`. Uses `normalize` (graph reduction) to strip `Group` wrappers before balance checking.
-- `Printer` — AST to OCaml constructor format string (for agent verification)
+- `Printer` — AST to constructor-style format string (for agent verification)
 
 ## CLI Usage
 
-Reads from file argument or stdin. Exits 0 with AST output (OCaml constructor format) on success (warnings, if any, go to stderr), exits 1 with error messages on failure.
+Reads from file argument or stdin. Exits 0 with AST output (constructor-style format) on success (warnings, if any, go to stderr), exits 1 with error messages on failure.
 
 ```
 echo 'a >>> b' | dune exec ocaml-compose-dsl

@@ -1112,15 +1112,23 @@ let test_parse_type_ann_incomplete_error () =
   (match parse_ok "node :: A" with
    | _ -> Alcotest.fail "expected parse error"
    | exception Parser.Parse_error (_, msg) ->
-     Alcotest.(check bool) "error mentions ->" true
-       (String.length msg > 0))
+     let contains s sub =
+       let slen = String.length s and sublen = String.length sub in
+       let rec go i = i + sublen <= slen && (String.sub s i sublen = sub || go (i + 1)) in
+       go 0
+     in
+     Alcotest.(check bool) "error mentions ->" true (contains msg "->"))
 
 let test_parse_type_ann_missing_output_error () =
   (match parse_ok "node :: A ->" with
    | _ -> Alcotest.fail "expected parse error"
    | exception Parser.Parse_error (_, msg) ->
-     Alcotest.(check bool) "error mentions type name" true
-       (String.length msg > 0))
+     let contains s sub =
+       let slen = String.length s and sublen = String.length sub in
+       let rec go i = i + sublen <= slen && (String.sub s i sublen = sub || go (i + 1)) in
+       go 0
+     in
+     Alcotest.(check bool) "error mentions ->" true (contains msg "->"))
 
 (* === Test suite === *)
 
@@ -1286,13 +1294,13 @@ let checker_tests =
 let test_print_type_ann () =
   let ast = parse_ok "fetch :: URL -> HTML" in
   Alcotest.(check string) "printed"
-    "Node(\"fetch\", [], []) :: URL -> HTML"
+    "TypeAnn(Node(\"fetch\", [], []), \"URL\", \"HTML\")"
     (Printer.to_string ast)
 
 let test_print_type_ann_in_seq () =
   let ast = parse_ok "a :: X -> Y >>> b :: Y -> Z" in
   Alcotest.(check string) "printed"
-    "Seq(Node(\"a\", [], []) :: X -> Y, Node(\"b\", [], []) :: Y -> Z)"
+    "Seq(TypeAnn(Node(\"a\", [], []), \"X\", \"Y\"), TypeAnn(Node(\"b\", [], []), \"Y\", \"Z\"))"
     (Printer.to_string ast)
 
 let test_print_no_type_ann () =
