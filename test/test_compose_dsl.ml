@@ -1074,6 +1074,16 @@ let test_parse_type_ann_with_comment () =
     (Some ("A", "B"))
     (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
 
+let test_parse_type_ann_loc () =
+  let ast = parse_ok "node :: A -> B" in
+  Alcotest.(check int) "start col" 1 ast.loc.start.col;
+  Alcotest.(check int) "end col" 15 ast.loc.end_.col
+
+let test_parse_type_ann_loc_no_ann () =
+  let ast = parse_ok "node" in
+  Alcotest.(check int) "start col" 1 ast.loc.start.col;
+  Alcotest.(check int) "end col" 5 ast.loc.end_.col
+
 let test_parse_type_ann_incomplete_error () =
   (match parse_ok "node :: A" with
    | _ -> Alcotest.fail "expected parse error"
@@ -1218,6 +1228,8 @@ let parser_tests =
   ; "type ann with comment", `Quick, test_parse_type_ann_with_comment
   ; "type ann incomplete error", `Quick, test_parse_type_ann_incomplete_error
   ; "type ann missing output error", `Quick, test_parse_type_ann_missing_output_error
+  ; "type ann loc span", `Quick, test_parse_type_ann_loc
+  ; "type ann loc no ann", `Quick, test_parse_type_ann_loc_no_ann
   ]
 
 let checker_tests =
