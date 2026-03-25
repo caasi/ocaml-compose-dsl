@@ -1243,6 +1243,24 @@ let checker_tests =
   ; "question warning loc", `Quick, test_check_question_warning_loc
   ]
 
+let test_print_type_ann () =
+  let ast = parse_ok "fetch :: URL -> HTML" in
+  Alcotest.(check string) "printed"
+    "Node(\"fetch\", [], []) :: URL -> HTML"
+    (Printer.to_string ast)
+
+let test_print_type_ann_in_seq () =
+  let ast = parse_ok "a :: X -> Y >>> b :: Y -> Z" in
+  Alcotest.(check string) "printed"
+    "Seq(Node(\"a\", [], []) :: X -> Y, Node(\"b\", [], []) :: Y -> Z)"
+    (Printer.to_string ast)
+
+let test_print_no_type_ann () =
+  let ast = parse_ok "a >>> b" in
+  Alcotest.(check string) "printed"
+    "Seq(Node(\"a\", [], []), Node(\"b\", [], []))"
+    (Printer.to_string ast)
+
 let printer_tests =
   [ "simple node", `Quick, test_print_simple_node
   ; "node with args", `Quick, test_print_node_with_args
@@ -1257,6 +1275,9 @@ let printer_tests =
   ; "comment", `Quick, test_print_comment
   ; "question string", `Quick, test_print_question_string
   ; "question node", `Quick, test_print_question_node
+  ; "type annotation", `Quick, test_print_type_ann
+  ; "type annotation in seq", `Quick, test_print_type_ann_in_seq
+  ; "no type annotation unchanged", `Quick, test_print_no_type_ann
   ]
 
 let () =
