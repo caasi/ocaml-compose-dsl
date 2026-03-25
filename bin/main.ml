@@ -30,7 +30,7 @@ Options:
   -v, --version  Show version
 
 Reads from file argument or stdin.
-Exits 0 with "OK" on valid input, 1 with error messages.|}
+Exits 0 with AST output (constructor-style format) on valid input, 1 with error messages.|}
     Version.value
 
 let version_text = Printf.sprintf "ocaml-compose-dsl %s" Version.value
