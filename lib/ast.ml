@@ -15,7 +15,9 @@ type question_term =
   | QNode of node
   | QString of string
 
-type expr = { loc : loc; desc : expr_desc }
+type type_ann = { input : string; output : string }
+
+type expr = { loc : loc; desc : expr_desc; type_ann : type_ann option }
 and expr_desc =
   | Node of node
   | Seq of expr * expr (** [>>>] *)

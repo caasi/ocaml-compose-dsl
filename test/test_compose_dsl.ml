@@ -977,6 +977,159 @@ let test_lex_unicode_ident_loc_span () =
   Alcotest.(check int) "start col" 1 t.loc.start.col;
   Alcotest.(check int) "end col (codepoints)" 3 t.loc.end_.col
 
+let test_lex_double_colon () =
+  let tokens = Lexer.tokenize "a :: B" in
+  match tokens with
+  | [ { token = IDENT "a"; _ }; { token = DOUBLE_COLON; _ }; { token = IDENT "B"; _ }; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "expected IDENT DOUBLE_COLON IDENT"
+
+let test_lex_arrow () =
+  let tokens = Lexer.tokenize "A -> B" in
+  match tokens with
+  | [ { token = IDENT "A"; _ }; { token = ARROW; _ }; { token = IDENT "B"; _ }; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "expected IDENT ARROW IDENT"
+
+let test_lex_type_annotation () =
+  let tokens = Lexer.tokenize "node :: Input -> Output" in
+  match tokens with
+  | [ { token = IDENT "node"; _ }; { token = DOUBLE_COLON; _ }; { token = IDENT "Input"; _ }; { token = ARROW; _ }; { token = IDENT "Output"; _ }; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "expected full type annotation token sequence"
+
+let test_lex_colon_still_works () =
+  let tokens = Lexer.tokenize "key: value" in
+  match tokens with
+  | [ { token = IDENT "key"; _ }; { token = COLON; _ }; { token = IDENT "value"; _ }; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "single colon should still produce COLON"
+
+let test_lex_arrow_not_negative () =
+  let tokens = Lexer.tokenize "-3 -> B" in
+  match tokens with
+  | [ { token = NUMBER "-3"; _ }; { token = ARROW; _ }; { token = IDENT "B"; _ }; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "-> after number should be ARROW"
+
+let test_lex_arrow_no_whitespace () =
+  let tokens = Lexer.tokenize "A->B" in
+  match tokens with
+  | [ { token = IDENT "A"; _ }; { token = ARROW; _ }; { token = IDENT "B"; _ }; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "-> without whitespace should tokenize correctly"
+
+let test_lex_arrow_no_whitespace_in_type_ann () =
+  let tokens = Lexer.tokenize "node::A->B" in
+  match tokens with
+  | [ { token = IDENT "node"; _ }; { token = DOUBLE_COLON; _ }; { token = IDENT "A"; _ }; { token = ARROW; _ }; { token = IDENT "B"; _ }; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "type annotation without whitespace should tokenize correctly"
+
+let test_parse_type_ann_no_whitespace () =
+  let ast = parse_ok "node::A->B" in
+  Alcotest.(check (option (pair string string))) "type_ann"
+    (Some ("A", "B"))
+    (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
+
+let test_lex_ident_with_hyphen_before_arrow () =
+  let tokens = Lexer.tokenize "my-node->B" in
+  match tokens with
+  | [ { token = IDENT "my-node"; _ }; { token = ARROW; _ }; { token = IDENT "B"; _ }; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "hyphenated ident before -> should not consume the arrow"
+
+let test_parse_type_ann_bare_node () =
+  let ast = parse_ok "node :: A -> B" in
+  Alcotest.(check (option (pair string string))) "type_ann"
+    (Some ("A", "B"))
+    (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
+
+let test_parse_type_ann_node_with_args () =
+  let ast = parse_ok "fetch(url: \"x\") :: URL -> HTML" in
+  Alcotest.(check (option (pair string string))) "type_ann"
+    (Some ("URL", "HTML"))
+    (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
+
+let test_parse_type_ann_optional () =
+  let ast = parse_ok "node" in
+  Alcotest.(check bool) "no type_ann" true (ast.type_ann = None)
+
+let test_parse_type_ann_in_seq () =
+  let ast = parse_ok "a :: X -> Y >>> b :: Y -> Z" in
+  match ast.desc with
+  | Ast.Seq (a, b) ->
+    Alcotest.(check (option (pair string string))) "lhs type"
+      (Some ("X", "Y"))
+      (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) a.type_ann);
+    Alcotest.(check (option (pair string string))) "rhs type"
+      (Some ("Y", "Z"))
+      (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) b.type_ann)
+  | _ -> Alcotest.fail "expected Seq"
+
+let test_parse_type_ann_mixed () =
+  let ast = parse_ok "a :: X -> Y >>> b >>> c :: Y -> Z" in
+  match ast.desc with
+  | Ast.Seq (a, Ast.{ desc = Seq (b, c); _ }) ->
+    Alcotest.(check bool) "a has type" true (a.type_ann <> None);
+    Alcotest.(check bool) "b has no type" true (b.type_ann = None);
+    Alcotest.(check bool) "c has type" true (c.type_ann <> None)
+  | _ -> Alcotest.fail "expected Seq(a, Seq(b, c))"
+
+let test_parse_type_ann_on_group () =
+  let ast = parse_ok "(a >>> b) :: X -> Y" in
+  Alcotest.(check (option (pair string string))) "group type_ann"
+    (Some ("X", "Y"))
+    (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
+
+let test_parse_type_ann_on_loop () =
+  let ast = parse_ok "loop(body) :: A -> B" in
+  Alcotest.(check (option (pair string string))) "loop type_ann"
+    (Some ("A", "B"))
+    (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
+
+let test_parse_type_ann_on_question () =
+  let ast = parse_ok "\"ok\"? :: A -> Result" in
+  Alcotest.(check (option (pair string string))) "question type_ann"
+    (Some ("A", "Result"))
+    (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
+
+let test_parse_type_ann_unicode () =
+  let ast = parse_ok "処理 :: 入力 -> 出力" in
+  Alcotest.(check (option (pair string string))) "unicode type_ann"
+    (Some ("入力", "出力"))
+    (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
+
+let test_parse_type_ann_with_comment () =
+  let ast = parse_ok "node :: A -> B -- some comment" in
+  Alcotest.(check (option (pair string string))) "type_ann"
+    (Some ("A", "B"))
+    (Option.map (fun (t : Ast.type_ann) -> (t.input, t.output)) ast.type_ann)
+
+let test_parse_type_ann_loc () =
+  let ast = parse_ok "node :: A -> B" in
+  Alcotest.(check int) "start col" 1 ast.loc.start.col;
+  Alcotest.(check int) "end col" 15 ast.loc.end_.col
+
+let test_parse_type_ann_loc_no_ann () =
+  let ast = parse_ok "node" in
+  Alcotest.(check int) "start col" 1 ast.loc.start.col;
+  Alcotest.(check int) "end col" 5 ast.loc.end_.col
+
+let test_parse_type_ann_incomplete_error () =
+  (match parse_ok "node :: A" with
+   | _ -> Alcotest.fail "expected parse error"
+   | exception Parser.Parse_error (_, msg) ->
+     let contains s sub =
+       let slen = String.length s and sublen = String.length sub in
+       let rec go i = i + sublen <= slen && (String.sub s i sublen = sub || go (i + 1)) in
+       go 0
+     in
+     Alcotest.(check bool) "error mentions ->" true (contains msg "->"))
+
+let test_parse_type_ann_missing_output_error () =
+  (match parse_ok "node :: A ->" with
+   | _ -> Alcotest.fail "expected parse error"
+   | exception Parser.Parse_error (_, msg) ->
+     let contains s sub =
+       let slen = String.length s and sublen = String.length sub in
+       let rec go i = i + sublen <= slen && (String.sub s i sublen = sub || go (i + 1)) in
+       go 0
+     in
+     Alcotest.(check bool) "error mentions ->" true (contains msg "->"))
+
 (* === Test suite === *)
 
 let lexer_tests =
@@ -1025,6 +1178,14 @@ let lexer_tests =
   ; "question loc span", `Quick, test_lex_question_loc_span
   ; "eof loc span", `Quick, test_lex_eof_loc_span
   ; "unicode ident loc span", `Quick, test_lex_unicode_ident_loc_span
+  ; "double colon", `Quick, test_lex_double_colon
+  ; "arrow token", `Quick, test_lex_arrow
+  ; "type annotation tokens", `Quick, test_lex_type_annotation
+  ; "colon still works", `Quick, test_lex_colon_still_works
+  ; "arrow not negative", `Quick, test_lex_arrow_not_negative
+  ; "arrow no whitespace", `Quick, test_lex_arrow_no_whitespace
+  ; "arrow no whitespace in type ann", `Quick, test_lex_arrow_no_whitespace_in_type_ann
+  ; "ident with hyphen before arrow", `Quick, test_lex_ident_with_hyphen_before_arrow
   ]
 
 let parser_tests =
@@ -1090,6 +1251,21 @@ let parser_tests =
   ; "question loc span", `Quick, test_parse_question_loc
   ; "node with args loc span", `Quick, test_parse_node_with_args_loc
   ; "unicode node loc span", `Quick, test_parse_unicode_node_loc
+  ; "type ann no whitespace", `Quick, test_parse_type_ann_no_whitespace
+  ; "type ann bare node", `Quick, test_parse_type_ann_bare_node
+  ; "type ann node with args", `Quick, test_parse_type_ann_node_with_args
+  ; "type ann optional", `Quick, test_parse_type_ann_optional
+  ; "type ann in seq", `Quick, test_parse_type_ann_in_seq
+  ; "type ann mixed", `Quick, test_parse_type_ann_mixed
+  ; "type ann on group", `Quick, test_parse_type_ann_on_group
+  ; "type ann on loop", `Quick, test_parse_type_ann_on_loop
+  ; "type ann on question", `Quick, test_parse_type_ann_on_question
+  ; "type ann unicode", `Quick, test_parse_type_ann_unicode
+  ; "type ann with comment", `Quick, test_parse_type_ann_with_comment
+  ; "type ann incomplete error", `Quick, test_parse_type_ann_incomplete_error
+  ; "type ann missing output error", `Quick, test_parse_type_ann_missing_output_error
+  ; "type ann loc span", `Quick, test_parse_type_ann_loc
+  ; "type ann loc no ann", `Quick, test_parse_type_ann_loc_no_ann
   ]
 
 let checker_tests =
@@ -1115,6 +1291,24 @@ let checker_tests =
   ; "question warning loc", `Quick, test_check_question_warning_loc
   ]
 
+let test_print_type_ann () =
+  let ast = parse_ok "fetch :: URL -> HTML" in
+  Alcotest.(check string) "printed"
+    "TypeAnn(Node(\"fetch\", [], []), \"URL\", \"HTML\")"
+    (Printer.to_string ast)
+
+let test_print_type_ann_in_seq () =
+  let ast = parse_ok "a :: X -> Y >>> b :: Y -> Z" in
+  Alcotest.(check string) "printed"
+    "Seq(TypeAnn(Node(\"a\", [], []), \"X\", \"Y\"), TypeAnn(Node(\"b\", [], []), \"Y\", \"Z\"))"
+    (Printer.to_string ast)
+
+let test_print_no_type_ann () =
+  let ast = parse_ok "a >>> b" in
+  Alcotest.(check string) "printed"
+    "Seq(Node(\"a\", [], []), Node(\"b\", [], []))"
+    (Printer.to_string ast)
+
 let printer_tests =
   [ "simple node", `Quick, test_print_simple_node
   ; "node with args", `Quick, test_print_node_with_args
@@ -1129,6 +1323,9 @@ let printer_tests =
   ; "comment", `Quick, test_print_comment
   ; "question string", `Quick, test_print_question_string
   ; "question node", `Quick, test_print_question_node
+  ; "type annotation", `Quick, test_print_type_ann
+  ; "type annotation in seq", `Quick, test_print_type_ann_in_seq
+  ; "no type annotation unchanged", `Quick, test_print_no_type_ann
   ]
 
 let () =

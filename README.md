@@ -19,8 +19,12 @@ seq_expr = alt_expr , ">>>" , seq_expr              (* sequential — infixr 1 *
          | alt_expr ;
 alt_expr = par_expr , "|||" , alt_expr              (* branch — infixr 2 *)
          | par_expr ;
-par_expr = term , ( "***" | "&&&" ) , par_expr      (* parallel / fanout — infixr 3 *)
-         | term ;
+par_expr    = typed_term , ( "***" | "&&&" ) , par_expr (* parallel / fanout — infixr 3 *)
+            | typed_term ;
+
+typed_term  = term , [ "::" , type_expr ] ;
+
+type_expr   = ident , "->" , ident ;
 
 question_term = string , "?"                       (* question — produces Either *)
               | node , "?"
@@ -64,7 +68,7 @@ All operators are right-associative (matching Haskell Arrow fixity). Comments ca
 ## Arrow Semantics
 
 The operators follow Arrow combinator semantics. The DSL has no type checker —
-these types describe the data flow for the agent (and human) reading the pipeline.
+the `::` type annotations and the types in this table describe the data flow for the agent (and human) reading the pipeline.
 
 | Operator | Name           | Type                                          |
 |----------|----------------|-----------------------------------------------|
@@ -77,6 +81,21 @@ these types describe the data flow for the agent (and human) reading the pipelin
 
 `***` is right-associative: `a *** b *** c` types as `(A, (B, C))`.
 Comments can annotate the concrete types when the structure isn't obvious from node names.
+
+## Type Annotations
+
+Nodes and terms can carry optional type annotations using `::`:
+
+```
+fetch(url: "https://example.com") :: URL -> HTML
+  >>> parse :: HTML -> Data
+  >>> filter(condition: "age > 18") :: Data -> Data
+  >>> format(as: report) :: Data -> Report
+```
+
+Annotations are optional — a pipeline can freely mix annotated and unannotated nodes. Type identifiers follow the same `ident` rule as node names, including Unicode support.
+
+Type annotations are **documentation, not enforcement**. They are parsed into the AST but not checked. The DSL has no type checker — annotations describe the intended data flow for the agent (and human) reading the pipeline.
 
 ## Example
 
@@ -128,6 +147,15 @@ loop(
 )
 ```
 
+```
+planning :: Doc -> Commit
+  >>> commit(branch: main)
+
+implementation :: Code -> Commit
+  >>> branch(pattern: "feature/*") :: Code -> Branch
+  >>> commit :: Branch -> Commit
+```
+
 Identifiers and unit suffixes accept any non-ASCII UTF-8 codepoint, so the DSL works naturally with non-Latin scripts. Error positions report codepoint-level columns, not byte offsets.
 
 ## Usage
@@ -144,7 +172,25 @@ ocaml-compose-dsl --help
 ocaml-compose-dsl --version
 ```
 
-Exits `0` with AST output (OCaml constructor format) on valid input, `1` with error messages on structural problems. Well-formedness warnings (e.g. `?` without matching `|||`) are printed to stderr without affecting the exit code.
+Exits `0` with AST output in a constructor-style format (e.g. `TypeAnn(Node(...), "Input", "Output")` for annotated terms) on valid input, `1` with error messages on structural problems. Well-formedness warnings (e.g. `?` without matching `|||`) are printed to stderr without affecting the exit code.
+
+## Literate Arrow Documents
+
+Arrow DSL is designed to work in literate documents — files where natural language prose and Arrow code blocks coexist. Use fenced code blocks with the `arrow` language tag:
+
+````markdown
+## Deployment
+
+Build artifacts must pass CI before release.
+
+```arrow
+build :: Source -> Artifact
+  >>> test :: Artifact -> Verified
+  >>> deploy(env: production) :: Verified -> Released
+```
+````
+
+Convention: `.arrow.md` for literate documents, `.arr` for standalone DSL files.
 
 ## Install
 

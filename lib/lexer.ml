@@ -14,6 +14,8 @@ type token =
   | FANOUT (** [&&&] *)
   | LOOP
   | QUESTION
+  | DOUBLE_COLON (** [::] *)
+  | ARROW (** [->] *)
   | COMMENT of string
   | EOF
 
@@ -79,7 +81,8 @@ let tokenize input =
   let read_ident () =
     let p = pos () in
     let start = !i in
-    while !i < len && is_ident_char input.[!i] do
+    while !i < len && is_ident_char input.[!i]
+          && not (input.[!i] = '-' && !i + 1 < len && input.[!i + 1] = '>') do
       advance ()
     done;
     let s = String.sub input start (!i - start) in
@@ -143,7 +146,14 @@ let tokenize input =
       | ')' -> advance (); tokens := { token = RPAREN; loc = { start = p; end_ = pos () } } :: !tokens
       | '[' -> advance (); tokens := { token = LBRACKET; loc = { start = p; end_ = pos () } } :: !tokens
       | ']' -> advance (); tokens := { token = RBRACKET; loc = { start = p; end_ = pos () } } :: !tokens
-      | ':' -> advance (); tokens := { token = COLON; loc = { start = p; end_ = pos () } } :: !tokens
+      | ':' ->
+        if peek_byte () = Some ':' then begin
+          advance (); advance ();
+          tokens := { token = DOUBLE_COLON; loc = { start = p; end_ = pos () } } :: !tokens
+        end else begin
+          advance ();
+          tokens := { token = COLON; loc = { start = p; end_ = pos () } } :: !tokens
+        end
       | ',' -> advance (); tokens := { token = COMMA; loc = { start = p; end_ = pos () } } :: !tokens
       | '>' ->
         if peek_byte () = Some '>' && !i + 2 < len && input.[!i + 2] = '>' then begin
@@ -176,6 +186,9 @@ let tokenize input =
           match peek_byte () with
           | Some c2 when c2 >= '0' && c2 <= '9' ->
             tokens := read_number () :: !tokens
+          | Some '>' ->
+            advance (); advance ();
+            tokens := { token = ARROW; loc = { start = p; end_ = pos () } } :: !tokens
           | _ ->
             raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
         end
