@@ -24,6 +24,17 @@ let check_ok_with_warnings input =
   Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
   result.Checker.warnings
 
+let has_warning_containing substr warnings =
+  List.exists (fun (w : Checker.warning) ->
+    let len = String.length substr in
+    let rec check i =
+      if i + len > String.length w.message then false
+      else if String.sub w.message i len = substr then true
+      else check (i + 1)
+    in
+    check 0
+  ) warnings
+
 (* === Lexer tests === *)
 
 (* ident = ( letter | "_" ) , { letter | digit | "-" | "_" } *)
@@ -707,6 +718,34 @@ let test_check_question_inside_alt_branch () =
   let warnings = check_ok_with_warnings {|("ready"? >>> process) ||| fallback|} in
   Alcotest.(check int) "one warning" 1 (List.length warnings)
 
+let test_check_question_tail_as_alt_operand () =
+  let warnings = check_ok_with_warnings {|(a >>> b >>> c?) ||| d|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings);
+  Alcotest.(check bool) "specific message" true
+    (has_warning_containing "operand of '|||'" warnings)
+
+let test_check_question_direct_alt_operand () =
+  let warnings = check_ok_with_warnings {|c? ||| d|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings);
+  Alcotest.(check bool) "specific message" true
+    (has_warning_containing "operand of '|||'" warnings)
+
+let test_check_question_multiple_with_tail_alt_operand () =
+  let warnings = check_ok_with_warnings {|("a"? >>> "b"?) ||| c|} in
+  Alcotest.(check int) "two warnings" 2 (List.length warnings);
+  Alcotest.(check bool) "has specific" true
+    (has_warning_containing "operand of '|||'" warnings);
+  Alcotest.(check bool) "has generic" true
+    (has_warning_containing "without matching" warnings)
+
+let test_check_question_not_at_tail_alt_operand () =
+  let warnings = check_ok_with_warnings {|("ready"? >>> process) ||| fallback|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings);
+  Alcotest.(check bool) "generic message" true
+    (has_warning_containing "without matching" warnings);
+  Alcotest.(check bool) "not specific message" false
+    (has_warning_containing "operand of '|||'" warnings)
+
 
 let test_check_loop_plain_no_error () =
   let result = Checker.check (parse_ok "loop (a >>> b)") in
@@ -1075,6 +1114,10 @@ let checker_tests =
   ; "question in fanout branch no alt", `Quick, test_check_question_in_fanout_branch_no_alt
   ; "alt before question still warns", `Quick, test_check_alt_before_question_still_warns
   ; "question inside alt branch", `Quick, test_check_question_inside_alt_branch
+  ; "question tail as alt operand", `Quick, test_check_question_tail_as_alt_operand
+  ; "question direct alt operand", `Quick, test_check_question_direct_alt_operand
+  ; "question multiple with tail alt operand", `Quick, test_check_question_multiple_with_tail_alt_operand
+  ; "question not at tail alt operand", `Quick, test_check_question_not_at_tail_alt_operand
   ; "question warning loc", `Quick, test_check_question_warning_loc
   ]
 
