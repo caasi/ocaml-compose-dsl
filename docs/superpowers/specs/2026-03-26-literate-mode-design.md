@@ -77,7 +77,7 @@ The extractor is a line-by-line state machine with two states: `Outside` and `In
 markdown_line = combined_line - combined_start + markdown_start
 ```
 
-All values are 1-based, matching the Lexer's convention. `translate_line` searches the table from the end to find the entry where `combined_start <= target_line`.
+All values are 1-based, matching the Lexer's convention. `translate_line` searches the table from the beginning to find the last entry where `combined_start <= target_line`.
 
 The Lexer internally uses 1-based line/col tracking. This module's interface aligns with that — no base conversion needed at the boundary.
 

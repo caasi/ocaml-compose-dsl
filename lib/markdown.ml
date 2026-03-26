@@ -36,7 +36,7 @@ let is_closing_fence line =
     !i = len
   end
 
-let drop_trailing_empty = function
+let drop_last_empty = function
   | [] -> []
   | lines ->
     let rev = List.rev lines in
@@ -45,7 +45,7 @@ let drop_trailing_empty = function
     | _ -> lines
 
 let extract input =
-  let lines = drop_trailing_empty (String.split_on_char '\n' input) in
+  let lines = drop_last_empty (String.split_on_char '\n' input) in
   let rec scan lines line_num state acc =
     match lines, state with
     | [], `Outside -> List.rev acc
@@ -87,6 +87,7 @@ let combine blocks =
         Buffer.add_string buf b.content;
         let entry = (current_line, b.markdown_start) in
         let lines_in_block = count_lines b.content in
+        (* +1 accounts for the separator '\n' emitted before the next block *)
         let next_line = current_line + lines_in_block + (if rest <> [] then 1 else 0) in
         build rest next_line (entry :: acc)
     in
