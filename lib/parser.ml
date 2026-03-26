@@ -99,7 +99,7 @@ let rec attach_comments_right (e : expr) comments =
     | Alt (a, b) -> { e with desc = Alt (a, attach_comments_right b comments) }
     | Group inner -> { e with desc = Group (attach_comments_right inner comments) }
     | Loop inner -> { e with desc = Loop (attach_comments_right inner comments) }
-    | StringLit _ -> e
+    | StringLit _ -> e (* intentionally drop comments; string literals have no comment field *)
     | Question inner -> { e with desc = Question (attach_comments_right inner comments) }
     | Lambda _ | Var _ | App _ | Let _ -> e
 
