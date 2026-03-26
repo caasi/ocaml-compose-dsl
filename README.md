@@ -46,10 +46,12 @@ term     = node
 node     = ident , [ "(" , [ call_args ] , ")" ] ;
 
 call_args = named_args | positional_args ;
-                (* disambiguation: IDENT ":" → named_args;
-                   otherwise → positional_args when callee is
-                   a bound variable (let/lambda), named_args
-                   when callee is an unbound node name *)
+                (* disambiguation: presence of IDENT ":" in the
+                   argument list → named_args; otherwise →
+                   positional_args syntax regardless of callee scope,
+                   with positional application of unbound node names
+                   rejected at reduce time; empty "()" on a bound
+                   variable is rejected at parse time *)
 
 named_args      = arg , { "," , arg } ;
 positional_args = seq_expr , { "," , seq_expr } ;
