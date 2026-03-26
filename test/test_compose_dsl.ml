@@ -36,6 +36,11 @@ let has_warning_containing substr warnings =
     scan 0
   ) warnings
 
+let contains s sub =
+  let len = String.length sub in
+  let rec scan i = i + len <= String.length s && (String.sub s i len = sub || scan (i + 1)) in
+  scan 0
+
 (* === Lexer tests === *)
 
 (* ident = ( letter | "_" ) , { letter | digit | "-" | "_" } *)
@@ -623,11 +628,6 @@ let test_parse_error_unclosed_paren () =
   match parse_ok "a(" with
   | _ -> Alcotest.fail "expected parse error"
   | exception Parser.Parse_error (_, msg) ->
-    let contains s sub =
-      let len = String.length sub in
-      let rec scan i = i + len <= String.length s && (String.sub s i len = sub || scan (i + 1)) in
-      scan 0
-    in
     if not (contains msg ")") then
       Alcotest.fail ("expected error mentioning ')': " ^ msg)
 
@@ -1119,22 +1119,12 @@ let test_parse_type_ann_incomplete_error () =
   (match parse_ok "node :: A" with
    | _ -> Alcotest.fail "expected parse error"
    | exception Parser.Parse_error (_, msg) ->
-     let contains s sub =
-       let slen = String.length s and sublen = String.length sub in
-       let rec go i = i + sublen <= slen && (String.sub s i sublen = sub || go (i + 1)) in
-       go 0
-     in
      Alcotest.(check bool) "error mentions ->" true (contains msg "->"))
 
 let test_parse_type_ann_missing_output_error () =
   (match parse_ok "node :: A ->" with
    | _ -> Alcotest.fail "expected parse error"
    | exception Parser.Parse_error (_, msg) ->
-     let contains s sub =
-       let slen = String.length s and sublen = String.length sub in
-       let rec go i = i + sublen <= slen && (String.sub s i sublen = sub || go (i + 1)) in
-       go 0
-     in
      Alcotest.(check bool) "error mentions ->" true (contains msg "->"))
 
 (* Helper that parses with parse_program and reduces *)
@@ -1667,11 +1657,6 @@ let test_parse_lambda_duplicate_params () =
   match Lexer.tokenize "\\ x, x -> x" |> Parser.parse_program with
   | _ -> Alcotest.fail "expected parse error (duplicate param)"
   | exception Parser.Parse_error (_, msg) ->
-    let contains s sub =
-      let len = String.length sub in
-      let rec scan i = i + len <= String.length s && (String.sub s i len = sub || scan (i + 1)) in
-      scan 0
-    in
     Alcotest.(check bool) "mentions duplicate" true (contains msg "duplicate")
 
 (* Empty positional args f() — should be parse error, no unit value *)
@@ -1679,11 +1664,6 @@ let test_parse_empty_positional_args () =
   match Lexer.tokenize "let f = \\ x -> x\nf()" |> Parser.parse_program with
   | _ -> Alcotest.fail "expected parse error (empty positional args)"
   | exception Parser.Parse_error (_, msg) ->
-    let contains s sub =
-      let len = String.length sub in
-      let rec scan i = i + len <= String.length s && (String.sub s i len = sub || scan (i + 1)) in
-      scan 0
-    in
     Alcotest.(check bool) "mentions empty application" true (contains msg "positional argument")
 
 (* Trailing comma in positional args — should be parse error *)
@@ -1691,11 +1671,6 @@ let test_parse_trailing_comma_positional () =
   match Lexer.tokenize "let f = \\ x -> x\nf(a,)" |> Parser.parse_program with
   | _ -> Alcotest.fail "expected parse error (trailing comma)"
   | exception Parser.Parse_error (_, msg) ->
-    let contains s sub =
-      let len = String.length sub in
-      let rec scan i = i + len <= String.length s && (String.sub s i len = sub || scan (i + 1)) in
-      scan 0
-    in
     Alcotest.(check bool) "mentions trailing comma" true (contains msg "trailing comma")
 
 let test_reduce_capture_avoiding () =
