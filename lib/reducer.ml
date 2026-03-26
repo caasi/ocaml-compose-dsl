@@ -116,13 +116,21 @@ let rec beta_reduce fresh_name (e : expr) : expr =
          body params positional
        in
        beta_reduce fresh_name result
-     | Var _ | App ({ desc = Var _; _ }, _) ->
-       { e with desc = App (fn', args') }
      | StringLit s ->
        raise (Reduce_error (e.loc.start,
          Printf.sprintf "%S is a string literal and cannot be applied" s))
      | _ ->
-       raise (Reduce_error (e.loc.start, "expression is not a function and cannot be applied")))
+       (* Allow App chains headed by a free Var to survive *)
+       let rec headed_by_var ex =
+         match ex.desc with
+         | Var _ -> true
+         | App (fn, _) -> headed_by_var fn
+         | _ -> false
+       in
+       if headed_by_var fn' then
+         { e with desc = App (fn', args') }
+       else
+         raise (Reduce_error (e.loc.start, "expression is not a function and cannot be applied")))
   | Seq (a, b) -> { e with desc = Seq (beta_reduce fresh_name a, beta_reduce fresh_name b) }
   | Par (a, b) -> { e with desc = Par (beta_reduce fresh_name a, beta_reduce fresh_name b) }
   | Fanout (a, b) -> { e with desc = Fanout (beta_reduce fresh_name a, beta_reduce fresh_name b) }
@@ -143,17 +151,21 @@ let rec verify (e : expr) : unit =
   | Lambda _ ->
     raise (Reduce_error (e.loc.start, "lambda expression not fully applied"))
   | Var _ -> ()
-  | App ({ desc = Var _; _ }, args) ->
-    List.iter (function
-      | Named _ -> ()
-      | Positional e -> verify e) args
-  | App (({ desc = App ({ desc = Var _; _ }, _); _ } as fn), args) ->
-    verify fn;
-    List.iter (function
-      | Named _ -> ()
-      | Positional e -> verify e) args
   | App _ ->
-    raise (Reduce_error (e.loc.start, "unreduced application"))
+    (* Walk an application chain; allow it only if ultimately headed by a free Var,
+       and verify all positional arguments along the way. *)
+    let rec walk app_expr =
+      match app_expr.desc with
+      | App (fn, args) ->
+        List.iter (function
+          | Named _ -> ()
+          | Positional arg_e -> verify arg_e) args;
+        walk fn
+      | Var _ -> ()
+      | _ ->
+        raise (Reduce_error (app_expr.loc.start, "unreduced application"))
+    in
+    walk e
   | Let _ ->
     raise (Reduce_error (e.loc.start, "unreduced let binding"))
   | Seq (a, b) | Par (a, b) | Fanout (a, b) | Alt (a, b) -> verify a; verify b

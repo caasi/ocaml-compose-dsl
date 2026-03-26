@@ -101,7 +101,6 @@ tag(format: "vX.Y.Z")
 ## Known Bugs
 
 - `parser.ml`: Comments on `Var`, `App`, `Lambda`, and `Let` nodes are silently dropped during parsing (`attach_comments_right` treats them as leaves). After reduction, any comments attached to variables used in `let` bindings are lost entirely. See Future Ideas for candidate designs.
-- `reducer.ml`: Curried free variable application (`let g = f(b)\ng(c)` where `f` is free) only survives one level of nesting. Deeper chains like `let h = g(d)\nh(e)` would fail at reduction. The current fix handles depth-2 (`App(App(Var _, _), _)`) but not arbitrary depth. A proper solution is to introduce an `in` keyword to delimit `let` scope, making the reducer's job explicit. See Future Ideas.
 - `parser.ml`: The right-recursive precedence parser (`parse_seq_expr`/`parse_alt_expr`/`parse_par_expr`) is not tail-recursive. Extremely long pipelines (thousands of chained operators) could overflow the OCaml stack. In practice this is unlikely for human-authored workflows. If needed, switch to loop + `List.fold_right` to build right-associative AST iteratively.
 
 ## Future Ideas
