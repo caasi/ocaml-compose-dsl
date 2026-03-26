@@ -200,6 +200,9 @@ ocaml-compose-dsl pipeline.arr
 # From stdin
 echo 'a >>> b' | ocaml-compose-dsl
 
+# Check arrow blocks in a Markdown file
+ocaml-compose-dsl --literate README.md
+
 # Help and version
 ocaml-compose-dsl --help
 ocaml-compose-dsl --version

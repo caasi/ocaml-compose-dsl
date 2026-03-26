@@ -46,6 +46,7 @@ Reads from file argument or stdin. Exits 0 with AST output (constructor-style fo
 ```
 echo 'a >>> b' | dune exec ocaml-compose-dsl
 dune exec ocaml-compose-dsl -- pipeline.arr
+dune exec ocaml-compose-dsl -- --literate README.md
 ```
 
 ## After Any Implementation Change
