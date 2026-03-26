@@ -285,6 +285,39 @@ and parse_term st =
     parse_lambda st start
   | _ -> raise (Parse_error (t.loc.start, "expected node, string with '?', '(' or 'loop'"))
 
+let parse_program tokens =
+  let st = make tokens in
+  let rec read_lets () =
+    let _ = eat_comments st in
+    let t = current st in
+    match t.token with
+    | Lexer.LET ->
+      advance st;
+      let t_name = current st in
+      let name = match t_name.token with
+        | Lexer.IDENT s -> advance st; s
+        | _ -> raise (Parse_error (t_name.loc.start, "expected identifier after 'let'"))
+      in
+      expect st (fun tok -> tok = Lexer.EQUALS) "expected '=' after let binding name";
+      if StringSet.mem name st.scope then
+        Printf.eprintf "warning at %d:%d: '%s' shadows previous binding\n"
+          t_name.loc.start.line t_name.loc.start.col name;
+      let old_scope = st.scope in
+      let value = parse_seq_expr st in
+      (* Name is in scope for subsequent bindings and body *)
+      st.scope <- StringSet.add name old_scope;
+      let rest = read_lets () in
+      mk_expr { start = t.loc.start; end_ = rest.loc.end_ } (Let (name, value, rest))
+    | _ ->
+      let expr = parse_seq_expr st in
+      let t_end = current st in
+      (match t_end.token with
+       | Lexer.EOF -> ()
+       | _ -> raise (Parse_error (t_end.loc.start, "expected end of input")));
+      expr
+  in
+  read_lets ()
+
 let parse tokens =
   let st = make tokens in
   let expr = parse_seq_expr st in

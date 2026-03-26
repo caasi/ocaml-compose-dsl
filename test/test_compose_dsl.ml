@@ -1129,6 +1129,67 @@ let test_parse_type_ann_missing_output_error () =
      in
      Alcotest.(check bool) "error mentions ->" true (contains msg "->"))
 
+let test_parse_let_simple () =
+  let tokens = Lexer.tokenize "let f = a >>> b\nf" in
+  let ast = Parser.parse_program tokens in
+  match ast.desc with
+  | Let ("f", value, body) ->
+    (match value.desc with
+     | Seq _ -> ()
+     | _ -> Alcotest.fail "expected Seq value");
+    (match body.desc with
+     | Var "f" -> ()
+     | _ -> Alcotest.fail "expected Var f body")
+  | _ -> Alcotest.fail "expected Let"
+
+let test_parse_let_multiple () =
+  let tokens = Lexer.tokenize "let a = x\nlet b = y\na >>> b" in
+  let ast = Parser.parse_program tokens in
+  match ast.desc with
+  | Let ("a", _, inner) ->
+    (match inner.desc with
+     | Let ("b", _, body) ->
+       (match body.desc with
+        | Seq _ -> ()
+        | _ -> Alcotest.fail "expected Seq body")
+     | _ -> Alcotest.fail "expected nested Let")
+  | _ -> Alcotest.fail "expected Let"
+
+let test_parse_let_with_lambda () =
+  let tokens = Lexer.tokenize "let f = \\ x -> x >>> a\nf(b)" in
+  let ast = Parser.parse_program tokens in
+  match ast.desc with
+  | Let ("f", value, body) ->
+    (match value.desc with
+     | Lambda _ -> ()
+     | _ -> Alcotest.fail "expected Lambda value");
+    (match body.desc with
+     | App (_, _) -> ()
+     | _ -> Alcotest.fail "expected App body")
+  | _ -> Alcotest.fail "expected Let"
+
+let test_parse_let_scope () =
+  (* b references a from earlier let *)
+  let tokens = Lexer.tokenize "let a = x\nlet b = a\nb" in
+  let ast = Parser.parse_program tokens in
+  match ast.desc with
+  | Let ("a", _, inner) ->
+    (match inner.desc with
+     | Let ("b", value, _) ->
+       (match value.desc with
+        | Var "a" -> ()
+        | _ -> Alcotest.fail "expected Var a in b's value")
+     | _ -> Alcotest.fail "expected nested Let")
+  | _ -> Alcotest.fail "expected Let"
+
+let test_parse_no_let_is_program () =
+  (* Backward compat: no let bindings → same as before *)
+  let tokens = Lexer.tokenize "a >>> b" in
+  let ast = Parser.parse_program tokens in
+  match ast.desc with
+  | Seq _ -> ()
+  | _ -> Alcotest.fail "expected Seq"
+
 let test_parse_lambda_single_param () =
   let ast = parse_ok "\\ x -> a >>> b" in
   match ast.desc with
@@ -1337,6 +1398,11 @@ let parser_tests =
   ; "lambda multi param", `Quick, test_parse_lambda_multi_param
   ; "lambda var in body", `Quick, test_parse_lambda_var_in_body
   ; "lambda in group", `Quick, test_parse_lambda_in_group
+  ; "let simple", `Quick, test_parse_let_simple
+  ; "let multiple", `Quick, test_parse_let_multiple
+  ; "let with lambda", `Quick, test_parse_let_with_lambda
+  ; "let scope", `Quick, test_parse_let_scope
+  ; "no let is program", `Quick, test_parse_no_let_is_program
   ]
 
 let checker_tests =
