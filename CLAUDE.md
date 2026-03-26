@@ -100,7 +100,7 @@ tag(format: "vX.Y.Z")
 
 ## Known Bugs
 
-- `parser.ml`: Comments on `Var`, `App`, `Lambda`, and `Let` nodes are silently dropped during parsing (`attach_comments_right` treats them as leaves). After reduction, any comments attached to variables used in `let` bindings are lost entirely. See Future Ideas for candidate designs.
+- `parser.ml`: Comments on `Var`, `App`, `Lambda`, and `Let` nodes are silently dropped at parse time (`attach_comments_right` treats them as leaves). See Future Ideas for candidate designs.
 - `parser.ml`: The right-recursive precedence parser (`parse_seq_expr`/`parse_alt_expr`/`parse_par_expr`) is not tail-recursive. Extremely long pipelines (thousands of chained operators) could overflow the OCaml stack. In practice this is unlikely for human-authored workflows. If needed, switch to loop + `List.fold_right` to build right-associative AST iteratively.
 
 ## Future Ideas
