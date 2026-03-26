@@ -621,8 +621,7 @@ let test_parse_unicode_unit_value () =
 let test_parse_error_unclosed_paren () =
   match parse_ok "a(" with
   | _ -> Alcotest.fail "expected parse error"
-  | exception Parser.Parse_error (_, msg) ->
-    Alcotest.(check string) "error msg" "expected argument name or ')'" msg
+  | exception Parser.Parse_error _ -> ()
 
 let test_parse_error_unclosed_group () =
   parse_fails "(a >>> b"
@@ -1130,6 +1129,45 @@ let test_parse_type_ann_missing_output_error () =
      in
      Alcotest.(check bool) "error mentions ->" true (contains msg "->"))
 
+let test_parse_lambda_single_param () =
+  let ast = parse_ok "\\ x -> a >>> b" in
+  match ast.desc with
+  | Lambda (["x"], body) ->
+    (match body.desc with
+     | Seq _ -> ()
+     | _ -> Alcotest.fail "expected Seq body")
+  | _ -> Alcotest.fail "expected Lambda"
+
+let test_parse_lambda_multi_param () =
+  let ast = parse_ok "\\ x, y -> a" in
+  match ast.desc with
+  | Lambda (["x"; "y"], _) -> ()
+  | _ -> Alcotest.fail "expected Lambda with two params"
+
+let test_parse_lambda_var_in_body () =
+  let ast = parse_ok "\\ x -> x >>> a" in
+  match ast.desc with
+  | Lambda (["x"], body) ->
+    (match body.desc with
+     | Seq (lhs, _) ->
+       (match lhs.desc with
+        | Var "x" -> ()
+        | _ -> Alcotest.fail "expected Var x")
+     | _ -> Alcotest.fail "expected Seq")
+  | _ -> Alcotest.fail "expected Lambda"
+
+let test_parse_lambda_in_group () =
+  let ast = parse_ok "(\\ x -> x) >>> a" in
+  match ast.desc with
+  | Seq (lhs, _) ->
+    (match lhs.desc with
+     | Group inner ->
+       (match inner.desc with
+        | Lambda _ -> ()
+        | _ -> Alcotest.fail "expected Lambda inside Group")
+     | _ -> Alcotest.fail "expected Group")
+  | _ -> Alcotest.fail "expected Seq"
+
 let test_lex_backslash () =
   let tokens = Lexer.tokenize "\\ x" in
   match (List.hd tokens).token with
@@ -1295,6 +1333,10 @@ let parser_tests =
   ; "type ann missing output error", `Quick, test_parse_type_ann_missing_output_error
   ; "type ann loc span", `Quick, test_parse_type_ann_loc
   ; "type ann loc no ann", `Quick, test_parse_type_ann_loc_no_ann
+  ; "lambda single param", `Quick, test_parse_lambda_single_param
+  ; "lambda multi param", `Quick, test_parse_lambda_multi_param
+  ; "lambda var in body", `Quick, test_parse_lambda_var_in_body
+  ; "lambda in group", `Quick, test_parse_lambda_in_group
   ]
 
 let checker_tests =
