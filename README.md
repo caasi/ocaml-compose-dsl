@@ -205,7 +205,7 @@ ocaml-compose-dsl --help
 ocaml-compose-dsl --version
 ```
 
-Exits `0` with AST output in a constructor-style format (e.g. `TypeAnn(Var("name"), "Input", "Output")` for annotated terms) on valid input, `1` with error messages on parse or reduction errors. Well-formedness warnings (e.g. `?` without matching `|||`) are printed to stderr without affecting the exit code.
+Exits `0` with AST output in a constructor-style format (e.g. `TypeAnn(Var("name"), "Input", "Output")` for annotated terms) on valid input, `1` with error messages on lex/parse/reduction errors. Well-formedness warnings (e.g. `?` without matching `|||`) are printed to stderr without affecting the exit code.
 
 ## Literate Arrow Documents
 
