@@ -1526,6 +1526,28 @@ let printer_tests =
   ; "no type annotation unchanged", `Quick, test_print_no_type_ann
   ]
 
+(* Integration: full pipeline parse_program >>> reduce >>> check *)
+let test_integration_let_and_check () =
+  let input = "let f = \\ x -> x >>> a\nf(b)" in
+  let tokens = Lexer.tokenize input in
+  let ast = Parser.parse_program tokens in
+  let reduced = Reducer.reduce ast in
+  let result = Checker.check reduced in
+  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
+
+let test_integration_backward_compat () =
+  let input = "a >>> b *** c" in
+  let tokens = Lexer.tokenize input in
+  let ast = Parser.parse_program tokens in
+  let reduced = Reducer.reduce ast in
+  let result = Checker.check reduced in
+  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
+
+let integration_tests =
+  [ "let and check", `Quick, test_integration_let_and_check
+  ; "backward compat", `Quick, test_integration_backward_compat
+  ]
+
 let reducer_tests =
   [ "no lambda passthrough", `Quick, test_reduce_no_lambda
   ; "let simple", `Quick, test_reduce_let_simple
@@ -1545,4 +1567,5 @@ let () =
     ; "Checker", checker_tests
     ; "Printer", printer_tests
     ; "Reducer", reducer_tests
+    ; "Integration", integration_tests
     ]

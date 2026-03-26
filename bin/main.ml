@@ -86,11 +86,17 @@ let () =
     Printf.eprintf "lex error at %d:%d: %s\n" pos.line pos.col msg;
     exit 1
   | tokens ->
-    match Compose_dsl.Parser.parse tokens with
+    match Compose_dsl.Parser.parse_program tokens with
     | exception Compose_dsl.Parser.Parse_error (pos, msg) ->
       Printf.eprintf "parse error at %d:%d: %s\n" pos.line pos.col msg;
       exit 1
     | ast ->
+      let ast = match Compose_dsl.Reducer.reduce ast with
+        | reduced -> reduced
+        | exception Compose_dsl.Reducer.Reduce_error (pos, msg) ->
+          Printf.eprintf "reduce error at %d:%d: %s\n" pos.line pos.col msg;
+          exit 1
+      in
       let result = Compose_dsl.Checker.check ast in
       List.iter
         (fun (w : Compose_dsl.Checker.warning) ->
