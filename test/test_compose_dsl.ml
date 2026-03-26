@@ -1674,6 +1674,30 @@ let test_parse_lambda_duplicate_params () =
     in
     Alcotest.(check bool) "mentions duplicate" true (contains msg "duplicate")
 
+(* Empty positional args f() — should be parse error, no unit value *)
+let test_parse_empty_positional_args () =
+  match Lexer.tokenize "let f = \\ x -> x\nf()" |> Parser.parse_program with
+  | _ -> Alcotest.fail "expected parse error (empty positional args)"
+  | exception Parser.Parse_error (_, msg) ->
+    let contains s sub =
+      let len = String.length sub in
+      let rec scan i = i + len <= String.length s && (String.sub s i len = sub || scan (i + 1)) in
+      scan 0
+    in
+    Alcotest.(check bool) "mentions empty application" true (contains msg "positional argument")
+
+(* Trailing comma in positional args — should be parse error *)
+let test_parse_trailing_comma_positional () =
+  match Lexer.tokenize "let f = \\ x -> x\nf(a,)" |> Parser.parse_program with
+  | _ -> Alcotest.fail "expected parse error (trailing comma)"
+  | exception Parser.Parse_error (_, msg) ->
+    let contains s sub =
+      let len = String.length sub in
+      let rec scan i = i + len <= String.length s && (String.sub s i len = sub || scan (i + 1)) in
+      scan 0
+    in
+    Alcotest.(check bool) "mentions trailing comma" true (contains msg "trailing comma")
+
 let test_reduce_capture_avoiding () =
   (* Nested application where capture could happen without alpha-renaming *)
   let ast = reduce_ok "let apply = \\ f, x -> f(x)\nlet id = \\ x -> x\napply(id, a)" in
@@ -1693,6 +1717,8 @@ let edge_case_tests =
   ; "lambda with comment", `Quick, test_parse_lambda_with_comment
   ; "lambda duplicate params", `Quick, test_parse_lambda_duplicate_params
   ; "capture avoiding substitution", `Quick, test_reduce_capture_avoiding
+  ; "empty positional args", `Quick, test_parse_empty_positional_args
+  ; "trailing comma positional", `Quick, test_parse_trailing_comma_positional
   ]
 
 let () =

@@ -234,7 +234,12 @@ and parse_term st =
           | _ ->
             mk_expr { start = t.loc.start; end_ = rparen_end } (Node n))
        end else begin
-         (* Positional args — lambda application *)
+         (* Positional args — lambda application; requires at least one arg *)
+         let t_first = current st in
+         (match t_first.token with
+          | Lexer.RPAREN ->
+            raise (Parse_error (t_first.loc.start, "expected at least one positional argument; empty application is not supported"))
+          | _ -> ());
          let args = ref [] in
          let rec read_positional () =
            let t_check = current st in
@@ -246,7 +251,13 @@ and parse_term st =
              args := parse_seq_expr st :: !args;
              let t_check2 = current st in
              (match t_check2.token with
-              | Lexer.COMMA -> advance st; read_positional ()
+              | Lexer.COMMA ->
+                advance st;
+                let t_after_comma = current st in
+                (match t_after_comma.token with
+                 | Lexer.RPAREN | Lexer.EOF ->
+                   raise (Parse_error (t_after_comma.loc.start, "unexpected trailing comma in argument list"))
+                 | _ -> read_positional ())
               | Lexer.RPAREN -> ()
               | Lexer.EOF ->
                 raise (Parse_error (t_check2.loc.start, "expected ')' to close argument list"))
