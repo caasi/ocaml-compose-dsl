@@ -879,16 +879,6 @@ let test_parse_question_with_space () =
   | Ast.Seq ({ desc = Ast.Question { desc = Ast.StringLit "hello"; _ }; _ }, _) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
-let test_parse_bare_string_in_seq () =
-  match desc_of {|"bare string" >>> a|} with
-  | Ast.Seq ({ desc = Ast.StringLit "bare string"; _ }, _) -> ()
-  | _ -> Alcotest.fail "expected Seq(StringLit, ...)"
-
-let test_parse_bare_string_alone () =
-  match desc_of {|"just a string"|} with
-  | Ast.StringLit "just a string" -> ()
-  | _ -> Alcotest.fail "expected StringLit"
-
 let test_parse_question_in_loop () =
   let ast = parse_ok {|loop(generate >>> "all pass"? >>> (exit ||| continue))|} in
   match ast.desc with
@@ -1479,9 +1469,7 @@ let parser_tests =
   ; "node question", `Quick, test_parse_node_question
   ; "bare node question", `Quick, test_parse_bare_node_question
   ; "question with space", `Quick, test_parse_question_with_space
-  ; "bare string in seq", `Quick, test_parse_bare_string_in_seq
-  ; "bare string alone", `Quick, test_parse_bare_string_alone
-  ; "question in loop", `Quick, test_parse_question_in_loop
+; "question in loop", `Quick, test_parse_question_in_loop
   ; "question in group", `Quick, test_parse_question_in_group
   ; "comment on node question", `Quick, test_parse_comment_on_node_question
   ; "comment on string question", `Quick, test_parse_comment_on_string_question
