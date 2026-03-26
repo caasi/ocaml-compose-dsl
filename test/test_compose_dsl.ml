@@ -14,15 +14,13 @@ let parse_fails input =
 let check_ok input =
   let ast = parse_ok input in
   let ast = Reducer.reduce ast in
-  let result = Checker.check ast in
-  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
+  let _result = Checker.check ast in
   ast
 
 let check_ok_with_warnings input =
   let ast = parse_ok input in
   let ast = Reducer.reduce ast in
   let result = Checker.check ast in
-  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
   result.Checker.warnings
 
 let has_warning_containing substr warnings =
@@ -695,11 +693,11 @@ let test_check_question_not_at_tail_alt_operand () =
 
 let test_check_loop_plain_no_error () =
   let result = Checker.check (parse_ok "loop (a >>> b)") in
-  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
+  Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
 
 let test_check_loop_unicode_no_error () =
   let result = Checker.check (parse_ok "loop (掃描 >>> 檢查)") in
-  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
+  Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
 
 let test_parse_comment_on_node_question () =
   (* Comments are now dropped on Var, so just verify the structure *)
@@ -1167,6 +1165,13 @@ let test_reduce_free_var_apply () =
     {|App(Var("a"), [Positional(Var("b"))])|}
     (Printer.to_string ast)
 
+let test_reduce_curried_free_var_apply () =
+  (* Curried application on free var: let g = f(b) then g(c) *)
+  let ast = reduce_ok "let g = f(b)\ng(c)" in
+  Alcotest.(check string) "printed"
+    {|App(App(Var("f"), [Positional(Var("b"))]), [Positional(Var("c"))])|}
+    (Printer.to_string ast)
+
 let test_reduce_string_lit_passthrough () =
   let ast = reduce_ok {|"hello" >>> a|} in
   Alcotest.(check string) "printed"
@@ -1568,7 +1573,7 @@ let test_integration_let_and_check () =
   let ast = Parser.parse_program tokens in
   let reduced = Reducer.reduce ast in
   let result = Checker.check reduced in
-  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
+  Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
 
 let test_integration_backward_compat () =
   let input = "a >>> b *** c" in
@@ -1576,7 +1581,7 @@ let test_integration_backward_compat () =
   let ast = Parser.parse_program tokens in
   let reduced = Reducer.reduce ast in
   let result = Checker.check reduced in
-  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
+  Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
 
 let integration_tests =
   [ "let and check", `Quick, test_integration_let_and_check
@@ -1593,6 +1598,7 @@ let reducer_tests =
   ; "free variable as var", `Quick, test_reduce_free_variable
   ; "arity mismatch error", `Quick, test_reduce_arity_mismatch
   ; "free var apply survives", `Quick, test_reduce_free_var_apply
+  ; "curried free var apply", `Quick, test_reduce_curried_free_var_apply
   ; "string lit passthrough", `Quick, test_reduce_string_lit_passthrough
   ; "string lit as arg", `Quick, test_reduce_string_lit_as_arg
   ; "string lit apply error", `Quick, test_reduce_string_lit_apply_error
@@ -1667,7 +1673,7 @@ let test_parse_lambda_duplicate_params () =
     Alcotest.(check bool) "mentions duplicate" true (contains msg "duplicate")
 
 (* Empty application f() — now parses OK, but arity error at reduce *)
-let test_parse_empty_application_arity () =
+let test_reduce_empty_application_arity () =
   match reduce_ok "let f = \\ x -> x\nf()" with
   | _ -> Alcotest.fail "expected reduce error (arity mismatch)"
   | exception Reducer.Reduce_error (_, msg) ->
@@ -1762,7 +1768,7 @@ let test_integration_mixed_args () =
   let ast = Parser.parse_program tokens in
   let reduced = Reducer.reduce ast in
   let result = Checker.check reduced in
-  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
+  Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
 
 let edge_case_tests =
   [ "lambda with type ann", `Quick, test_reduce_lambda_with_type_ann
@@ -1776,7 +1782,7 @@ let edge_case_tests =
   ; "lambda with comment", `Quick, test_parse_lambda_with_comment
   ; "lambda duplicate params", `Quick, test_parse_lambda_duplicate_params
   ; "capture avoiding substitution", `Quick, test_reduce_capture_avoiding
-  ; "empty application arity", `Quick, test_parse_empty_application_arity
+  ; "empty application arity", `Quick, test_reduce_empty_application_arity
   ; "trailing comma args", `Quick, test_parse_trailing_comma_args
   ]
 

@@ -88,7 +88,11 @@ and substitute_call_arg fresh_name name replacement = function
   | Named a -> Named a
   | Positional e -> Positional (substitute fresh_name name replacement e)
 
-(* Beta reduce: App(Lambda(params, body), args) -> substitute params with args in body *)
+(* Beta reduce applications:
+   - App(Lambda(params, body), args) -> substitute params with args in body
+   - App(Var _, args) -> kept as-is (free variable application survives)
+   - App(StringLit _, _) -> error (string literals are not functions)
+   - App(_, _) -> error (non-function application) *)
 let rec beta_reduce fresh_name (e : expr) : expr =
   match e.desc with
   | App (fn, args) ->
@@ -112,7 +116,7 @@ let rec beta_reduce fresh_name (e : expr) : expr =
          body params positional
        in
        beta_reduce fresh_name result
-     | Var _ ->
+     | Var _ | App ({ desc = Var _; _ }, _) ->
        { e with desc = App (fn', args') }
      | StringLit s ->
        raise (Reduce_error (e.loc.start,
@@ -133,13 +137,14 @@ and beta_reduce_call_arg fresh_name = function
   | Named a -> Named a
   | Positional e -> Positional (beta_reduce fresh_name e)
 
-(* Verify no unreduced nodes remain *)
+(* Verify no unresolvable nodes remain; free Var and App with free Var callee are allowed *)
 let rec verify (e : expr) : unit =
   match e.desc with
   | Lambda _ ->
     raise (Reduce_error (e.loc.start, "lambda expression not fully applied"))
   | Var _ -> ()
-  | App ({ desc = Var _; _ }, args) ->
+  | App ({ desc = Var _; _ }, args)
+  | App ({ desc = App ({ desc = Var _; _ }, _); _ }, args) ->
     List.iter (function
       | Named _ -> ()
       | Positional e -> verify e) args

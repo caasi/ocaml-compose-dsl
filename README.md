@@ -46,8 +46,6 @@ call_arg  = ident , ":" , value                    (* Named — per-arg disambig
           | seq_expr                                (* Positional — any expression *)
           ;
 
-arg      = ident , ":" , value ;
-
 value    = string
          | number
          | ident

@@ -1,8 +1,7 @@
 open Ast
 
-type error = { loc : loc; message : string }
 type warning = { loc : loc; message : string }
-type result = { errors : error list; warnings : warning list }
+type result = { warnings : warning list }
 
 let rec normalize (e : expr) : expr =
   match e.desc with
@@ -102,4 +101,4 @@ let check (expr : expr) =
   in
   check_question_balance expr;
   go expr;
-  { errors = []; warnings = List.rev !warnings }
+  { warnings = List.rev !warnings }
