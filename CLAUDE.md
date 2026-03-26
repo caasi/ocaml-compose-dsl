@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 >
 > **Binary:** `ocaml-compose-dsl` (or `dune exec ocaml-compose-dsl`) can validate any `arrow` code block — pipe a snippet through it to check syntax.
 
+## Arrow DSL Conventions
+
+- Use `->` for arrows (not `=>`). Follow standard PLT/Haskell arrow conventions.
+- `&&&` is fanout, `***` is parallel, `|||` is alternation. Do not confuse them.
+- When in doubt about operator semantics, check the EBNF in README.md.
+
 ## Build Commands
 
 - `dune build` — build everything
