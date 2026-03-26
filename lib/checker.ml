@@ -25,7 +25,12 @@ let check (expr : expr) =
      saturation at 0) for Alt. Only downstream ||| can match upstream ?. *)
   let rec scan_questions counter (e : expr) =
     match e.desc with
-    | Question inner -> scan_questions (counter + 1) inner
+    (* Intentionally treat Question as a leaf: do NOT recurse into inner.
+       Recursing would let an Alt inside the operand decrement the counter,
+       violating the invariant that only downstream ||| matches upstream ?.
+       The parser restricts inner to Node or StringLit, so no nested
+       Question can hide here. *)
+    | Question _ -> counter + 1
     | Alt _ -> max 0 (counter - 1)
     | Node _ | StringLit _ -> counter
     | Seq (a, b) ->
