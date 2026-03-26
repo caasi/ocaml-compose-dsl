@@ -7,12 +7,11 @@ module StringSet = Set.Make(String)
 type state = {
   mutable tokens : Lexer.located list;
   mutable last_loc : loc;
-  mutable scope : StringSet.t;
 }
 
 let dummy_loc = { start = { line = 1; col = 1 }; end_ = { line = 1; col = 1 } }
 
-let make tokens = { tokens; last_loc = dummy_loc; scope = StringSet.empty }
+let make tokens = { tokens; last_loc = dummy_loc }
 
 let mk_expr loc desc : expr = { loc; desc; type_ann = None }
 
@@ -68,42 +67,59 @@ let rec parse_value st =
     List (List.rev !values)
   | _ -> raise (Parse_error (t.loc.start, "expected value"))
 
-let parse_args st =
+let rec parse_call_arg st =
+  let t = current st in
+  match t.token with
+  | Lexer.IDENT _ ->
+    (match st.tokens with
+     | _ :: { Lexer.token = Lexer.COLON; _ } :: _ ->
+       let key = match t.token with Lexer.IDENT k -> k | _ -> assert false in
+       advance st;
+       advance st;
+       let value = parse_value st in
+       Named { key; value }
+     | _ ->
+       Positional (parse_seq_expr st))
+  | _ ->
+    Positional (parse_seq_expr st)
+
+and parse_call_args st =
   let args = ref [] in
   let rec go () =
     let t = current st in
     match t.token with
     | Lexer.RPAREN -> ()
-    | Lexer.IDENT key ->
-      advance st;
-      expect st (fun t -> t = Lexer.COLON) "expected ':'";
-      let value = parse_value st in
-      args := { key; value } :: !args;
-      let t = current st in
-      (match t.token with
-       | Lexer.COMMA -> advance st; go ()
+    | _ ->
+      args := parse_call_arg st :: !args;
+      let t2 = current st in
+      (match t2.token with
+       | Lexer.COMMA ->
+         advance st;
+         let t_after = current st in
+         (match t_after.token with
+          | Lexer.RPAREN ->
+            raise (Parse_error (t_after.loc.start, "unexpected trailing comma in argument list"))
+          | _ -> go ())
        | Lexer.RPAREN -> ()
-       | _ -> raise (Parse_error (t.loc.start, "expected ',' or ')'")))
-    | _ -> raise (Parse_error (t.loc.start, "expected argument name or ')'"))
+       | _ -> raise (Parse_error (t2.loc.start, "expected ',' or ')'")))
   in
   go ();
   List.rev !args
 
-let rec attach_comments_right (e : expr) comments =
+and attach_comments_right (e : expr) comments =
   if comments = [] then e
   else match e.desc with
-    | Node n -> { e with desc = Node { n with comments = n.comments @ comments } }
     | Seq (a, b) -> { e with desc = Seq (a, attach_comments_right b comments) }
     | Par (a, b) -> { e with desc = Par (a, attach_comments_right b comments) }
     | Fanout (a, b) -> { e with desc = Fanout (a, attach_comments_right b comments) }
     | Alt (a, b) -> { e with desc = Alt (a, attach_comments_right b comments) }
     | Group inner -> { e with desc = Group (attach_comments_right inner comments) }
     | Loop inner -> { e with desc = Loop (attach_comments_right inner comments) }
-    | StringLit _ -> e (* intentionally drop comments; string literals have no comment field *)
+    | StringLit _ -> e
     | Question inner -> { e with desc = Question (attach_comments_right inner comments) }
-    | Lambda _ | Var _ | App _ | Let _ -> e
+    | Var _ | App _ | Lambda _ | Let _ -> e
 
-let parse_type_ann st =
+and parse_type_ann st =
   let t = current st in
   match t.token with
   | Lexer.DOUBLE_COLON ->
@@ -122,7 +138,7 @@ let parse_type_ann st =
      | _ -> raise (Parse_error (t_in.loc.start, "expected type name after '::'")))
   | _ -> None
 
-let rec parse_seq_expr st =
+and parse_seq_expr st =
   let lhs = parse_alt_expr st in
   let comments = eat_comments st in
   let lhs = attach_comments_right lhs comments in
@@ -160,7 +176,6 @@ and parse_par_expr st =
   | _ -> lhs
 
 and parse_lambda st start_loc =
-  (* BACKSLASH already consumed *)
   let params = ref [] in
   let seen = ref StringSet.empty in
   let rec read_params () =
@@ -182,10 +197,7 @@ and parse_lambda st start_loc =
   in
   read_params ();
   let param_list = List.rev !params in
-  let old_scope = st.scope in
-  st.scope <- List.fold_left (fun s p -> StringSet.add p s) st.scope param_list;
   let body = parse_seq_expr st in
-  st.scope <- old_scope;
   mk_expr { start = start_loc; end_ = body.loc.end_ } (Lambda (param_list, body))
 
 and parse_term st =
@@ -205,93 +217,32 @@ and parse_term st =
      | _ -> str_expr)
   | Lexer.IDENT name ->
     advance st;
-    let in_scope = StringSet.mem name st.scope in
     let t_next = current st in
     (match t_next.token with
      | Lexer.LPAREN ->
        advance st;
-       let t_peek = current st in
-       (* Disambiguation: IDENT COLON → named args, else → positional *)
-       let is_named = match t_peek.token with
-         | Lexer.IDENT _ ->
-           (match st.tokens with
-            | _ :: { Lexer.token = Lexer.COLON; _ } :: _ -> true
-            | _ -> false)
-         | Lexer.RPAREN -> not in_scope  (* empty parens: out-of-scope → named (Node), in-scope → positional (App) *)
-         | _ -> false
-       in
-       if is_named then begin
-         if in_scope then
-           raise (Parse_error (t.loc.start, Printf.sprintf "cannot pass named args to variable '%s'" name));
-         let args = parse_args st in
-         expect st (fun tok -> tok = Lexer.RPAREN) "expected ')'";
-         let rparen_end = st.last_loc.end_ in
-         let comments = eat_comments st in
-         let n = { name; args; comments } in
-         let t2 = current st in
-         (match t2.token with
-          | Lexer.QUESTION ->
-            advance st;
-            let node_expr = mk_expr { start = t.loc.start; end_ = rparen_end } (Node n) in
-            mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Question node_expr)
-          | _ ->
-            mk_expr { start = t.loc.start; end_ = rparen_end } (Node n))
-       end else begin
-         (* Positional args — lambda application; requires at least one arg *)
-         let t_first = current st in
-         (match t_first.token with
-          | Lexer.RPAREN ->
-            raise (Parse_error (t_first.loc.start, "expected at least one positional argument; empty application is not supported"))
-          | _ -> ());
-         let args = ref [] in
-         let rec read_positional () =
-           let t_check = current st in
-           match t_check.token with
-           | Lexer.RPAREN -> ()
-           | Lexer.EOF ->
-             raise (Parse_error (t_check.loc.start, "expected expression or ')' in argument list"))
-           | _ ->
-             args := parse_seq_expr st :: !args;
-             let t_check2 = current st in
-             (match t_check2.token with
-              | Lexer.COMMA ->
-                advance st;
-                let t_after_comma = current st in
-                (match t_after_comma.token with
-                 | Lexer.RPAREN | Lexer.EOF ->
-                   raise (Parse_error (t_after_comma.loc.start, "unexpected trailing comma in argument list"))
-                 | _ -> read_positional ())
-              | Lexer.RPAREN -> ()
-              | Lexer.EOF ->
-                raise (Parse_error (t_check2.loc.start, "expected ')' to close argument list"))
-              | _ -> raise (Parse_error (t_check2.loc.start, "expected ',' or ')'")))
-         in
-         read_positional ();
-         expect st (fun tok -> tok = Lexer.RPAREN) "expected ')'";
-         let fn_expr = if in_scope
-           then mk_expr t.loc (Var name)
-           else mk_expr t.loc (Node { name; args = []; comments = [] })
-         in
-         mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (App (fn_expr, List.rev !args))
-       end
+       let args = parse_call_args st in
+       expect st (fun tok -> tok = Lexer.RPAREN) "expected ')'";
+       let rparen_end = st.last_loc.end_ in
+       let _ = eat_comments st in
+       let app_expr = mk_expr { start = t.loc.start; end_ = rparen_end }
+         (App (mk_expr t.loc (Var name), args)) in
+       let t2 = current st in
+       (match t2.token with
+        | Lexer.QUESTION ->
+          advance st;
+          mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Question app_expr)
+        | _ -> app_expr)
      | _ ->
-       if in_scope then begin
-         let ident_end = st.last_loc.end_ in
-         let _ = eat_comments st in
-         mk_expr { start = t.loc.start; end_ = ident_end } (Var name)
-       end else begin
-         let ident_end = st.last_loc.end_ in
-         let comments = eat_comments st in
-         let n = { name; args = []; comments } in
-         let t2 = current st in
-         (match t2.token with
-          | Lexer.QUESTION ->
-            advance st;
-            let node_expr = mk_expr { start = t.loc.start; end_ = ident_end } (Node n) in
-            mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Question node_expr)
-          | _ ->
-            mk_expr { start = t.loc.start; end_ = ident_end } (Node n))
-       end)
+       let ident_end = st.last_loc.end_ in
+       let _ = eat_comments st in
+       let var_expr = mk_expr { start = t.loc.start; end_ = ident_end } (Var name) in
+       let t2 = current st in
+       (match t2.token with
+        | Lexer.QUESTION ->
+          advance st;
+          mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Question var_expr)
+        | _ -> var_expr))
   | Lexer.LOOP ->
     advance st;
     expect st (fun tok -> tok = Lexer.LPAREN) "expected '(' after 'loop'";
@@ -323,10 +274,7 @@ let parse_program tokens =
         | _ -> raise (Parse_error (t_name.loc.start, "expected identifier after 'let'"))
       in
       expect st (fun tok -> tok = Lexer.EQUALS) "expected '=' after let binding name";
-      let old_scope = st.scope in
       let value = parse_seq_expr st in
-      (* Name is in scope for subsequent bindings and body *)
-      st.scope <- StringSet.add name old_scope;
       let rest = read_lets () in
       mk_expr { start = t.loc.start; end_ = rest.loc.end_ } (Let (name, value, rest))
     | _ ->
@@ -338,4 +286,3 @@ let parse_program tokens =
       expr
   in
   read_lets ()
-
