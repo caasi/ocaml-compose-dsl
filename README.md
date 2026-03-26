@@ -32,7 +32,8 @@ typed_term  = term , [ "::" , type_expr ] ;
 
 type_expr   = ident , "->" , ident ;
 
-term     = node , [ "?" ]                          (* node, optionally question *)
+term     = ident , [ "(" , [ call_args ] , ")" ] , [ "?" ]
+                                                    (* ident with optional args and question *)
          | string , [ "?" ]                        (* string literal, optionally question;
                                                       AST represents both as Question(expr) *)
          | "loop" , "(" , seq_expr , ")"            (* feedback loop *)
@@ -40,18 +41,10 @@ term     = node , [ "?" ]                          (* node, optionally question 
          | lambda
          ;
 
-node     = ident , [ "(" , [ call_args ] , ")" ] ;
-
-call_args = named_args | positional_args ;
-                (* disambiguation: presence of IDENT ":" in the
-                   argument list → named_args; otherwise →
-                   positional_args syntax regardless of callee scope,
-                   with positional application of unbound node names
-                   rejected at reduce time; empty "()" on a bound
-                   variable is rejected at parse time *)
-
-named_args      = arg , { "," , arg } ;
-positional_args = seq_expr , { "," , seq_expr } ;
+call_args = call_arg , { "," , call_arg } ;
+call_arg  = ident , ":" , value                    (* Named — per-arg disambiguation via IDENT ":" *)
+          | seq_expr                                (* Positional — any expression *)
+          ;
 
 arg      = ident , ":" , value ;
 
@@ -81,7 +74,7 @@ number     = [ "-" ] , digit , { digit } , [ "." , digit , { digit } ] , [ ident
 comment  = "--" , { any char - newline } ;
 ```
 
-All operators are right-associative (matching Haskell Arrow fixity). Comments can appear after any term and are attached to the preceding node as purpose descriptions or reference tool annotations.
+All operators are right-associative (matching Haskell Arrow fixity).
 
 ## Arrow Semantics
 
@@ -188,6 +181,13 @@ let phase2 = build >>> review(test?, fix)
 
 phase1 >>> phase2
 ```
+
+```
+let v = some_pipeline
+push(remote: origin, v)
+```
+
+Named and positional arguments can be freely mixed. Named arguments (`key: value`) provide static configuration; positional arguments pass pipeline expressions.
 
 Lambdas and let bindings are reduced to pure Arrow pipelines before structural checking. They provide abstraction without adding runtime semantics.
 
