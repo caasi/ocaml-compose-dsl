@@ -2,7 +2,7 @@
 
 ## Summary
 
-Add a `--literate` / `-l` CLI flag that accepts a Markdown file as input, extracts all `` ```arrow `` and `` ```arr `` fenced code blocks, concatenates them into a single source string, and runs the existing Lexer → Parser → Checker → Printer pipeline on the result. Error line numbers are translated back to the original Markdown file positions.
+Add a `--literate` / `-l` CLI flag that accepts a Markdown file as input, extracts all `` ```arrow `` and `` ```arr `` fenced code blocks, concatenates them into a single source string, and runs the existing Lexer → Parser → Reducer → Checker → Printer pipeline on the result. Error line numbers are translated back to the original Markdown file positions.
 
 This enables checking literate Arrow documents (like this project's own `CLAUDE.md`) and lays groundwork for future `let` bindings that reference across code blocks.
 
@@ -77,7 +77,7 @@ The extractor is a line-by-line state machine with two states: `Outside` and `In
 markdown_line = combined_line - combined_start + markdown_start
 ```
 
-All values are 1-based, matching the Lexer's convention. `translate_line` searches the table from the end to find the entry where `combined_start <= target_line`.
+All values are 1-based, matching the Lexer's convention. `translate_line` searches the table from the beginning to find the last entry where `combined_start <= target_line`.
 
 The Lexer internally uses 1-based line/col tracking. This module's interface aligns with that — no base conversion needed at the boundary.
 
@@ -113,20 +113,21 @@ let source, offset_table =
   else
     input, []
 in
-(* Lexer → Parser → Checker → Printer as before *)
+(* Lexer → Parser → Reducer → Checker → Printer as before *)
 ```
 
 ### Error Reporting
 
-All `Printf.eprintf` calls for lex errors, parse errors, check errors, and warnings pass the line number through `Compose_dsl.Markdown.translate_line offset_table` before printing. This covers `pos.line` (lex/parse errors) and `loc.start.line` (checker errors/warnings). The current CLI only prints `start` positions; if `end_` positions are printed in the future, they must also be translated.
+All `Printf.eprintf` calls for lex errors, parse errors, reduce errors, and checker warnings pass the line number through `Compose_dsl.Markdown.translate_line offset_table` before printing. This covers `pos.line` (lex/parse/reduce errors) and `loc.start.line` (checker warnings). The checker returns `{ warnings }` only — no errors. The current CLI only prints `start` positions; if `end_` positions are printed in the future, they must also be translated.
 
 Column numbers are unchanged — each code block's content preserves its original columns.
 
 ## What Does NOT Change
 
 - **Lexer** — no changes, stays 1-based internally
-- **Parser** — no changes
-- **Checker** — no changes
+- **Parser** — no changes (`parse_program` entry point)
+- **Reducer** — no changes (runs between parser and checker)
+- **Checker** — no changes (returns `{ warnings }` only, no errors)
 - **Printer** — no changes
 - **stdout** — only AST output, same as normal mode
 - **Exit codes** — 0 for success (with warnings on stderr), 1 for errors
