@@ -26,12 +26,14 @@ Library modules form a pipeline themselves:
 ```arrow
 Lexer :: String -> Token
   >>> Parser :: Token -> Ast
+  >>> Reducer :: Ast -> Ast   -- desugar let, beta reduce lambda
   >>> Checker :: Ast -> Result
 ```
 
-- `Ast` — ADT for DSL expressions: Node, Seq (`>>>`), Par (`***`), Fanout (`&&&`), Alt (`|||`), Loop, Group, Question (`?`). Values: String, Ident, Number (with optional unit suffix, e.g. `100mg`), List. Question uses `question_term` (QNode | QString) to constrain what `?` can wrap. Expressions carry optional `type_ann` (`:: Ident -> Ident`) for documentation.
+- `Ast` — ADT for DSL expressions: Node, Seq (`>>>`), Par (`***`), Fanout (`&&&`), Alt (`|||`), Loop, Group, Question (`?`), Lambda (`\x -> body`), Var (variable reference), App (positional application), Let (`let x = expr`). Lambda, Var, App, and Let are reduced away by the Reducer before structural checking. Values: String, Ident, Number (with optional unit suffix, e.g. `100mg`), List. Question uses `question_term` (QNode | QString) to constrain what `?` can wrap. Expressions carry optional `type_ann` (`:: Ident -> Ident`) for documentation.
 - `Lexer` — tokenizer, raises `Lex_error` on invalid input. Supports Unicode identifiers and unit suffixes (non-ASCII bytes accepted). Column positions track codepoints, not bytes (via `String.get_utf_8_uchar`). Tokens include `DOUBLE_COLON` (`::`) and `ARROW` (`->`); `read_ident` uses lookahead to stop before `->` so that `A->B` tokenizes correctly despite `-` being a valid identifier character.
 - `Parser` — recursive descent parser, raises `Parse_error`
+- `Reducer` — desugars `Let` into `App(Lambda)`, performs beta reduction (substituting args into lambda bodies), and verifies no unreduced Lambda/Var/App/Let nodes remain. Raises `Reduce_error` on arity mismatch, non-function application, or unreduced nodes.
 - `Checker` — structural validation and well-formedness warnings. Returns `{ errors; warnings }`. Warnings: e.g. `?` without matching `|||`. Uses `normalize` (graph reduction) to strip `Group` wrappers before balance checking.
 - `Printer` — AST to constructor-style format string (for agent verification). Type annotations are wrapped as `TypeAnn(expr, "input", "output")`.
 
