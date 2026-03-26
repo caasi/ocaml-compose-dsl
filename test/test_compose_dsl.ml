@@ -1231,7 +1231,11 @@ let test_reduce_string_lit_as_arg () =
     (Printer.to_string ast)
 
 let test_reduce_string_lit_apply_error () =
-  reduce_fails ({|let s = "hello"|} ^ "\n" ^ {|s("world")|})
+  match reduce_ok ({|let s = "hello"|} ^ "\n" ^ {|s("world")|}) with
+  | _ -> Alcotest.fail "expected reduce error"
+  | exception Reducer.Reduce_error (_, msg) ->
+    Alcotest.(check bool) "error mentions string literal"
+      true (contains msg "string literal")
 
 let test_parse_let_simple () =
   let tokens = Lexer.tokenize "let f = a >>> b\nf" in
