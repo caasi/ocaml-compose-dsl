@@ -212,7 +212,7 @@ Exits `0` with AST output in a constructor-style format (e.g. `TypeAnn(Var("name
 
 ## Literate Arrow Documents
 
-Arrow DSL is designed to work inside natural language documents. Use fenced code blocks with the `arrow` language tag to embed workflow definitions and lightweight type constraints alongside prose — no special file extension or evaluator required. Any Markdown document can be a literate Arrow document.
+Arrow DSL is designed to work inside natural language documents. Use fenced code blocks with the `arrow` (or `arr`) language tag to embed workflow definitions and lightweight type constraints alongside prose — no special file extension or evaluator required. Any Markdown document can be a literate Arrow document. Both LF and CRLF line endings are supported.
 
 ````markdown
 ## Deployment

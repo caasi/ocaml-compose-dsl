@@ -28,8 +28,9 @@ let lex = Lexer :: String -> Token
 let parse = Parser :: Token -> Ast       -- parse_program entry point
 let reduce = Reducer :: Ast -> Ast       -- desugar let, beta reduce lambda
 let check = Checker :: Ast -> Result
+let md = Markdown :: Markdown -> String  -- literate mode: extract arrow blocks
 
-lex >>> parse >>> reduce >>> check
+md >>> lex >>> parse >>> reduce >>> check
 ```
 
 - `Ast` — ADT for DSL expressions: Var (variable reference, bound or free), StringLit (string literal as expression), Seq (`>>>`), Par (`***`), Fanout (`&&&`), Alt (`|||`), Loop, Group, Question (`?`), Lambda (`\x -> body`), App (unified application with `call_arg list` — mixed named/positional), Let (`let x = expr`). Lambda and Let are reduced away by the Reducer. Free Var and App with free Var callee survive reduction. Values: String, Ident, Number (with optional unit suffix, e.g. `100mg`), List. Question takes an `expr` directly (parser allows Var, StringLit, or App). Expressions carry optional `type_ann` (`:: Ident -> Ident`) for documentation.
@@ -38,6 +39,7 @@ lex >>> parse >>> reduce >>> check
 - `Reducer` — desugars `Let` into `App(Lambda)`, performs beta reduction (substituting args into lambda bodies). Free `Var` and `App` with free `Var` callee survive reduction. Raises `Reduce_error` on arity mismatch, named args on lambda, non-function application, or unreduced nodes. Alpha-renaming counter is local to each `reduce` call (deterministic, thread-safe).
 - `Checker` — structural validation and well-formedness warnings. Returns `{ warnings }`. Warnings: e.g. `?` without matching `|||`. Uses `normalize` (graph reduction) to strip `Group` wrappers before balance checking. Independently checks each Positional arg sub-expression in `App`.
 - `Printer` — AST to constructor-style format string (for agent verification). Type annotations are wrapped as `TypeAnn(expr, "input", "output")`.
+- `Markdown` — literate mode support. `extract` scans Markdown for `` ```arrow ``/`` ```arr `` fenced code blocks (handles CRLF line endings). `combine` concatenates extracted blocks into a single source string with an offset table mapping combined line numbers to original Markdown line numbers. `translate_line` converts a combined-source line number back to the original Markdown position. Used by the CLI when `--literate` is passed.
 
 ## CLI Usage
 
