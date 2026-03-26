@@ -2,9 +2,13 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-03-27
+
 ### Added
 - `--literate` / `-l` CLI flag — extracts `arrow`/`arr` fenced code blocks from Markdown input, concatenates them, and runs the existing check pipeline with line numbers mapped back to the original Markdown
 - `Markdown` module (`lib/markdown.ml`) with `extract`, `combine`, and `translate_line` functions
+- CRLF line ending support in Markdown extraction
+- CLAUDE.md validated as a literate Arrow document (`--literate CLAUDE.md` passes)
 
 ## [0.7.0] - 2026-03-25
 
