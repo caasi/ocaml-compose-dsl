@@ -68,3 +68,39 @@ let extract input =
       end
   in
   scan lines 1 `Outside []
+
+let count_lines s =
+  let n = ref 0 in
+  String.iter (fun c -> if c = '\n' then incr n) s;
+  !n
+
+let combine blocks =
+  match blocks with
+  | [] -> ("", [])
+  | _ ->
+    let buf = Buffer.create 1024 in
+    let rec build blocks current_line acc =
+      match blocks with
+      | [] -> (Buffer.contents buf, List.rev acc)
+      | b :: rest ->
+        if current_line > 1 then Buffer.add_char buf '\n';
+        Buffer.add_string buf b.content;
+        let entry = (current_line, b.markdown_start) in
+        let lines_in_block = count_lines b.content in
+        let next_line = current_line + lines_in_block + (if rest <> [] then 1 else 0) in
+        build rest next_line (entry :: acc)
+    in
+    build blocks 1 []
+
+let translate_line table line =
+  match table with
+  | [] -> line
+  | _ ->
+    let rec find = function
+      | [] -> line
+      | [(cs, ms)] -> line - cs + ms
+      | (cs, _ms) :: ((cs2, _) :: _ as rest) ->
+        if line < cs2 then line - cs + _ms
+        else find rest
+    in
+    find table
