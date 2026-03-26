@@ -760,14 +760,14 @@ let test_check_loop_unicode_no_error () =
 let test_parse_comment_on_node_question () =
   let ast = parse_ok "validate -- important\n? >>> (a ||| b)" in
   match ast.desc with
-  | Ast.Seq ({ desc = Ast.Question (Ast.QNode { name = "validate"; comments = ["important"]; _ }); _ }, _) -> ()
+  | Ast.Seq ({ desc = Ast.Question { desc = Ast.Node { name = "validate"; comments = ["important"]; _ }; _ }; _ }, _) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
 let test_parse_comment_on_string_question () =
   let ast = parse_ok {|"hello" -- note
 ? >>> (a ||| b)|} in
   match ast.desc with
-  | Ast.Seq ({ desc = Ast.Question (Ast.QString "hello"); _ }, _) -> ()
+  | Ast.Seq ({ desc = Ast.Question { desc = Ast.StringLit "hello"; _ }; _ }, _) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
 (* === Printer tests === *)
@@ -859,42 +859,46 @@ let test_print_string_lit () =
 let test_parse_string_question () =
   let ast = parse_ok {|"earth is not flat"? >>> (believe ||| doubt)|} in
   match ast.desc with
-  | Ast.Seq ({ desc = Ast.Question (Ast.QString "earth is not flat"); _ }, { desc = Ast.Group { desc = Ast.Alt ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }; _ }) -> ()
+  | Ast.Seq ({ desc = Ast.Question { desc = Ast.StringLit "earth is not flat"; _ }; _ }, { desc = Ast.Group { desc = Ast.Alt ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }; _ }) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
 let test_parse_node_question () =
   let ast = parse_ok "validate(method: test_suite)? >>> (deploy ||| rollback)" in
   match ast.desc with
-  | Ast.Seq ({ desc = Ast.Question (Ast.QNode { name = "validate"; _ }); _ }, { desc = Ast.Group { desc = Ast.Alt _; _ }; _ }) -> ()
+  | Ast.Seq ({ desc = Ast.Question { desc = Ast.Node { name = "validate"; _ }; _ }; _ }, { desc = Ast.Group { desc = Ast.Alt _; _ }; _ }) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
 let test_parse_bare_node_question () =
   match desc_of "check? >>> (yes ||| no)" with
-  | Ast.Seq ({ desc = Ast.Question (Ast.QNode { name = "check"; args = []; _ }); _ }, _) -> ()
-  | _ -> Alcotest.fail "expected Question(QNode check)"
+  | Ast.Seq ({ desc = Ast.Question { desc = Ast.Node { name = "check"; args = []; _ }; _ }; _ }, _) -> ()
+  | _ -> Alcotest.fail "expected Question(Node check)"
 
 let test_parse_question_with_space () =
   let ast = parse_ok {|"hello" ? >>> (a ||| b)|} in
   match ast.desc with
-  | Ast.Seq ({ desc = Ast.Question (Ast.QString "hello"); _ }, _) -> ()
+  | Ast.Seq ({ desc = Ast.Question { desc = Ast.StringLit "hello"; _ }; _ }, _) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
-let test_parse_bare_string_error () =
-  parse_fails {|"bare string" >>> a|}
+let test_parse_bare_string_in_seq () =
+  match desc_of {|"bare string" >>> a|} with
+  | Ast.Seq ({ desc = Ast.StringLit "bare string"; _ }, _) -> ()
+  | _ -> Alcotest.fail "expected Seq(StringLit, ...)"
 
-let test_parse_bare_string_alone_error () =
-  parse_fails {|"just a string"|}
+let test_parse_bare_string_alone () =
+  match desc_of {|"just a string"|} with
+  | Ast.StringLit "just a string" -> ()
+  | _ -> Alcotest.fail "expected StringLit"
 
 let test_parse_question_in_loop () =
   let ast = parse_ok {|loop(generate >>> "all pass"? >>> (exit ||| continue))|} in
   match ast.desc with
-  | Ast.Loop { desc = Ast.Seq (_, { desc = Ast.Seq ({ desc = Ast.Question (Ast.QString "all pass"); _ }, { desc = Ast.Group { desc = Ast.Alt _; _ }; _ }); _ }); _ } -> ()
+  | Ast.Loop { desc = Ast.Seq (_, { desc = Ast.Seq ({ desc = Ast.Question { desc = Ast.StringLit "all pass"; _ }; _ }, { desc = Ast.Group { desc = Ast.Alt _; _ }; _ }); _ }); _ } -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
 let test_parse_question_in_group () =
   let ast = parse_ok {|("is valid"?) >>> (accept ||| reject)|} in
   match ast.desc with
-  | Ast.Seq ({ desc = Ast.Group { desc = Ast.Question (Ast.QString "is valid"); _ }; _ }, _) -> ()
+  | Ast.Seq ({ desc = Ast.Group { desc = Ast.Question { desc = Ast.StringLit "is valid"; _ }; _ }; _ }, _) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
 (* === Checker loc tests === *)
@@ -1152,6 +1156,27 @@ let reduce_fails input =
   match reduce_ok input with
   | _ -> Alcotest.fail "expected reduce error"
   | exception Reducer.Reduce_error _ -> ()
+
+let test_parse_string_lit () =
+  match desc_of {|"hello" >>> a|} with
+  | Ast.Seq ({ desc = Ast.StringLit "hello"; _ }, { desc = Ast.Node { name = "a"; _ }; _ }) -> ()
+  | _ -> Alcotest.fail "expected Seq(StringLit, Node)"
+
+let test_parse_string_lit_as_positional_arg () =
+  let ast = reduce_ok ({|let f = \x -> x >>> a|} ^ "\n" ^ {|f("hello")|}) in
+  Alcotest.(check string) "printed"
+    {|Seq(StringLit("hello"), Node("a", [], []))|}
+    (Printer.to_string ast)
+
+let test_parse_string_lit_alone () =
+  match desc_of {|"just a string"|} with
+  | Ast.StringLit "just a string" -> ()
+  | _ -> Alcotest.fail "expected StringLit"
+
+let test_parse_string_lit_in_par () =
+  match desc_of {|"left" *** "right"|} with
+  | Ast.Par ({ desc = Ast.StringLit "left"; _ }, { desc = Ast.StringLit "right"; _ }) -> ()
+  | _ -> Alcotest.fail "expected Par(StringLit, StringLit)"
 
 let test_reduce_no_lambda () =
   (* Plain Arrow pipeline passes through unchanged *)
@@ -1454,8 +1479,8 @@ let parser_tests =
   ; "node question", `Quick, test_parse_node_question
   ; "bare node question", `Quick, test_parse_bare_node_question
   ; "question with space", `Quick, test_parse_question_with_space
-  ; "error: bare string", `Quick, test_parse_bare_string_error
-  ; "error: bare string alone", `Quick, test_parse_bare_string_alone_error
+  ; "bare string in seq", `Quick, test_parse_bare_string_in_seq
+  ; "bare string alone", `Quick, test_parse_bare_string_alone
   ; "question in loop", `Quick, test_parse_question_in_loop
   ; "question in group", `Quick, test_parse_question_in_group
   ; "comment on node question", `Quick, test_parse_comment_on_node_question
@@ -1492,6 +1517,10 @@ let parser_tests =
   ; "let with lambda", `Quick, test_parse_let_with_lambda
   ; "let scope", `Quick, test_parse_let_scope
   ; "no let is program", `Quick, test_parse_no_let_is_program
+  ; "string lit", `Quick, test_parse_string_lit
+  ; "string lit as positional arg", `Quick, test_parse_string_lit_as_positional_arg
+  ; "string lit alone", `Quick, test_parse_string_lit_alone
+  ; "string lit in par", `Quick, test_parse_string_lit_in_par
   ]
 
 let checker_tests =
