@@ -1130,6 +1130,31 @@ let test_parse_type_ann_missing_output_error () =
      in
      Alcotest.(check bool) "error mentions ->" true (contains msg "->"))
 
+let test_lex_backslash () =
+  let tokens = Lexer.tokenize "\\ x" in
+  match (List.hd tokens).token with
+  | Lexer.BACKSLASH -> ()
+  | _ -> Alcotest.fail "expected BACKSLASH token"
+
+let test_lex_let_keyword () =
+  let tokens = Lexer.tokenize "let x" in
+  match (List.hd tokens).token with
+  | Lexer.LET -> ()
+  | _ -> Alcotest.fail "expected LET token"
+
+let test_lex_equals () =
+  let tokens = Lexer.tokenize "=" in
+  match (List.hd tokens).token with
+  | Lexer.EQUALS -> ()
+  | _ -> Alcotest.fail "expected EQUALS token"
+
+let test_lex_let_in_ident () =
+  (* "letter" should still lex as IDENT, not LET + "ter" *)
+  let tokens = Lexer.tokenize "letter" in
+  match (List.hd tokens).token with
+  | Lexer.IDENT "letter" -> ()
+  | _ -> Alcotest.fail "expected IDENT letter"
+
 (* === Test suite === *)
 
 let lexer_tests =
@@ -1186,6 +1211,10 @@ let lexer_tests =
   ; "arrow no whitespace", `Quick, test_lex_arrow_no_whitespace
   ; "arrow no whitespace in type ann", `Quick, test_lex_arrow_no_whitespace_in_type_ann
   ; "ident with hyphen before arrow", `Quick, test_lex_ident_with_hyphen_before_arrow
+  ; "backslash token", `Quick, test_lex_backslash
+  ; "let keyword", `Quick, test_lex_let_keyword
+  ; "equals token", `Quick, test_lex_equals
+  ; "let prefix in ident", `Quick, test_lex_let_in_ident
   ]
 
 let parser_tests =

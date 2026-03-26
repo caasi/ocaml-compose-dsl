@@ -16,6 +16,9 @@ type token =
   | QUESTION
   | DOUBLE_COLON (** [::] *)
   | ARROW (** [->] *)
+  | BACKSLASH (** [\] *)
+  | LET (** [let] keyword *)
+  | EQUALS (** [=] *)
   | COMMENT of string
   | EOF
 
@@ -86,7 +89,11 @@ let tokenize input =
       advance ()
     done;
     let s = String.sub input start (!i - start) in
-    let tok = if s = "loop" then LOOP else IDENT s in
+    let tok = match s with
+      | "loop" -> LOOP
+      | "let" -> LET
+      | _ -> IDENT s
+    in
     { token = tok; loc = { start = p; end_ = pos () } }
   in
   let read_comment () =
@@ -194,6 +201,8 @@ let tokenize input =
         end
       | '"' -> tokens := read_string () :: !tokens
       | '?' -> advance (); tokens := { token = QUESTION; loc = { start = p; end_ = pos () } } :: !tokens
+      | '\\' -> advance (); tokens := { token = BACKSLASH; loc = { start = p; end_ = pos () } } :: !tokens
+      | '=' -> advance (); tokens := { token = EQUALS; loc = { start = p; end_ = pos () } } :: !tokens
       | c when c >= '0' && c <= '9' -> tokens := read_number () :: !tokens
       | c when is_ident_start c -> tokens := read_ident () :: !tokens
       | c -> raise (Lex_error (p, Printf.sprintf "unexpected character '%c'" c))
