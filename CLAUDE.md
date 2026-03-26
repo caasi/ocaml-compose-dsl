@@ -29,8 +29,7 @@ let parse = Parser :: Token -> Ast       -- parse_program entry point
 let reduce = Reducer :: Ast -> Ast       -- desugar let, beta reduce lambda
 let check = Checker :: Ast -> Result
 let md = Markdown :: Markdown -> String  -- literate mode: extract arrow blocks
-
-md >>> lex >>> parse >>> reduce >>> check
+let pipeline = md >>> lex >>> parse >>> reduce >>> check
 ```
 
 - `Ast` — ADT for DSL expressions: Var (variable reference, bound or free), StringLit (string literal as expression), Seq (`>>>`), Par (`***`), Fanout (`&&&`), Alt (`|||`), Loop, Group, Question (`?`), Lambda (`\x -> body`), App (unified application with `call_arg list` — mixed named/positional), Let (`let x = expr`). Lambda and Let are reduced away by the Reducer. Free Var and App with free Var callee survive reduction. Values: String, Ident, Number (with optional unit suffix, e.g. `100mg`), List. Question takes an `expr` directly (parser allows Var, StringLit, or App). Expressions carry optional `type_ann` (`:: Ident -> Ident`) for documentation.
@@ -60,8 +59,7 @@ let verify = verify_ebnf :: Code -> Spec   -- check README.md EBNF still matches
 let test =
   update_tests :: Spec -> Test             -- update or add tests in test/test_compose_dsl.ml
   >>> dune_test :: Test -> Pass             -- run dune test, confirm all pass
-
-implement :: Code -> Code >>> verify >>> test
+let implement = implement :: Code -> Code >>> verify >>> test
 ```
 
 The EBNF in `README.md` is the language spec. If parser behavior and EBNF diverge, either fix the parser or update the EBNF.
@@ -84,8 +82,8 @@ let docs =
   update_docs(file: "CLAUDE.md")
   &&& update_docs(file: "README.md")
   &&& update_docs(file: "CHANGELOG.md")
-
-bump(file: "dune-project")
+let version_bump =
+  bump(file: "dune-project")
   >>> docs
   >>> build -- dune build to regenerate opam files
   >>> test  -- dune test to confirm nothing broke
@@ -95,7 +93,8 @@ bump(file: "dune-project")
 ### Releasing
 
 ```arrow
-tag(format: "vX.Y.Z")
+version_bump
+  >>> tag(format: "vX.Y.Z")
   >>> push(remote: origin, tag: "vX.Y.Z")
   >>> wait_ci -- wait for CI release workflow to complete
   >>> run(script: "scripts/release-macos-x86_64.sh") -- local Intel Mac upload
