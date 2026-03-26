@@ -840,12 +840,19 @@ let test_print_comment () =
 let test_print_question_string () =
   let ast = parse_ok {|"earth is not flat"? >>> (believe ||| doubt)|} in
   let s = Printer.to_string ast in
-  Alcotest.(check string) "question string" {|Seq(Question(QString("earth is not flat")), Group(Alt(Node("believe", [], []), Node("doubt", [], []))))|} s
+  Alcotest.(check string) "question string" {|Seq(Question(StringLit("earth is not flat")), Group(Alt(Node("believe", [], []), Node("doubt", [], []))))|} s
 
 let test_print_question_node () =
   let ast = parse_ok "validate(method: test_suite)? >>> (deploy ||| rollback)" in
   let s = Printer.to_string ast in
-  Alcotest.(check string) "question node" {|Seq(Question(QNode("validate", [method: Ident("test_suite")], [])), Group(Alt(Node("deploy", [], []), Node("rollback", [], []))))|} s
+  Alcotest.(check string) "question node" {|Seq(Question(Node("validate", [method: Ident("test_suite")], [])), Group(Alt(Node("deploy", [], []), Node("rollback", [], []))))|} s
+
+let test_print_string_lit () =
+  let ast = parse_ok {|"hello" >>> a|} in
+  let s = Printer.to_string ast in
+  Alcotest.(check string) "string lit"
+    {|Seq(StringLit("hello"), Node("a", [], []))|}
+    s
 
 (* === Question operator parser tests === *)
 
@@ -1551,6 +1558,7 @@ let printer_tests =
   ; "comment", `Quick, test_print_comment
   ; "question string", `Quick, test_print_question_string
   ; "question node", `Quick, test_print_question_node
+  ; "string lit", `Quick, test_print_string_lit
   ; "type annotation", `Quick, test_print_type_ann
   ; "type annotation in seq", `Quick, test_print_type_ann_in_seq
   ; "no type annotation unchanged", `Quick, test_print_no_type_ann
