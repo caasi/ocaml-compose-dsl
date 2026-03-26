@@ -1517,7 +1517,7 @@ let test_print_no_type_ann () =
 let test_print_lambda () =
   let ast = parse_ok "\\ x -> a" in
   Alcotest.(check string) "printed"
-    "Lambda(x, Node(\"a\", [], []))"
+    "Lambda([\"x\"], Node(\"a\", [], []))"
     (Printer.to_string ast)
 
 let test_print_var () =
@@ -1534,17 +1534,17 @@ let test_print_app () =
   let ast = Parser.parse_program tokens in
   match ast.desc with
   | Let (_, _, body) ->
-    let s = Printer.to_string body in
-    Alcotest.(check bool) "starts with App" true
-      (String.length s >= 3 && String.sub s 0 3 = "App")
+    Alcotest.(check string) "printed"
+      "App(Var(\"f\"), [Node(\"a\", [], [])])"
+      (Printer.to_string body)
   | _ -> Alcotest.fail "expected Let"
 
 let test_print_let () =
   let tokens = Lexer.tokenize "let f = a\nf" in
   let ast = Parser.parse_program tokens in
-  let s = Printer.to_string ast in
-  Alcotest.(check bool) "starts with Let" true
-    (String.length s >= 3 && String.sub s 0 3 = "Let")
+  Alcotest.(check string) "printed"
+    "Let(\"f\", Node(\"a\", [], []), Var(\"f\"))"
+    (Printer.to_string ast)
 
 let printer_tests =
   [ "simple node", `Quick, test_print_simple_node

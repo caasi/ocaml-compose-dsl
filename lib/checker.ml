@@ -96,7 +96,8 @@ let check (expr : expr) =
          strips all Group wrappers. *)
       go inner
     | Question _ -> ()
-    | Lambda _ | Var _ | App _ | Let _ -> ()
+    | Lambda _ | Var _ | App _ | Let _ ->
+      add_error e.loc "unreduced lambda/variable/application/let node; run Reducer.reduce before Checker.check"
   in
   check_question_balance expr;
   go expr;
