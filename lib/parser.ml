@@ -162,10 +162,15 @@ and parse_par_expr st =
 and parse_lambda st start_loc =
   (* BACKSLASH already consumed *)
   let params = ref [] in
+  let seen = ref StringSet.empty in
   let rec read_params () =
     let t = current st in
     match t.token with
     | Lexer.IDENT name ->
+      if StringSet.mem name !seen then
+        raise (Parse_error (t.loc.start,
+          Printf.sprintf "duplicate parameter '%s' in lambda" name));
+      seen := StringSet.add name !seen;
       advance st;
       params := name :: !params;
       let t2 = current st in
@@ -299,9 +304,6 @@ let parse_program tokens =
         | _ -> raise (Parse_error (t_name.loc.start, "expected identifier after 'let'"))
       in
       expect st (fun tok -> tok = Lexer.EQUALS) "expected '=' after let binding name";
-      if StringSet.mem name st.scope then
-        Printf.eprintf "warning at %d:%d: '%s' shadows previous binding\n"
-          t_name.loc.start.line t_name.loc.start.col name;
       let old_scope = st.scope in
       let value = parse_seq_expr st in
       (* Name is in scope for subsequent bindings and body *)

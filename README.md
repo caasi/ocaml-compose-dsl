@@ -186,6 +186,8 @@ phase1 >>> phase2
 
 Lambdas and let bindings are reduced to pure Arrow pipelines before structural checking. They provide abstraction without adding runtime semantics.
 
+> **Note:** `let` and `loop` are reserved keywords and cannot be used as node names.
+
 Identifiers and unit suffixes accept any non-ASCII UTF-8 codepoint, so the DSL works naturally with non-Latin scripts. Error positions report codepoint-level columns, not byte offsets.
 
 ## Usage

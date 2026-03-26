@@ -30,4 +30,4 @@ and expr_desc =
   | Lambda of string list * expr    (** [\x, y -> body] *)
   | Var of string                   (** [variable reference] *)
   | App of expr * expr list         (** [f(arg1, arg2)] *)
-  | Let of string * expr * expr     (** [let x = e1 in e2] *)
+  | Let of string * expr * expr     (** [let x = expr] followed by rest of program *)

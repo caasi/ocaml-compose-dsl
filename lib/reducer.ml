@@ -2,6 +2,31 @@ open Ast
 
 exception Reduce_error of pos * string
 
+module StringSet = Set.Make(String)
+
+let fresh_counter = ref 0
+
+let fresh_name base =
+  incr fresh_counter;
+  Printf.sprintf "%s$%d" base !fresh_counter
+
+(* Collect free variables in an expression *)
+let rec free_vars (e : expr) : StringSet.t =
+  match e.desc with
+  | Var v -> StringSet.singleton v
+  | Node _ | Question _ -> StringSet.empty
+  | Seq (a, b) | Par (a, b) | Fanout (a, b) | Alt (a, b) ->
+    StringSet.union (free_vars a) (free_vars b)
+  | Loop body | Group body -> free_vars body
+  | Lambda (params, body) ->
+    let fv = free_vars body in
+    List.fold_left (fun s p -> StringSet.remove p s) fv params
+  | App (fn, args) ->
+    List.fold_left (fun s a -> StringSet.union s (free_vars a))
+      (free_vars fn) args
+  | Let (n, v, b) ->
+    StringSet.union (free_vars v) (StringSet.remove n (free_vars b))
+
 (* Desugar Let into App(Lambda) *)
 let rec desugar (e : expr) : expr =
   match e.desc with
@@ -36,9 +61,18 @@ let rec substitute (name : string) (replacement : expr) (e : expr) : expr =
   | Loop body -> { e with desc = Loop (substitute name replacement body) }
   | Group inner -> { e with desc = Group (substitute name replacement inner) }
   | Lambda (params, body) ->
-    (* Don't substitute if name is shadowed by a lambda param *)
     if List.mem name params then e
-    else { e with desc = Lambda (params, substitute name replacement body) }
+    else
+      (* Alpha-rename any param that would capture free vars in replacement *)
+      let repl_fv = free_vars replacement in
+      let params', body' = List.fold_left (fun (ps, b) p ->
+        if StringSet.mem p repl_fv then
+          let p' = fresh_name p in
+          (p' :: ps, substitute p { e with desc = Var p'; type_ann = None } b)
+        else (p :: ps, b)
+      ) ([], body) params in
+      let params' = List.rev params' in
+      { e with desc = Lambda (params', substitute name replacement body') }
   | App (fn, args) ->
     { e with desc = App (substitute name replacement fn, List.map (substitute name replacement) args) }
   | Let (n, v, b) ->

@@ -621,7 +621,14 @@ let test_parse_unicode_unit_value () =
 let test_parse_error_unclosed_paren () =
   match parse_ok "a(" with
   | _ -> Alcotest.fail "expected parse error"
-  | exception Parser.Parse_error _ -> ()
+  | exception Parser.Parse_error (_, msg) ->
+    let contains s sub =
+      let len = String.length sub in
+      let rec scan i = i + len <= String.length s && (String.sub s i len = sub || scan (i + 1)) in
+      scan 0
+    in
+    if not (contains msg "'" || contains msg "expected") then
+      Alcotest.fail ("unexpected parse error message: " ^ msg)
 
 let test_parse_error_unclosed_group () =
   parse_fails "(a >>> b"
@@ -1591,7 +1598,7 @@ let reducer_tests =
   ; "lambda multi param", `Quick, test_reduce_lambda_multi_param
   ; "let chain", `Quick, test_reduce_let_chain
   ; "nested application", `Quick, test_reduce_nested_application
-  ; "free variable error", `Quick, test_reduce_free_variable
+  ; "free variable as node", `Quick, test_reduce_free_variable
   ; "arity mismatch error", `Quick, test_reduce_arity_mismatch
   ; "non-function apply error", `Quick, test_reduce_non_function_apply
   ]
@@ -1654,6 +1661,25 @@ let test_parse_lambda_with_comment () =
   | Lambda _ -> ()
   | _ -> Alcotest.fail "expected Lambda"
 
+(* Duplicate lambda params — should be parse error *)
+let test_parse_lambda_duplicate_params () =
+  match Lexer.tokenize "\\ x, x -> x" |> Parser.parse with
+  | _ -> Alcotest.fail "expected parse error (duplicate param)"
+  | exception Parser.Parse_error (_, msg) ->
+    let contains s sub =
+      let len = String.length sub in
+      let rec scan i = i + len <= String.length s && (String.sub s i len = sub || scan (i + 1)) in
+      scan 0
+    in
+    Alcotest.(check bool) "mentions duplicate" true (contains msg "duplicate")
+
+let test_reduce_capture_avoiding () =
+  (* Nested application where capture could happen without alpha-renaming *)
+  let ast = reduce_ok "let apply = \\ f, x -> f(x)\nlet id = \\ x -> x\napply(id, a)" in
+  Alcotest.(check string) "printed"
+    "Node(\"a\", [], [])"
+    (Printer.to_string ast)
+
 let edge_case_tests =
   [ "lambda with type ann", `Quick, test_reduce_lambda_with_type_ann
   ; "lambda complex args", `Quick, test_reduce_lambda_complex_args
@@ -1664,6 +1690,8 @@ let edge_case_tests =
   ; "positional on undefined", `Quick, test_reduce_positional_on_undefined
   ; "let keyword not node", `Quick, test_parse_let_keyword_not_node
   ; "lambda with comment", `Quick, test_parse_lambda_with_comment
+  ; "lambda duplicate params", `Quick, test_parse_lambda_duplicate_params
+  ; "capture avoiding substitution", `Quick, test_reduce_capture_avoiding
   ]
 
 let () =
