@@ -155,6 +155,8 @@ let test_md_extract_unclosed_block () =
 
 - [ ] **Step 13: Register the markdown extract test suite**
 
+Note: steps 10-12 above will be added to the test file alongside steps 1-9, all in a single editing pass.
+
 Add the test list and register it in the `Alcotest.run` block:
 
 ```ocaml
@@ -187,12 +189,12 @@ let () =
     ]
 ```
 
-- [ ] **Step 11: Run tests to verify they fail**
+- [ ] **Step 14: Run tests to verify they fail**
 
 Run: `dune test`
 Expected: Compilation error — `Markdown` module does not exist yet.
 
-- [ ] **Step 12: Commit**
+- [ ] **Step 15: Commit**
 
 ```bash
 git add test/test_compose_dsl.ml
@@ -288,7 +290,7 @@ module Markdown = Markdown
 - [ ] **Step 3: Run tests to verify they pass**
 
 Run: `dune test`
-Expected: All 9 new Markdown tests pass, all existing tests still pass.
+Expected: All 12 new Markdown extract tests pass, all existing tests still pass.
 
 - [ ] **Step 4: Commit**
 
@@ -598,30 +600,9 @@ git commit -m "feat: add --literate / -l flag for Markdown input"
 ### Task 6: Add integration test for literate mode end-to-end
 
 **Files:**
-- Create: `test/fixtures/sample.md`
 - Modify: `test/test_compose_dsl.ml`
 
-- [ ] **Step 1: Create a sample Markdown fixture file**
-
-Create `test/fixtures/sample.md`:
-
-```markdown
-# Sample
-
-Some text.
-
-```arrow
-a >>> b
-```
-
-More text.
-
-```arr
-c >>> d
-```
-```
-
-- [ ] **Step 2: Add end-to-end test for literate pipeline**
+- [ ] **Step 1: Add end-to-end test for literate pipeline**
 
 This test exercises `extract` → `combine` → `Lexer` → `Parser` → `Checker` as one pipeline:
 
@@ -636,7 +617,7 @@ let test_md_literate_end_to_end () =
   ()
 ```
 
-- [ ] **Step 3: Add test for error line number translation accuracy**
+- [ ] **Step 2: Add test for error line number translation accuracy**
 
 ```ocaml
 let test_md_literate_error_line_translation () =
@@ -651,7 +632,7 @@ let test_md_literate_error_line_translation () =
   | _ -> Alcotest.fail "expected lex error"
 ```
 
-- [ ] **Step 4: Register integration tests**
+- [ ] **Step 3: Register integration tests**
 
 Add to `markdown_tests`:
 
@@ -660,15 +641,15 @@ Add to `markdown_tests`:
   ; "error line translation", `Quick, test_md_literate_error_line_translation
 ```
 
-- [ ] **Step 5: Run tests**
+- [ ] **Step 4: Run tests**
 
 Run: `dune test`
 Expected: All tests pass including the 2 new integration tests.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add test/test_compose_dsl.ml test/fixtures/sample.md
+git add test/test_compose_dsl.ml
 git commit -m "test: add integration tests for literate mode pipeline"
 ```
 
