@@ -188,10 +188,10 @@ Still errors on:
 
 | AST | Output |
 |---|---|
-| `Var "push"` | `Var(push)` |
-| `App(Var "push", [Named {key="remote"; value=Ident "origin"}])` | `App(Var(push), [Named(remote, origin)])` |
-| `App(Var "push", [Named {...}; Positional(Seq(a,b))])` | `App(Var(push), [Named(remote, origin), Positional(Seq(Var(a), Var(b)))])` |
-| `Question(App(Var "f", [...]))` | `Question(App(Var(f), [...]))` |
+| `Var "push"` | `Var("push")` |
+| `App(Var "push", [Named {key="remote"; value=Ident "origin"}])` | `App(Var("push"), [Named(remote: Ident("origin"))])` |
+| `App(Var "push", [Named {...}; Positional(Seq(a,b))])` | `App(Var("push"), [Named(remote: Ident("origin")), Positional(Seq(Var("a"), Var("b")))])` |
+| `Question(App(Var "f", [...]))` | `Question(App(Var("f"), [...]))` |
 
 ## Comments Handling
 

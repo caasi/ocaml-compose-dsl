@@ -14,7 +14,8 @@ let parse_fails input =
 let check_ok input =
   let ast = parse_ok input in
   let ast = Reducer.reduce ast in
-  let _result = Checker.check ast in
+  let result = Checker.check ast in
+  Alcotest.(check int) "no checker warnings" 0 (List.length result.Checker.warnings);
   ast
 
 let check_ok_with_warnings input =
