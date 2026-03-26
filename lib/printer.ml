@@ -34,6 +34,15 @@ let rec to_string (e : expr) =
     | Loop body -> Printf.sprintf "Loop(%s)" (to_string body)
     | Group inner -> Printf.sprintf "Group(%s)" (to_string inner)
     | Question qt -> Printf.sprintf "Question(%s)" (question_term_to_string qt)
+    | Lambda (params, body) ->
+      Printf.sprintf "Lambda(%s, %s)"
+        (String.concat ", " params) (to_string body)
+    | Var name -> Printf.sprintf "Var(%S)" name
+    | App (fn, args) ->
+      Printf.sprintf "App(%s, %s)" (to_string fn)
+        (String.concat ", " (List.map to_string args))
+    | Let (name, value, body) ->
+      Printf.sprintf "Let(%S, %s, %s)" name (to_string value) (to_string body)
   in
   match e.type_ann with
   | None -> base

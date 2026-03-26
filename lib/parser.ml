@@ -98,6 +98,7 @@ let rec attach_comments_right (e : expr) comments =
     | Loop inner -> { e with desc = Loop (attach_comments_right inner comments) }
     | Question (QNode n) -> { e with desc = Question (QNode { n with comments = n.comments @ comments }) }
     | Question (QString _) -> e
+    | Lambda _ | Var _ | App _ | Let _ -> e
 
 let parse_type_ann st =
   let t = current st in

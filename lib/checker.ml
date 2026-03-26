@@ -13,6 +13,7 @@ let rec normalize (e : expr) : expr =
   | Alt (a, b) -> { e with desc = Alt (normalize a, normalize b) }
   | Loop body -> { e with desc = Loop (normalize body) }
   | Node _ | Question _ -> e
+  | Lambda _ | Var _ | App _ | Let _ -> e
 
 let check (expr : expr) =
   let errors = ref [] in
@@ -31,6 +32,7 @@ let check (expr : expr) =
       scan_questions counter' b
     | Group _ -> counter (* defensive: unreachable after normalize *)
     | Par _ | Fanout _ | Loop _ -> counter
+    | Lambda _ | Var _ | App _ | Let _ -> counter
   in
   let check_question_balance (e : expr) =
     let unmatched = scan_questions 0 (normalize e) in
@@ -43,6 +45,7 @@ let check (expr : expr) =
     | Question _ -> true
     | Seq (_, b) -> tail_has_question b
     | Group _ -> false (* defensive: unreachable after normalize *)
+    | Lambda _ | Var _ | App _ | Let _ -> false
     | _ -> false
   in
   let rec go (e : expr) =
@@ -93,6 +96,7 @@ let check (expr : expr) =
          strips all Group wrappers. *)
       go inner
     | Question _ -> ()
+    | Lambda _ | Var _ | App _ | Let _ -> ()
   in
   check_question_balance expr;
   go expr;
