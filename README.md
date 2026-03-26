@@ -13,6 +13,12 @@ The DSL uses Arrow combinators because they sit at the sweet spot between shell 
 ## Grammar (EBNF)
 
 ```ebnf
+program = { let_binding } , pipeline ;
+
+let_binding = "let" , ident , "=" , seq_expr ;
+
+lambda  = "\" , ident , { "," , ident } , "->" , seq_expr ;
+
 pipeline = seq_expr ;
 
 seq_expr = alt_expr , ">>>" , seq_expr              (* sequential — infixr 1 *)
@@ -34,11 +40,15 @@ term     = node
          | "loop" , "(" , seq_expr , ")"            (* feedback loop *)
          | "(" , seq_expr , ")"                    (* grouping *)
          | question_term
+         | lambda
          ;
 
-node     = ident , [ "(" , [ args ] , ")" ] ;
+node     = ident , [ "(" , [ call_args ] , ")" ] ;
 
-args     = arg , { "," , arg } ;
+call_args = named_args | positional_args ;
+
+named_args      = arg , { "," , arg } ;
+positional_args = seq_expr , { "," , seq_expr } ;
 
 arg      = ident , ":" , value ;
 
@@ -158,6 +168,23 @@ implementation :: Code -> Commit
   >>> branch(pattern: "feature/*") :: Code -> Branch
   >>> commit :: Branch -> Commit
 ```
+
+```
+let greet = \name -> hello(to: name) >>> respond
+greet(alice) >>> greet(bob)
+```
+
+```
+let review = \trigger, fix ->
+  loop(trigger >>> (pass ||| fix))
+
+let phase1 = gather >>> review(check?, rework)
+let phase2 = build >>> review(test?, fix)
+
+phase1 >>> phase2
+```
+
+Lambdas and let bindings are reduced to pure Arrow pipelines before structural checking. They provide abstraction without adding runtime semantics.
 
 Identifiers and unit suffixes accept any non-ASCII UTF-8 codepoint, so the DSL works naturally with non-Latin scripts. Error positions report codepoint-level columns, not byte offsets.
 
