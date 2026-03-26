@@ -103,7 +103,7 @@ let rec beta_reduce fresh_name (e : expr) : expr =
          Printf.sprintf "undefined variable '%s'" v))
      | StringLit s ->
        raise (Reduce_error (e.loc.start,
-         Printf.sprintf "'%s' is a string literal and cannot be applied" s))
+         Printf.sprintf "%S is a string literal and cannot be applied" s))
      | _ ->
        raise (Reduce_error (e.loc.start, "expression is not a function and cannot be applied")))
   | Seq (a, b) -> { e with desc = Seq (beta_reduce fresh_name a, beta_reduce fresh_name b) }
