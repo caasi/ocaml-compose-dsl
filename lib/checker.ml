@@ -97,7 +97,7 @@ let check (expr : expr) =
          strips all Group wrappers. *)
       go inner
     | StringLit _ -> ()
-    | Question _ -> ()
+    | Question inner -> go inner
     | Lambda _ | Var _ | App _ | Let _ ->
       add_error e.loc "unreduced lambda/variable/application/let node; run Reducer.reduce before Checker.check"
   in
