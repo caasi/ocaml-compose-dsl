@@ -79,9 +79,9 @@ let extract input =
   in
   scan lines 1 `Outside []
 
-(* Counts '\n' characters. Safe because extract always appends '\n' after
-   each content line (line 70), so block content is guaranteed to end with
-   '\n' and count_lines == number of lines in the block. *)
+(* Counts '\n' characters. extract always appends '\n' after each content
+   line, and combine normalizes content to end with '\n' for external
+   callers, so count_lines == number of lines in the block. *)
 let count_lines s =
   let n = ref 0 in
   String.iter (fun c -> if c = '\n' then incr n) s;
@@ -96,10 +96,15 @@ let combine blocks =
       match blocks with
       | [] -> (Buffer.contents buf, List.rev acc)
       | b :: rest ->
+        let content =
+          if b.content = "" || b.content.[String.length b.content - 1] = '\n'
+          then b.content
+          else b.content ^ "\n"
+        in
         if current_line > 1 then Buffer.add_char buf '\n';
-        Buffer.add_string buf b.content;
+        Buffer.add_string buf content;
         let entry = (current_line, b.markdown_start) in
-        let lines_in_block = count_lines b.content in
+        let lines_in_block = count_lines content in
         (* +1 accounts for the separator '\n' emitted before the next block *)
         let next_line = current_line + lines_in_block + (if rest <> [] then 1 else 0) in
         build rest next_line (entry :: acc)
@@ -113,8 +118,8 @@ let translate_line table line =
     let rec find = function
       | [] -> line
       | [(cs, ms)] -> line - cs + ms
-      | (cs, _ms) :: ((cs2, _) :: _ as rest) ->
-        if line < cs2 then line - cs + _ms
+      | (cs, ms) :: ((cs2, _) :: _ as rest) ->
+        if line < cs2 then line - cs + ms
         else find rest
     in
     find table
