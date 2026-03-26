@@ -11,22 +11,19 @@ type arg = { key : string; value : value }
 
 type node = { name : string; args : arg list; comments : string list }
 
-type question_term =
-  | QNode of node
-  | QString of string
-
 type type_ann = { input : string; output : string }
 
 type expr = { loc : loc; desc : expr_desc; type_ann : type_ann option }
 and expr_desc =
   | Node of node
-  | Seq of expr * expr (** [>>>] *)
-  | Par of expr * expr (** [***] *)
-  | Fanout of expr * expr (** [&&&] *)
-  | Alt of expr * expr (** [|||] *)
+  | StringLit of string             (** string literal as expression *)
+  | Seq of expr * expr              (** [>>>] *)
+  | Par of expr * expr              (** [***] *)
+  | Fanout of expr * expr           (** [&&&] *)
+  | Alt of expr * expr              (** [|||] *)
   | Loop of expr
   | Group of expr
-  | Question of question_term
+  | Question of expr                (** [?] — parser restricts to Node/StringLit *)
   | Lambda of string list * expr    (** [\x, y -> body] *)
   | Var of string                   (** [variable reference] *)
   | App of expr * expr list         (** [f(arg1, arg2)] *)
