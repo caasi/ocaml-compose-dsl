@@ -1894,6 +1894,50 @@ let test_md_extract_unclosed_block () =
   Alcotest.(check int) "one block" 1 (List.length blocks);
   Alcotest.(check string) "content" "a >>> b\n" (List.hd blocks).Markdown.content
 
+let test_md_combine_single () =
+  let blocks = [{ Markdown.content = "a >>> b\n"; markdown_start = 10 }] in
+  let source, table = Markdown.combine blocks in
+  Alcotest.(check string) "source" "a >>> b\n" source;
+  Alcotest.(check int) "table length" 1 (List.length table);
+  let (cs, ms) = List.hd table in
+  Alcotest.(check int) "combined_start" 1 cs;
+  Alcotest.(check int) "markdown_start" 10 ms
+
+let test_md_combine_multiple () =
+  let blocks =
+    [ { Markdown.content = "a >>> b\n"; markdown_start = 10 }
+    ; { Markdown.content = "c >>> d\ne >>> f\n"; markdown_start = 30 }
+    ] in
+  let source, table = Markdown.combine blocks in
+  Alcotest.(check string) "source" "a >>> b\n\nc >>> d\ne >>> f\n" source;
+  Alcotest.(check int) "table length" 2 (List.length table);
+  let (cs1, ms1) = List.nth table 0 in
+  let (cs2, ms2) = List.nth table 1 in
+  Alcotest.(check int) "block1 combined_start" 1 cs1;
+  Alcotest.(check int) "block1 markdown_start" 10 ms1;
+  Alcotest.(check int) "block2 combined_start" 3 cs2;
+  Alcotest.(check int) "block2 markdown_start" 30 ms2
+
+let test_md_combine_empty () =
+  let source, table = Markdown.combine [] in
+  Alcotest.(check string) "source" "" source;
+  Alcotest.(check int) "table length" 0 (List.length table)
+
+let test_md_translate_single () =
+  let table = [(1, 10)] in
+  Alcotest.(check int) "line 1" 10 (Markdown.translate_line table 1);
+  Alcotest.(check int) "line 3" 12 (Markdown.translate_line table 3)
+
+let test_md_translate_multiple () =
+  let table = [(1, 10); (3, 30)] in
+  Alcotest.(check int) "line 1" 10 (Markdown.translate_line table 1);
+  Alcotest.(check int) "line 2" 11 (Markdown.translate_line table 2);
+  Alcotest.(check int) "line 3" 30 (Markdown.translate_line table 3);
+  Alcotest.(check int) "line 5" 32 (Markdown.translate_line table 5)
+
+let test_md_translate_empty () =
+  Alcotest.(check int) "passthrough" 42 (Markdown.translate_line [] 42)
+
 let markdown_tests =
   [ "single block", `Quick, test_md_extract_single_block
   ; "multiple blocks", `Quick, test_md_extract_multiple_blocks
@@ -1907,6 +1951,12 @@ let markdown_tests =
   ; "extra text rejected", `Quick, test_md_extract_extra_text_rejected
   ; "arr info string", `Quick, test_md_extract_arr_info_string
   ; "unclosed block", `Quick, test_md_extract_unclosed_block
+  ; "combine single", `Quick, test_md_combine_single
+  ; "combine multiple", `Quick, test_md_combine_multiple
+  ; "combine empty", `Quick, test_md_combine_empty
+  ; "translate single", `Quick, test_md_translate_single
+  ; "translate multiple", `Quick, test_md_translate_multiple
+  ; "translate empty", `Quick, test_md_translate_empty
   ]
 
 let () =
