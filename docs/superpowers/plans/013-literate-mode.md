@@ -547,25 +547,24 @@ Replace the main flow (lines 79–107) with:
     Printf.eprintf "lex error at %d:%d: %s\n" (tl pos.line) pos.col msg;
     exit 1
   | tokens ->
-    match Compose_dsl.Parser.parse tokens with
+    match Compose_dsl.Parser.parse_program tokens with
     | exception Compose_dsl.Parser.Parse_error (pos, msg) ->
       Printf.eprintf "parse error at %d:%d: %s\n" (tl pos.line) pos.col msg;
       exit 1
     | ast ->
+      let ast = match Compose_dsl.Reducer.reduce ast with
+        | reduced -> reduced
+        | exception Compose_dsl.Reducer.Reduce_error (pos, msg) ->
+          Printf.eprintf "reduce error at %d:%d: %s\n" (tl pos.line) pos.col msg;
+          exit 1
+      in
       let result = Compose_dsl.Checker.check ast in
       List.iter
         (fun (w : Compose_dsl.Checker.warning) ->
           Printf.eprintf "warning at %d:%d: %s\n" (tl w.loc.start.line) w.loc.start.col w.message)
         result.warnings;
-      if result.errors = [] then (
-        print_endline (Compose_dsl.Printer.to_string ast);
-        exit 0)
-      else (
-        List.iter
-          (fun (e : Compose_dsl.Checker.error) ->
-            Printf.eprintf "check error at %d:%d: %s\n" (tl e.loc.start.line) e.loc.start.col e.message)
-          result.errors;
-        exit 1)
+      print_endline (Compose_dsl.Printer.to_string ast);
+      exit 0
 ```
 
 - [ ] **Step 4: Build to verify compilation**
@@ -612,7 +611,8 @@ let test_md_literate_end_to_end () =
   let blocks = Markdown.extract input in
   let source, _table = Markdown.combine blocks in
   let tokens = Lexer.tokenize source in
-  let _ast = Parser.parse tokens in
+  let ast = Parser.parse_program tokens in
+  let _ast = Reducer.reduce ast in
   (* if we get here without exception, the pipeline works *)
   ()
 ```
