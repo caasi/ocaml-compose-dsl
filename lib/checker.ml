@@ -1,8 +1,7 @@
 open Ast
 
-type error = { loc : loc; message : string }
 type warning = { loc : loc; message : string }
-type result = { errors : error list; warnings : warning list }
+type result = { warnings : warning list }
 
 let rec normalize (e : expr) : expr =
   match e.desc with
@@ -12,33 +11,30 @@ let rec normalize (e : expr) : expr =
   | Fanout (a, b) -> { e with desc = Fanout (normalize a, normalize b) }
   | Alt (a, b) -> { e with desc = Alt (normalize a, normalize b) }
   | Loop body -> { e with desc = Loop (normalize body) }
-  | Node _ | StringLit _ -> e
+  | Var _ | StringLit _ -> e
+  | App (fn, args) ->
+    { e with desc = App (normalize fn,
+        List.map (function
+          | Named a -> Named a
+          | Positional e -> Positional (normalize e)) args) }
   | Question inner -> { e with desc = Question (normalize inner) }
-  | Lambda _ | Var _ | App _ | Let _ -> e
+  | Lambda _ | Let _ -> e
 
 let check (expr : expr) =
-  let errors = ref [] in
   let warnings = ref [] in
-  let add_error loc msg = errors := ({ loc; message = msg } : error) :: !errors in
   let add_warning loc msg = warnings := ({ loc; message = msg } : warning) :: !warnings in
-  (* Left-to-right fold over Seq chains: +1 for Question, -1 (with
-     saturation at 0) for Alt. Only downstream ||| can match upstream ?. *)
   let rec scan_questions counter (e : expr) =
     match e.desc with
-    (* Intentionally treat Question as a leaf: do NOT recurse into inner.
-       Recursing would let an Alt inside the operand decrement the counter,
-       violating the invariant that only downstream ||| matches upstream ?.
-       The parser restricts inner to Node or StringLit, so no nested
-       Question can hide here. *)
     | Question _ -> counter + 1
     | Alt _ -> max 0 (counter - 1)
-    | Node _ | StringLit _ -> counter
+    | Var _ | StringLit _ -> counter
+    | App _ -> counter
     | Seq (a, b) ->
       let counter' = scan_questions counter a in
       scan_questions counter' b
-    | Group _ -> counter (* defensive: unreachable after normalize *)
+    | Group _ -> counter
     | Par _ | Fanout _ | Loop _ -> counter
-    | Lambda _ | Var _ | App _ | Let _ -> counter
+    | Lambda _ | Let _ -> counter
   in
   let check_question_balance (e : expr) =
     let unmatched = scan_questions 0 (normalize e) in
@@ -50,15 +46,20 @@ let check (expr : expr) =
     match e.desc with
     | Question _ -> true
     | Seq (_, b) -> tail_has_question b
-    | Group _ -> false (* defensive: unreachable after normalize *)
-    | Lambda _ | Var _ | App _ | Let _ -> false
+    | Group _ -> false
     | _ -> false
   in
   let rec go (e : expr) =
     match e.desc with
-    | Node n ->
-      if n.name = "" && n.comments = [] then
-        add_error e.loc "node has no purpose (no name and no comments)"
+    | Var _ -> ()
+    | StringLit _ -> ()
+    | App (fn, args) ->
+      go fn;
+      List.iter (function
+        | Named _ -> ()
+        | Positional arg ->
+          check_question_balance arg;
+          go arg) args
     | Seq (a, b) -> go a; go b
     | Par (a, b) ->
       check_question_balance a;
@@ -81,8 +82,6 @@ let check (expr : expr) =
         add_warning b.loc
           "'?' as operand of '|||' does not match; \
            use 'question? >>> (left ||| right)' pattern";
-      (* Adjusted balance check: the tail ? already got a specific warning
-         above, so subtract 1 to avoid a duplicate generic warning. *)
       let check_balance_adj has_tail_q ne (e : expr) =
         let unmatched = scan_questions 0 ne in
         let adj = max 0 (if has_tail_q then unmatched - 1 else unmatched) in
@@ -96,16 +95,10 @@ let check (expr : expr) =
     | Loop body ->
       check_question_balance body;
       go body
-    | Group inner ->
-      (* Group is syntactic (precedence), not a scope boundary.
-         Balance checking happens on the enclosing scope after normalize
-         strips all Group wrappers. *)
-      go inner
-    | StringLit _ -> ()
+    | Group inner -> go inner
     | Question inner -> go inner
-    | Lambda _ | Var _ | App _ | Let _ ->
-      add_error e.loc "unreduced lambda/variable/application/let node; run Reducer.reduce before Checker.check"
+    | Lambda _ | Let _ -> ()
   in
   check_question_balance expr;
   go expr;
-  { errors = List.rev !errors; warnings = List.rev !warnings }
+  { warnings = List.rev !warnings }

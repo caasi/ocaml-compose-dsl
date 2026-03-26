@@ -9,13 +9,11 @@ type value =
 
 type arg = { key : string; value : value }
 
-type node = { name : string; args : arg list; comments : string list }
-
 type type_ann = { input : string; output : string }
 
 type expr = { loc : loc; desc : expr_desc; type_ann : type_ann option }
 and expr_desc =
-  | Node of node
+  | Var of string                   (** variable reference, bound or free *)
   | StringLit of string             (** string literal as expression *)
   | Seq of expr * expr              (** [>>>] *)
   | Par of expr * expr              (** [***] *)
@@ -23,8 +21,11 @@ and expr_desc =
   | Alt of expr * expr              (** [|||] *)
   | Loop of expr
   | Group of expr
-  | Question of expr                (** [?] — parser restricts to Node/StringLit *)
+  | Question of expr                (** [?] — parser allows on Var, StringLit, App *)
   | Lambda of string list * expr    (** [\x, y -> body] *)
-  | Var of string                   (** [variable reference] *)
-  | App of expr * expr list         (** [f(arg1, arg2)] *)
+  | App of expr * call_arg list     (** unified application, mixed named/positional *)
   | Let of string * expr * expr     (** [let x = expr] followed by rest of program *)
+
+and call_arg =
+  | Named of arg                    (** key: value — static configuration *)
+  | Positional of expr              (** pipeline expression *)

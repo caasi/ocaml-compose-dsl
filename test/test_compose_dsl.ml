@@ -15,14 +15,13 @@ let check_ok input =
   let ast = parse_ok input in
   let ast = Reducer.reduce ast in
   let result = Checker.check ast in
-  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
+  Alcotest.(check int) "no checker warnings" 0 (List.length result.Checker.warnings);
   ast
 
 let check_ok_with_warnings input =
   let ast = parse_ok input in
   let ast = Reducer.reduce ast in
   let result = Checker.check ast in
-  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
   result.Checker.warnings
 
 let has_warning_containing substr warnings =
@@ -352,119 +351,83 @@ let test_lex_question_after_string () =
 
 (* === Parser tests === *)
 
-(* node = ident , [ "(" , [ args ] , ")" ] *)
 let test_parse_node_with_args () =
   match desc_of "read(source: \"data.csv\")" with
-  | Ast.Node n ->
-    Alcotest.(check string) "name" "read" n.name;
-    Alcotest.(check int) "1 arg" 1 (List.length n.args);
-    Alcotest.(check string) "arg key" "source" (List.hd n.args).key
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.App ({ desc = Ast.Var "read"; _ }, [Named { key = "source"; value = String "data.csv" }]) -> ()
+  | _ -> Alcotest.fail "expected App(Var read, [Named source])"
 
 let test_parse_node_no_parens () =
   match desc_of "count" with
-  | Ast.Node n ->
-    Alcotest.(check string) "name" "count" n.name;
-    Alcotest.(check int) "0 args" 0 (List.length n.args)
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.Var "count" -> ()
+  | _ -> Alcotest.fail "expected Var count"
 
 let test_parse_node_empty_parens () =
   match desc_of "noop()" with
-  | Ast.Node n ->
-    Alcotest.(check string) "name" "noop" n.name;
-    Alcotest.(check int) "0 args" 0 (List.length n.args)
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.App ({ desc = Ast.Var "noop"; _ }, []) -> ()
+  | _ -> Alcotest.fail "expected App(Var noop, [])"
 
 (* args = arg , { "," , arg } *)
 let test_parse_multiple_args () =
   match desc_of "load(from: cache, key: k, ttl: \"60\")" with
-  | Ast.Node n ->
-    Alcotest.(check int) "3 args" 3 (List.length n.args);
-    Alcotest.(check string) "arg1" "from" (List.nth n.args 0).key;
-    Alcotest.(check string) "arg2" "key" (List.nth n.args 1).key;
-    Alcotest.(check string) "arg3" "ttl" (List.nth n.args 2).key
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.App ({ desc = Ast.Var "load"; _ }, args) ->
+    Alcotest.(check int) "3 args" 3 (List.length args);
+    (match args with
+     | [Named { key = "from"; _ }; Named { key = "key"; _ }; Named { key = "ttl"; _ }] -> ()
+     | _ -> Alcotest.fail "expected 3 Named args")
+  | _ -> Alcotest.fail "expected App"
 
 (* value = string | ident | "[" , [ value , { "," , value } ] , "]" *)
 let test_parse_string_value () =
   match desc_of "a(x: \"hello\")" with
-  | Ast.Node n ->
-    (match (List.hd n.args).value with
-     | Ast.String "hello" -> ()
-     | _ -> Alcotest.fail "expected String value")
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.App ({ desc = Ast.Var "a"; _ }, [Named { value = String "hello"; _ }]) -> ()
+  | _ -> Alcotest.fail "expected App with String value"
 
 let test_parse_ident_value () =
   match desc_of "a(x: csv)" with
-  | Ast.Node n ->
-    (match (List.hd n.args).value with
-     | Ast.Ident "csv" -> ()
-     | _ -> Alcotest.fail "expected Ident value")
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.App ({ desc = Ast.Var "a"; _ }, [Named { value = Ident "csv"; _ }]) -> ()
+  | _ -> Alcotest.fail "expected App with Ident value"
 
 let test_parse_list_value () =
   match desc_of "collect(fields: [name, email, age])" with
-  | Ast.Node n ->
-    (match (List.hd n.args).value with
-     | Ast.List vs -> Alcotest.(check int) "3 items" 3 (List.length vs)
-     | _ -> Alcotest.fail "expected List value")
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.App ({ desc = Ast.Var "collect"; _ }, [Named { value = List vs; _ }]) ->
+    Alcotest.(check int) "3 items" 3 (List.length vs)
+  | _ -> Alcotest.fail "expected App with List value"
 
 let test_parse_empty_list () =
   match desc_of "a(x: [])" with
-  | Ast.Node n ->
-    (match (List.hd n.args).value with
-     | Ast.List vs -> Alcotest.(check int) "0 items" 0 (List.length vs)
-     | _ -> Alcotest.fail "expected List value")
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.App ({ desc = Ast.Var "a"; _ }, [Named { value = List vs; _ }]) ->
+    Alcotest.(check int) "0 items" 0 (List.length vs)
+  | _ -> Alcotest.fail "expected App with List value"
 
 let test_parse_single_item_list () =
   match desc_of "a(x: [one])" with
-  | Ast.Node n ->
-    (match (List.hd n.args).value with
-     | Ast.List [ Ast.Ident "one" ] -> ()
-     | _ -> Alcotest.fail "expected single-item List")
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.App ({ desc = Ast.Var "a"; _ }, [Named { value = List [ Ident "one" ]; _ }]) -> ()
+  | _ -> Alcotest.fail "expected single-item List"
 
 let test_parse_number_value () =
   match desc_of "resize(width: 1920)" with
-  | Ast.Node n ->
-    (match (List.hd n.args).value with
-     | Ast.Number "1920" -> ()
-     | _ -> Alcotest.fail "expected Number value")
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.App ({ desc = Ast.Var "resize"; _ }, [Named { value = Number "1920"; _ }]) -> ()
+  | _ -> Alcotest.fail "expected Number value"
 
 let test_parse_float_value () =
   match desc_of "delay(seconds: 3.5)" with
-  | Ast.Node n ->
-    (match (List.hd n.args).value with
-     | Ast.Number "3.5" -> ()
-     | _ -> Alcotest.fail "expected Number value")
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.App ({ desc = Ast.Var "delay"; _ }, [Named { value = Number "3.5"; _ }]) -> ()
+  | _ -> Alcotest.fail "expected Number value"
 
 let test_parse_negative_value () =
   match desc_of "adjust(offset: -10)" with
-  | Ast.Node n ->
-    (match (List.hd n.args).value with
-     | Ast.Number "-10" -> ()
-     | _ -> Alcotest.fail "expected Number value")
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.App ({ desc = Ast.Var "adjust"; _ }, [Named { value = Number "-10"; _ }]) -> ()
+  | _ -> Alcotest.fail "expected Number value"
 
 let test_parse_number_in_list () =
   match desc_of "a(dims: [1920, 1080])" with
-  | Ast.Node n ->
-    (match (List.hd n.args).value with
-     | Ast.List [Ast.Number "1920"; Ast.Number "1080"] -> ()
-     | _ -> Alcotest.fail "expected List of Numbers")
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.App ({ desc = Ast.Var "a"; _ }, [Named { value = List [Number "1920"; Number "1080"]; _ }]) -> ()
+  | _ -> Alcotest.fail "expected List of Numbers"
 
 let test_parse_number_with_unit () =
   match desc_of "dose(amount: 100mg)" with
-  | Ast.Node n ->
-    (match (List.hd n.args).value with
-     | Ast.Number "100mg" -> ()
-     | _ -> Alcotest.fail "expected Number with unit")
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.App ({ desc = Ast.Var "dose"; _ }, [Named { value = Number "100mg"; _ }]) -> ()
+  | _ -> Alcotest.fail "expected Number with unit"
 
 let test_parse_number_as_node_name () =
   parse_fails "42(x: 1)"
@@ -472,28 +435,28 @@ let test_parse_number_as_node_name () =
 (* expr = term , { operator , term } *)
 let test_parse_seq () =
   match desc_of "a >>> b >>> c" with
-  | Ast.Seq ({ desc = Ast.Node _; _ }, { desc = Ast.Seq ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }) -> ()
+  | Ast.Seq ({ desc = Ast.Var _; _ }, { desc = Ast.Seq ({ desc = Ast.Var _; _ }, { desc = Ast.Var _; _ }); _ }) -> ()
   | _ -> Alcotest.fail "expected right-associative Seq"
 
 let test_parse_par () =
   match desc_of "a *** b" with
-  | Ast.Par ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }) -> ()
+  | Ast.Par ({ desc = Ast.Var _; _ }, { desc = Ast.Var _; _ }) -> ()
   | _ -> Alcotest.fail "expected Par"
 
 let test_parse_alt () =
   match desc_of "a ||| b" with
-  | Ast.Alt ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }) -> ()
+  | Ast.Alt ({ desc = Ast.Var _; _ }, { desc = Ast.Var _; _ }) -> ()
   | _ -> Alcotest.fail "expected Alt"
 
 let test_parse_mixed_operators () =
   match desc_of "a >>> b *** c ||| d" with
-  | Ast.Seq ({ desc = Ast.Node _; _ }, { desc = Ast.Alt ({ desc = Ast.Par ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }, { desc = Ast.Node _; _ }); _ }) -> ()
+  | Ast.Seq ({ desc = Ast.Var _; _ }, { desc = Ast.Alt ({ desc = Ast.Par ({ desc = Ast.Var _; _ }, { desc = Ast.Var _; _ }); _ }, { desc = Ast.Var _; _ }); _ }) -> ()
   | _ -> Alcotest.fail "expected precedence: >>> < ||| < ***"
 
 (* term = node | "loop" , "(" , expr , ")" | "(" , expr , ")" *)
 let test_parse_group () =
   match desc_of "(a >>> b) *** c" with
-  | Ast.Par ({ desc = Ast.Group { desc = Ast.Seq _; _ }; _ }, { desc = Ast.Node _; _ }) -> ()
+  | Ast.Par ({ desc = Ast.Group { desc = Ast.Seq _; _ }; _ }, { desc = Ast.Var _; _ }) -> ()
   | _ -> Alcotest.fail "expected Par with grouped Seq"
 
 let test_parse_nested_groups () =
@@ -508,10 +471,10 @@ let test_parse_loop () =
 
 let test_parse_nested_loop () =
   match desc_of "loop (a >>> loop (b >>> check(x: y)) >>> evaluate(r: done))" with
-  | Ast.Loop { desc = Ast.Seq ({ desc = Ast.Node _; _ }, { desc = Ast.Seq ({ desc = Ast.Loop _; _ }, { desc = Ast.Node _; _ }); _ }); _ } -> ()
+  | Ast.Loop { desc = Ast.Seq ({ desc = Ast.Var _; _ }, { desc = Ast.Seq ({ desc = Ast.Loop _; _ }, { desc = Ast.App _; _ }); _ }); _ } -> ()
   | _ -> Alcotest.fail "expected nested Loop"
 
-(* comment attachment *)
+(* comment attachment — comments are now dropped on Var/App *)
 let test_parse_comments_attach_to_node () =
   let ast =
     parse_ok
@@ -519,10 +482,8 @@ let test_parse_comments_attach_to_node () =
   >>> write(dest: "out.csv") -- write output|}
   in
   match ast.desc with
-  | Ast.Seq ({ desc = Ast.Node r; _ }, { desc = Ast.Node w; _ }) ->
-    Alcotest.(check int) "read comments" 1 (List.length r.comments);
-    Alcotest.(check int) "write comments" 1 (List.length w.comments)
-  | _ -> Alcotest.fail "expected Seq"
+  | Ast.Seq ({ desc = Ast.App _; _ }, { desc = Ast.App _; _ }) -> ()
+  | _ -> Alcotest.fail "expected Seq(App, App)"
 
 let test_parse_multiline_comments () =
   let ast =
@@ -531,9 +492,8 @@ let test_parse_multiline_comments () =
                                -- ref: Read, cat|}
   in
   match ast.desc with
-  | Ast.Node n ->
-    Alcotest.(check int) "2 comments" 2 (List.length n.comments)
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.App ({ desc = Ast.Var "read"; _ }, _) -> ()
+  | _ -> Alcotest.fail "expected App"
 
 let test_parse_comment_on_group () =
   let ast =
@@ -541,9 +501,7 @@ let test_parse_comment_on_group () =
   >>> c|}
   in
   match ast.desc with
-  | Ast.Seq ({ desc = Ast.Group { desc = Ast.Seq ({ desc = Ast.Node _; _ }, { desc = Ast.Node b; _ }); _ }; _ }, { desc = Ast.Node _; _ }) ->
-    Alcotest.(check int) "comment attached to rightmost node in group" 1 (List.length b.comments);
-    Alcotest.(check string) "comment text" "comment on group" (List.hd b.comments)
+  | Ast.Seq ({ desc = Ast.Group { desc = Ast.Seq _; _ }; _ }, { desc = Ast.Var _; _ }) -> ()
   | _ -> Alcotest.fail "expected Seq(Group(Seq(a,b)),c)"
 
 let test_parse_comment_on_loop () =
@@ -552,76 +510,61 @@ let test_parse_comment_on_loop () =
   >>> done|}
   in
   match ast.desc with
-  | Ast.Seq ({ desc = Ast.Loop { desc = Ast.Seq ({ desc = Ast.Node _; _ }, { desc = Ast.Node e; _ }); _ }; _ }, { desc = Ast.Node _; _ }) ->
-    Alcotest.(check int) "comment attached to rightmost node in loop" 1 (List.length e.comments);
-    Alcotest.(check string) "comment text" "loop comment" (List.hd e.comments)
+  | Ast.Seq ({ desc = Ast.Loop _; _ }, { desc = Ast.Var _; _ }) -> ()
   | _ -> Alcotest.fail "expected Seq(Loop(...), done)"
 
 let test_parse_fanout () =
   match desc_of "a &&& b" with
-  | Ast.Fanout ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }) -> ()
+  | Ast.Fanout ({ desc = Ast.Var _; _ }, { desc = Ast.Var _; _ }) -> ()
   | _ -> Alcotest.fail "expected Fanout"
 
 let test_parse_precedence_seq_fanout () =
   match desc_of "a >>> b &&& c >>> d" with
-  | Ast.Seq ({ desc = Ast.Node _; _ }, { desc = Ast.Seq ({ desc = Ast.Fanout ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }, { desc = Ast.Node _; _ }); _ }) -> ()
+  | Ast.Seq ({ desc = Ast.Var _; _ }, { desc = Ast.Seq ({ desc = Ast.Fanout ({ desc = Ast.Var _; _ }, { desc = Ast.Var _; _ }); _ }, { desc = Ast.Var _; _ }); _ }) -> ()
   | _ -> Alcotest.fail "expected Seq(a, Seq(Fanout(b,c), d))"
 
 let test_parse_precedence_alt_par () =
   match desc_of "a ||| b *** c" with
-  | Ast.Alt ({ desc = Ast.Node _; _ }, { desc = Ast.Par ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }) -> ()
+  | Ast.Alt ({ desc = Ast.Var _; _ }, { desc = Ast.Par ({ desc = Ast.Var _; _ }, { desc = Ast.Var _; _ }); _ }) -> ()
   | _ -> Alcotest.fail "expected Alt(a, Par(b,c))"
 
 let test_parse_par_fanout_same_prec () =
   match desc_of "a *** b &&& c" with
-  | Ast.Par ({ desc = Ast.Node _; _ }, { desc = Ast.Fanout ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }) -> ()
+  | Ast.Par ({ desc = Ast.Var _; _ }, { desc = Ast.Fanout ({ desc = Ast.Var _; _ }, { desc = Ast.Var _; _ }); _ }) -> ()
   | _ -> Alcotest.fail "expected Par(a, Fanout(b,c))"
 
 let test_parse_mixed_all_precedence () =
   match desc_of "a >>> b ||| c &&& d *** e" with
-  | Ast.Seq ({ desc = Ast.Node _; _ },
-      { desc = Ast.Alt ({ desc = Ast.Node _; _ },
-        { desc = Ast.Fanout ({ desc = Ast.Node _; _ },
-          { desc = Ast.Par ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }); _ }); _ }) -> ()
+  | Ast.Seq ({ desc = Ast.Var _; _ },
+      { desc = Ast.Alt ({ desc = Ast.Var _; _ },
+        { desc = Ast.Fanout ({ desc = Ast.Var _; _ },
+          { desc = Ast.Par ({ desc = Ast.Var _; _ }, { desc = Ast.Var _; _ }); _ }); _ }); _ }) -> ()
   | _ -> Alcotest.fail "expected Seq(a, Alt(b, Fanout(c, Par(d, e))))"
 
 let test_parse_group_overrides_precedence () =
   match desc_of "(a >>> b) &&& c" with
-  | Ast.Fanout ({ desc = Ast.Group { desc = Ast.Seq ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }; _ }, { desc = Ast.Node _; _ }) -> ()
+  | Ast.Fanout ({ desc = Ast.Group { desc = Ast.Seq ({ desc = Ast.Var _; _ }, { desc = Ast.Var _; _ }); _ }; _ }, { desc = Ast.Var _; _ }) -> ()
   | _ -> Alcotest.fail "expected Fanout(Group(Seq(a,b)), c)"
 
 let test_parse_unicode_node_with_args () =
   match desc_of {|翻譯(來源: "日文")|} with
-  | Ast.Node n ->
-    Alcotest.(check string) "name" "翻譯" n.name;
-    Alcotest.(check int) "1 arg" 1 (List.length n.args);
-    Alcotest.(check string) "arg key" "來源" (List.hd n.args).key;
-    (match (List.hd n.args).value with
-     | Ast.String "日文" -> ()
-     | _ -> Alcotest.fail "expected String value")
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.App ({ desc = Ast.Var "翻譯"; _ }, [Named { key = "來源"; value = String "日文" }]) -> ()
+  | _ -> Alcotest.fail "expected App(Var 翻譯, [Named 來源])"
 
 let test_parse_unicode_seq () =
   match desc_of "café >>> naïve" with
-  | Ast.Seq ({ desc = Ast.Node a; _ }, { desc = Ast.Node b; _ }) ->
-    Alcotest.(check string) "lhs" "café" a.name;
-    Alcotest.(check string) "rhs" "naïve" b.name
+  | Ast.Seq ({ desc = Ast.Var "café"; _ }, { desc = Ast.Var "naïve"; _ }) -> ()
   | _ -> Alcotest.fail "expected Seq"
 
 let test_parse_greek_seq () =
   match desc_of "α >>> β" with
-  | Ast.Seq ({ desc = Ast.Node a; _ }, { desc = Ast.Node b; _ }) ->
-    Alcotest.(check string) "lhs" "α" a.name;
-    Alcotest.(check string) "rhs" "β" b.name
+  | Ast.Seq ({ desc = Ast.Var "α"; _ }, { desc = Ast.Var "β"; _ }) -> ()
   | _ -> Alcotest.fail "expected Seq"
 
 let test_parse_unicode_unit_value () =
   match desc_of "wait(duration: 500ミリ秒)" with
-  | Ast.Node n ->
-    (match (List.hd n.args).value with
-     | Ast.Number "500ミリ秒" -> ()
-     | _ -> Alcotest.fail "expected Number with unicode unit")
-  | _ -> Alcotest.fail "expected Node"
+  | Ast.App ({ desc = Ast.Var "wait"; _ }, [Named { value = Number "500ミリ秒"; _ }]) -> ()
+  | _ -> Alcotest.fail "expected App with Number unicode unit"
 
 (* error cases *)
 let test_parse_error_unclosed_paren () =
@@ -751,16 +694,17 @@ let test_check_question_not_at_tail_alt_operand () =
 
 let test_check_loop_plain_no_error () =
   let result = Checker.check (parse_ok "loop (a >>> b)") in
-  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
+  Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
 
 let test_check_loop_unicode_no_error () =
   let result = Checker.check (parse_ok "loop (掃描 >>> 檢查)") in
-  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
+  Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
 
 let test_parse_comment_on_node_question () =
+  (* Comments are now dropped on Var, so just verify the structure *)
   let ast = parse_ok "validate -- important\n? >>> (a ||| b)" in
   match ast.desc with
-  | Ast.Seq ({ desc = Ast.Question { desc = Ast.Node { name = "validate"; comments = ["important"]; _ }; _ }; _ }, _) -> ()
+  | Ast.Seq ({ desc = Ast.Question { desc = Ast.Var "validate"; _ }; _ }, _) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
 let test_parse_comment_on_string_question () =
@@ -775,83 +719,84 @@ let test_parse_comment_on_string_question () =
 let test_print_simple_node () =
   let ast = parse_ok "a" in
   let s = Printer.to_string ast in
-  Alcotest.(check string) "simple node" {|Node("a", [], [])|} s
+  Alcotest.(check string) "simple node" {|Var("a")|} s
 
 let test_print_node_with_args () =
   let ast = parse_ok {|read(source: "data.csv")|} in
   let s = Printer.to_string ast in
   Alcotest.(check string) "node with args"
-    {|Node("read", [source: String("data.csv")], [])|} s
+    {|App(Var("read"), [Named(source: String("data.csv"))])|} s
 
 let test_print_node_with_list_arg () =
   let ast = parse_ok "collect(fields: [name, email])" in
   let s = Printer.to_string ast in
   Alcotest.(check string) "node with list"
-    {|Node("collect", [fields: List([Ident("name"), Ident("email")])], [])|} s
+    {|App(Var("collect"), [Named(fields: List([Ident("name"), Ident("email")]))])|} s
 
 let test_print_seq () =
   let ast = parse_ok "a >>> b" in
   let s = Printer.to_string ast in
   Alcotest.(check string) "seq"
-    {|Seq(Node("a", [], []), Node("b", [], []))|} s
+    {|Seq(Var("a"), Var("b"))|} s
 
 let test_print_fanout () =
   let ast = parse_ok "a &&& b" in
   let s = Printer.to_string ast in
   Alcotest.(check string) "fanout"
-    {|Fanout(Node("a", [], []), Node("b", [], []))|} s
+    {|Fanout(Var("a"), Var("b"))|} s
 
 let test_print_loop () =
   let ast = parse_ok "loop (a >>> evaluate(x: y))" in
   let s = Printer.to_string ast in
   Alcotest.(check string) "loop"
-    {|Loop(Seq(Node("a", [], []), Node("evaluate", [x: Ident("y")], [])))|} s
+    {|Loop(Seq(Var("a"), App(Var("evaluate"), [Named(x: Ident("y"))])))|} s
 
 let test_print_group () =
   let ast = parse_ok "(a >>> b) *** c" in
   let s = Printer.to_string ast in
   Alcotest.(check string) "group"
-    {|Par(Group(Seq(Node("a", [], []), Node("b", [], []))), Node("c", [], []))|} s
+    {|Par(Group(Seq(Var("a"), Var("b"))), Var("c"))|} s
 
 let test_print_number_arg () =
   let ast = parse_ok "resize(width: 1920, height: 1080)" in
   let s = Printer.to_string ast in
   Alcotest.(check string) "number args"
-    {|Node("resize", [width: Number(1920), height: Number(1080)], [])|} s
+    {|App(Var("resize"), [Named(width: Number(1920)), Named(height: Number(1080))])|} s
 
 let test_print_negative_number () =
   let ast = parse_ok "adjust(offset: -3.14)" in
   let s = Printer.to_string ast in
   Alcotest.(check string) "negative number"
-    {|Node("adjust", [offset: Number(-3.14)], [])|} s
+    {|App(Var("adjust"), [Named(offset: Number(-3.14))])|} s
 
 let test_print_number_with_unit () =
   let ast = parse_ok "dose(amount: 100mg)" in
   let s = Printer.to_string ast in
   Alcotest.(check string) "number with unit"
-    {|Node("dose", [amount: Number(100mg)], [])|} s
+    {|App(Var("dose"), [Named(amount: Number(100mg))])|} s
 
 let test_print_comment () =
+  (* Comments are now dropped on Var *)
   let ast = parse_ok "a -- this is a comment" in
   let s = Printer.to_string ast in
-  Alcotest.(check string) "comment"
-    {|Node("a", [], ["this is a comment"])|} s
+  Alcotest.(check string) "comment dropped"
+    {|Var("a")|} s
 
 let test_print_question_string () =
   let ast = parse_ok {|"earth is not flat"? >>> (believe ||| doubt)|} in
   let s = Printer.to_string ast in
-  Alcotest.(check string) "question string" {|Seq(Question(StringLit("earth is not flat")), Group(Alt(Node("believe", [], []), Node("doubt", [], []))))|} s
+  Alcotest.(check string) "question string" {|Seq(Question(StringLit("earth is not flat")), Group(Alt(Var("believe"), Var("doubt"))))|} s
 
 let test_print_question_node () =
   let ast = parse_ok "validate(method: test_suite)? >>> (deploy ||| rollback)" in
   let s = Printer.to_string ast in
-  Alcotest.(check string) "question node" {|Seq(Question(Node("validate", [method: Ident("test_suite")], [])), Group(Alt(Node("deploy", [], []), Node("rollback", [], []))))|} s
+  Alcotest.(check string) "question node" {|Seq(Question(App(Var("validate"), [Named(method: Ident("test_suite"))])), Group(Alt(Var("deploy"), Var("rollback"))))|} s
 
 let test_print_string_lit () =
   let ast = parse_ok {|"hello" >>> a|} in
   let s = Printer.to_string ast in
   Alcotest.(check string) "string lit"
-    {|Seq(StringLit("hello"), Node("a", [], []))|}
+    {|Seq(StringLit("hello"), Var("a"))|}
     s
 
 (* === Question operator parser tests === *)
@@ -859,19 +804,19 @@ let test_print_string_lit () =
 let test_parse_string_question () =
   let ast = parse_ok {|"earth is not flat"? >>> (believe ||| doubt)|} in
   match ast.desc with
-  | Ast.Seq ({ desc = Ast.Question { desc = Ast.StringLit "earth is not flat"; _ }; _ }, { desc = Ast.Group { desc = Ast.Alt ({ desc = Ast.Node _; _ }, { desc = Ast.Node _; _ }); _ }; _ }) -> ()
+  | Ast.Seq ({ desc = Ast.Question { desc = Ast.StringLit "earth is not flat"; _ }; _ }, { desc = Ast.Group { desc = Ast.Alt ({ desc = Ast.Var _; _ }, { desc = Ast.Var _; _ }); _ }; _ }) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
 let test_parse_node_question () =
   let ast = parse_ok "validate(method: test_suite)? >>> (deploy ||| rollback)" in
   match ast.desc with
-  | Ast.Seq ({ desc = Ast.Question { desc = Ast.Node { name = "validate"; _ }; _ }; _ }, { desc = Ast.Group { desc = Ast.Alt _; _ }; _ }) -> ()
+  | Ast.Seq ({ desc = Ast.Question { desc = Ast.App ({ desc = Ast.Var "validate"; _ }, _); _ }; _ }, { desc = Ast.Group { desc = Ast.Alt _; _ }; _ }) -> ()
   | _ -> Alcotest.fail (Printf.sprintf "unexpected AST: %s" (Printer.to_string ast))
 
 let test_parse_bare_node_question () =
   match desc_of "check? >>> (yes ||| no)" with
-  | Ast.Seq ({ desc = Ast.Question { desc = Ast.Node { name = "check"; args = []; _ }; _ }; _ }, _) -> ()
-  | _ -> Alcotest.fail "expected Question(Node check)"
+  | Ast.Seq ({ desc = Ast.Question { desc = Ast.Var "check"; _ }; _ }, _) -> ()
+  | _ -> Alcotest.fail "expected Question(Var check)"
 
 let test_parse_question_with_space () =
   let ast = parse_ok {|"hello" ? >>> (a ||| b)|} in
@@ -1149,13 +1094,13 @@ let reduce_fails input =
 
 let test_parse_string_lit () =
   match desc_of {|"hello" >>> a|} with
-  | Ast.Seq ({ desc = Ast.StringLit "hello"; _ }, { desc = Ast.Node { name = "a"; _ }; _ }) -> ()
-  | _ -> Alcotest.fail "expected Seq(StringLit, Node)"
+  | Ast.Seq ({ desc = Ast.StringLit "hello"; _ }, { desc = Ast.Var "a"; _ }) -> ()
+  | _ -> Alcotest.fail "expected Seq(StringLit, Var)"
 
 let test_parse_string_lit_as_positional_arg () =
   let ast = reduce_ok ({|let f = \x -> x >>> a|} ^ "\n" ^ {|f("hello")|}) in
   Alcotest.(check string) "printed"
-    {|Seq(StringLit("hello"), Node("a", [], []))|}
+    {|Seq(StringLit("hello"), Var("a"))|}
     (Printer.to_string ast)
 
 let test_parse_string_lit_alone () =
@@ -1169,65 +1114,89 @@ let test_parse_string_lit_in_par () =
   | _ -> Alcotest.fail "expected Par(StringLit, StringLit)"
 
 let test_reduce_no_lambda () =
-  (* Plain Arrow pipeline passes through unchanged *)
   let ast = reduce_ok "a >>> b" in
   Alcotest.(check string) "printed"
-    "Seq(Node(\"a\", [], []), Node(\"b\", [], []))"
+    {|Seq(Var("a"), Var("b"))|}
     (Printer.to_string ast)
 
 let test_reduce_let_simple () =
   let ast = reduce_ok "let f = a >>> b\nf" in
   Alcotest.(check string) "printed"
-    "Seq(Node(\"a\", [], []), Node(\"b\", [], []))"
+    {|Seq(Var("a"), Var("b"))|}
     (Printer.to_string ast)
 
 let test_reduce_lambda_apply () =
   let ast = reduce_ok "let f = \\ x -> x >>> a\nf(b)" in
   Alcotest.(check string) "printed"
-    "Seq(Node(\"b\", [], []), Node(\"a\", [], []))"
+    {|Seq(Var("b"), Var("a"))|}
     (Printer.to_string ast)
 
 let test_reduce_lambda_multi_param () =
   let ast = reduce_ok "let f = \\ x, y -> x >>> y\nf(a, b)" in
   Alcotest.(check string) "printed"
-    "Seq(Node(\"a\", [], []), Node(\"b\", [], []))"
+    {|Seq(Var("a"), Var("b"))|}
     (Printer.to_string ast)
 
 let test_reduce_let_chain () =
   let ast = reduce_ok "let a = x\nlet b = a\nb" in
   Alcotest.(check string) "printed"
-    "Node(\"x\", [], [])"
+    {|Var("x")|}
     (Printer.to_string ast)
 
 let test_reduce_nested_application () =
   let ast = reduce_ok "let f = \\ x -> x\nlet g = \\ y -> f(y)\ng(a)" in
   Alcotest.(check string) "printed"
-    "Node(\"a\", [], [])"
+    {|Var("a")|}
     (Printer.to_string ast)
 
 let test_reduce_free_variable () =
-  (* y is not in scope, so it's parsed as Node, not Var — no error *)
+  (* y is free in the lambda body — survives as Var *)
   let ast = reduce_ok "let f = \\ x -> y\nf(a)" in
   Alcotest.(check string) "printed"
-    "Node(\"y\", [], [])"
+    {|Var("y")|}
     (Printer.to_string ast)
 
 let test_reduce_arity_mismatch () =
   reduce_fails "let f = \\ x, y -> x\nf(a)"
 
-let test_reduce_non_function_apply () =
-  reduce_fails "let f = a\nf(b)"
+let test_reduce_free_var_apply () =
+  (* Applying a bound variable that resolves to a free Var now survives *)
+  let ast = reduce_ok "let f = a\nf(b)" in
+  Alcotest.(check string) "printed"
+    {|App(Var("a"), [Positional(Var("b"))])|}
+    (Printer.to_string ast)
+
+let test_reduce_curried_free_var_apply () =
+  (* Curried application on free var: let g = f(b) then g(c) *)
+  let ast = reduce_ok "let g = f(b)\ng(c)" in
+  Alcotest.(check string) "printed"
+    {|App(App(Var("f"), [Positional(Var("b"))]), [Positional(Var("c"))])|}
+    (Printer.to_string ast)
+
+let test_reduce_curried_free_var_lambda_rejected () =
+  (* Lambda hidden inside curried free var app must be caught by verify *)
+  match reduce_ok "let g = f(\\ x -> x)\ng(a)" with
+  | _ -> Alcotest.fail "expected reduce error (lambda not fully applied)"
+  | exception Reducer.Reduce_error (_, msg) ->
+    Alcotest.(check bool) "mentions lambda" true (contains msg "lambda")
+
+let test_reduce_deep_curried_free_var_apply () =
+  (* Depth-3 curried free var: let h = g(d) where g = f(b) *)
+  let ast = reduce_ok "let g = f(b)\nlet h = g(c)\nh(d)" in
+  Alcotest.(check string) "printed"
+    {|App(App(App(Var("f"), [Positional(Var("b"))]), [Positional(Var("c"))]), [Positional(Var("d"))])|}
+    (Printer.to_string ast)
 
 let test_reduce_string_lit_passthrough () =
   let ast = reduce_ok {|"hello" >>> a|} in
   Alcotest.(check string) "printed"
-    {|Seq(StringLit("hello"), Node("a", [], []))|}
+    {|Seq(StringLit("hello"), Var("a"))|}
     (Printer.to_string ast)
 
 let test_reduce_string_lit_as_arg () =
   let ast = reduce_ok ({|let f = \x -> x >>> a|} ^ "\n" ^ {|f("hello")|}) in
   Alcotest.(check string) "printed"
-    {|Seq(StringLit("hello"), Node("a", [], []))|}
+    {|Seq(StringLit("hello"), Var("a"))|}
     (Printer.to_string ast)
 
 let test_reduce_string_lit_apply_error () =
@@ -1277,7 +1246,7 @@ let test_parse_let_with_lambda () =
   | _ -> Alcotest.fail "expected Let"
 
 let test_parse_let_scope () =
-  (* b references a from earlier let *)
+  (* Without scope tracking, a in b's value is parsed as Var "a" *)
   let tokens = Lexer.tokenize "let a = x\nlet b = a\nb" in
   let ast = Parser.parse_program tokens in
   match ast.desc with
@@ -1291,7 +1260,6 @@ let test_parse_let_scope () =
   | _ -> Alcotest.fail "expected Let"
 
 let test_parse_no_let_is_program () =
-  (* Backward compat: no let bindings → same as before *)
   let tokens = Lexer.tokenize "a >>> b" in
   let ast = Parser.parse_program tokens in
   match ast.desc with
@@ -1356,7 +1324,6 @@ let test_lex_equals () =
   | _ -> Alcotest.fail "expected EQUALS token"
 
 let test_lex_let_in_ident () =
-  (* "letter" should still lex as IDENT, not LET + "ter" *)
   let tokens = Lexer.tokenize "letter" in
   match (List.hd tokens).token with
   | Lexer.IDENT "letter" -> ()
@@ -1473,7 +1440,7 @@ let parser_tests =
   ; "node question", `Quick, test_parse_node_question
   ; "bare node question", `Quick, test_parse_bare_node_question
   ; "question with space", `Quick, test_parse_question_with_space
-; "question in loop", `Quick, test_parse_question_in_loop
+  ; "question in loop", `Quick, test_parse_question_in_loop
   ; "question in group", `Quick, test_parse_question_in_group
   ; "comment on node question", `Quick, test_parse_comment_on_node_question
   ; "comment on string question", `Quick, test_parse_comment_on_string_question
@@ -1543,25 +1510,25 @@ let checker_tests =
 let test_print_type_ann () =
   let ast = parse_ok "fetch :: URL -> HTML" in
   Alcotest.(check string) "printed"
-    "TypeAnn(Node(\"fetch\", [], []), \"URL\", \"HTML\")"
+    {|TypeAnn(Var("fetch"), "URL", "HTML")|}
     (Printer.to_string ast)
 
 let test_print_type_ann_in_seq () =
   let ast = parse_ok "a :: X -> Y >>> b :: Y -> Z" in
   Alcotest.(check string) "printed"
-    "Seq(TypeAnn(Node(\"a\", [], []), \"X\", \"Y\"), TypeAnn(Node(\"b\", [], []), \"Y\", \"Z\"))"
+    {|Seq(TypeAnn(Var("a"), "X", "Y"), TypeAnn(Var("b"), "Y", "Z"))|}
     (Printer.to_string ast)
 
 let test_print_no_type_ann () =
   let ast = parse_ok "a >>> b" in
   Alcotest.(check string) "printed"
-    "Seq(Node(\"a\", [], []), Node(\"b\", [], []))"
+    {|Seq(Var("a"), Var("b"))|}
     (Printer.to_string ast)
 
 let test_print_lambda () =
   let ast = parse_ok "\\ x -> a" in
   Alcotest.(check string) "printed"
-    "Lambda([\"x\"], Node(\"a\", [], []))"
+    {|Lambda(["x"], Var("a"))|}
     (Printer.to_string ast)
 
 let test_print_var () =
@@ -1579,7 +1546,7 @@ let test_print_app () =
   match ast.desc with
   | Let (_, _, body) ->
     Alcotest.(check string) "printed"
-      "App(Var(\"f\"), [Node(\"a\", [], [])])"
+      {|App(Var("f"), [Positional(Var("a"))])|}
       (Printer.to_string body)
   | _ -> Alcotest.fail "expected Let"
 
@@ -1587,7 +1554,7 @@ let test_print_let () =
   let tokens = Lexer.tokenize "let f = a\nf" in
   let ast = Parser.parse_program tokens in
   Alcotest.(check string) "printed"
-    "Let(\"f\", Node(\"a\", [], []), Var(\"f\"))"
+    {|Let("f", Var("a"), Var("f"))|}
     (Printer.to_string ast)
 
 let printer_tests =
@@ -1601,7 +1568,7 @@ let printer_tests =
   ; "number arg", `Quick, test_print_number_arg
   ; "negative number", `Quick, test_print_negative_number
   ; "number with unit", `Quick, test_print_number_with_unit
-  ; "comment", `Quick, test_print_comment
+  ; "comment dropped", `Quick, test_print_comment
   ; "question string", `Quick, test_print_question_string
   ; "question node", `Quick, test_print_question_node
   ; "string lit", `Quick, test_print_string_lit
@@ -1621,7 +1588,7 @@ let test_integration_let_and_check () =
   let ast = Parser.parse_program tokens in
   let reduced = Reducer.reduce ast in
   let result = Checker.check reduced in
-  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
+  Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
 
 let test_integration_backward_compat () =
   let input = "a >>> b *** c" in
@@ -1629,7 +1596,7 @@ let test_integration_backward_compat () =
   let ast = Parser.parse_program tokens in
   let reduced = Reducer.reduce ast in
   let result = Checker.check reduced in
-  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
+  Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
 
 let integration_tests =
   [ "let and check", `Quick, test_integration_let_and_check
@@ -1643,9 +1610,12 @@ let reducer_tests =
   ; "lambda multi param", `Quick, test_reduce_lambda_multi_param
   ; "let chain", `Quick, test_reduce_let_chain
   ; "nested application", `Quick, test_reduce_nested_application
-  ; "free variable as node", `Quick, test_reduce_free_variable
+  ; "free variable as var", `Quick, test_reduce_free_variable
   ; "arity mismatch error", `Quick, test_reduce_arity_mismatch
-  ; "non-function apply error", `Quick, test_reduce_non_function_apply
+  ; "free var apply survives", `Quick, test_reduce_free_var_apply
+  ; "curried free var apply", `Quick, test_reduce_curried_free_var_apply
+  ; "curried free var lambda rejected", `Quick, test_reduce_curried_free_var_lambda_rejected
+  ; "deep curried free var apply", `Quick, test_reduce_deep_curried_free_var_apply
   ; "string lit passthrough", `Quick, test_reduce_string_lit_passthrough
   ; "string lit as arg", `Quick, test_reduce_string_lit_as_arg
   ; "string lit apply error", `Quick, test_reduce_string_lit_apply_error
@@ -1655,14 +1625,14 @@ let reducer_tests =
 let test_reduce_lambda_with_type_ann () =
   let ast = reduce_ok "let f = \\ x -> x :: A -> B\nf(a)" in
   Alcotest.(check string) "printed"
-    "TypeAnn(Node(\"a\", [], []), \"A\", \"B\")"
+    {|TypeAnn(Var("a"), "A", "B")|}
     (Printer.to_string ast)
 
 (* Lambda with Arrow operators in args *)
 let test_reduce_lambda_complex_args () =
   let ast = reduce_ok "let f = \\ x, y -> x >>> y\nf(a >>> b, c)" in
   Alcotest.(check string) "printed"
-    "Seq(Seq(Node(\"a\", [], []), Node(\"b\", [], [])), Node(\"c\", [], []))"
+    {|Seq(Seq(Var("a"), Var("b")), Var("c"))|}
     (Printer.to_string ast)
 
 (* Unicode in lambda params *)
@@ -1692,9 +1662,12 @@ let test_parse_lambda_no_params () =
   | _ -> Alcotest.fail "expected parse error"
   | exception Parser.Parse_error _ -> ()
 
-(* Positional args on undefined name — reduce error *)
+(* Positional args on undefined name — now survives reduction as free Var *)
 let test_reduce_positional_on_undefined () =
-  reduce_fails "f(a, b)"
+  let ast = reduce_ok "f(a, b)" in
+  Alcotest.(check string) "printed"
+    {|App(Var("f"), [Positional(Var("a")), Positional(Var("b"))])|}
+    (Printer.to_string ast)
 
 (* let keyword can no longer be used as a node name *)
 let test_parse_let_keyword_not_node () =
@@ -1716,26 +1689,103 @@ let test_parse_lambda_duplicate_params () =
   | exception Parser.Parse_error (_, msg) ->
     Alcotest.(check bool) "mentions duplicate" true (contains msg "duplicate")
 
-(* Empty positional args f() — should be parse error, no unit value *)
-let test_parse_empty_positional_args () =
-  match Lexer.tokenize "let f = \\ x -> x\nf()" |> Parser.parse_program with
-  | _ -> Alcotest.fail "expected parse error (empty positional args)"
-  | exception Parser.Parse_error (_, msg) ->
-    Alcotest.(check bool) "mentions empty application" true (contains msg "positional argument")
+(* Empty application f() — now parses OK, but arity error at reduce *)
+let test_reduce_empty_application_arity () =
+  match reduce_ok "let f = \\ x -> x\nf()" with
+  | _ -> Alcotest.fail "expected reduce error (arity mismatch)"
+  | exception Reducer.Reduce_error (_, msg) ->
+    Alcotest.(check bool) "mentions arity" true (contains msg "arity")
 
-(* Trailing comma in positional args — should be parse error *)
-let test_parse_trailing_comma_positional () =
-  match Lexer.tokenize "let f = \\ x -> x\nf(a,)" |> Parser.parse_program with
+(* Trailing comma in args — should be parse error *)
+let test_parse_trailing_comma_args () =
+  match Lexer.tokenize "f(a,)" |> Parser.parse_program with
   | _ -> Alcotest.fail "expected parse error (trailing comma)"
   | exception Parser.Parse_error (_, msg) ->
     Alcotest.(check bool) "mentions trailing comma" true (contains msg "trailing comma")
 
 let test_reduce_capture_avoiding () =
-  (* Nested application where capture could happen without alpha-renaming *)
   let ast = reduce_ok "let apply = \\ f, x -> f(x)\nlet id = \\ x -> x\napply(id, a)" in
   Alcotest.(check string) "printed"
-    "Node(\"a\", [], [])"
+    {|Var("a")|}
     (Printer.to_string ast)
+
+(* === New feature tests: mixed args === *)
+
+let test_parse_mixed_args () =
+  let ast = parse_ok {|push(remote: origin, v)|} in
+  match ast.desc with
+  | App ({ desc = Var "push"; _ }, [Named { key = "remote"; _ }; Positional { desc = Var "v"; _ }]) -> ()
+  | _ -> Alcotest.fail "expected App(Var push, [Named, Positional])"
+
+let test_parse_positional_then_named () =
+  let ast = parse_ok {|deploy(stage, env: production)|} in
+  match ast.desc with
+  | App ({ desc = Var "deploy"; _ }, [Positional { desc = Var "stage"; _ }; Named { key = "env"; value = Ident "production" }]) -> ()
+  | _ -> Alcotest.fail "expected App with positional then named"
+
+let test_parse_multiple_positional () =
+  let ast = parse_ok {|f(a >>> b, c)|} in
+  match ast.desc with
+  | App ({ desc = Var "f"; _ }, [Positional { desc = Seq _; _ }; Positional { desc = Var "c"; _ }]) -> ()
+  | _ -> Alcotest.fail "expected App with two positional args"
+
+let test_parse_app_question () =
+  let ast = parse_ok {|check(strict: true)?|} in
+  match ast.desc with
+  | Question { desc = App ({ desc = Var "check"; _ }, [Named _]); _ } -> ()
+  | _ -> Alcotest.fail "expected Question(App(...))"
+
+let test_parse_var_question () =
+  let ast = parse_ok {|ready?|} in
+  match ast.desc with
+  | Question { desc = Var "ready"; _ } -> ()
+  | _ -> Alcotest.fail "expected Question(Var)"
+
+let test_parse_empty_parens_app () =
+  match desc_of "noop()" with
+  | App ({ desc = Var "noop"; _ }, []) -> ()
+  | _ -> Alcotest.fail "expected App(Var noop, [])"
+
+let test_reduce_mixed_args () =
+  let ast = reduce_ok "let v = a >>> b\npush(remote: origin, v)" in
+  Alcotest.(check string) "printed"
+    {|App(Var("push"), [Named(remote: Ident("origin")), Positional(Seq(Var("a"), Var("b")))])|}
+    (Printer.to_string ast)
+
+let test_reduce_named_args_on_lambda_error () =
+  reduce_fails "let f = \\ x -> x\nf(key: val)"
+
+let test_reduce_free_var_with_named () =
+  let ast = reduce_ok {|push(remote: origin)|} in
+  Alcotest.(check string) "printed"
+    {|App(Var("push"), [Named(remote: Ident("origin"))])|}
+    (Printer.to_string ast)
+
+let test_reduce_free_var_bare () =
+  let ast = reduce_ok "a >>> b" in
+  Alcotest.(check string) "printed"
+    {|Seq(Var("a"), Var("b"))|}
+    (Printer.to_string ast)
+
+let test_check_mixed_args_no_error () =
+  let _ = check_ok "let v = a >>> b\npush(remote: origin, v)" in
+  ()
+
+let test_check_question_in_positional_arg () =
+  let warnings = check_ok_with_warnings "push(remote: origin, inner?)" in
+  Alcotest.(check int) "1 warning from isolated arg" 1 (List.length warnings)
+
+let test_check_app_question_with_alt () =
+  let _ = check_ok "check(strict: true)? >>> (pass ||| fail)" in
+  ()
+
+let test_integration_mixed_args () =
+  let input = "let v = some_pipeline\npush(remote: origin, v)" in
+  let tokens = Lexer.tokenize input in
+  let ast = Parser.parse_program tokens in
+  let reduced = Reducer.reduce ast in
+  let result = Checker.check reduced in
+  Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
 
 let edge_case_tests =
   [ "lambda with type ann", `Quick, test_reduce_lambda_with_type_ann
@@ -1744,13 +1794,30 @@ let edge_case_tests =
   ; "let unicode name", `Quick, test_parse_let_unicode_name
   ; "let error no body", `Quick, test_parse_let_error_no_body
   ; "lambda no params error", `Quick, test_parse_lambda_no_params
-  ; "positional on undefined", `Quick, test_reduce_positional_on_undefined
+  ; "positional on undefined survives", `Quick, test_reduce_positional_on_undefined
   ; "let keyword not node", `Quick, test_parse_let_keyword_not_node
   ; "lambda with comment", `Quick, test_parse_lambda_with_comment
   ; "lambda duplicate params", `Quick, test_parse_lambda_duplicate_params
   ; "capture avoiding substitution", `Quick, test_reduce_capture_avoiding
-  ; "empty positional args", `Quick, test_parse_empty_positional_args
-  ; "trailing comma positional", `Quick, test_parse_trailing_comma_positional
+  ; "empty application arity", `Quick, test_reduce_empty_application_arity
+  ; "trailing comma args", `Quick, test_parse_trailing_comma_args
+  ]
+
+let mixed_arg_tests =
+  [ "mixed named and positional", `Quick, test_parse_mixed_args
+  ; "positional then named", `Quick, test_parse_positional_then_named
+  ; "multiple positional", `Quick, test_parse_multiple_positional
+  ; "app question", `Quick, test_parse_app_question
+  ; "var question", `Quick, test_parse_var_question
+  ; "empty parens app", `Quick, test_parse_empty_parens_app
+  ; "reduce mixed args", `Quick, test_reduce_mixed_args
+  ; "named args on lambda error", `Quick, test_reduce_named_args_on_lambda_error
+  ; "free var with named", `Quick, test_reduce_free_var_with_named
+  ; "free var bare", `Quick, test_reduce_free_var_bare
+  ; "check mixed args no error", `Quick, test_check_mixed_args_no_error
+  ; "check question in positional arg", `Quick, test_check_question_in_positional_arg
+  ; "check app question with alt", `Quick, test_check_app_question_with_alt
+  ; "integration mixed args", `Quick, test_integration_mixed_args
   ]
 
 let () =
@@ -1762,4 +1829,5 @@ let () =
     ; "Reducer", reducer_tests
     ; "Integration", integration_tests
     ; "Edge cases", edge_case_tests
+    ; "Mixed args", mixed_arg_tests
     ]
