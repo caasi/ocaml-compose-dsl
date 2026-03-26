@@ -627,8 +627,8 @@ let test_parse_error_unclosed_paren () =
       let rec scan i = i + len <= String.length s && (String.sub s i len = sub || scan (i + 1)) in
       scan 0
     in
-    if not (contains msg "'" || contains msg "expected") then
-      Alcotest.fail ("unexpected parse error message: " ^ msg)
+    if not (contains msg ")") then
+      Alcotest.fail ("expected error mentioning ')': " ^ msg)
 
 let test_parse_error_unclosed_group () =
   parse_fails "(a >>> b"

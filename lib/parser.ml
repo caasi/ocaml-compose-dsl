@@ -240,12 +240,16 @@ and parse_term st =
            let t_check = current st in
            match t_check.token with
            | Lexer.RPAREN -> ()
+           | Lexer.EOF ->
+             raise (Parse_error (t_check.loc.start, "expected expression or ')' in argument list"))
            | _ ->
              args := parse_seq_expr st :: !args;
              let t_check2 = current st in
              (match t_check2.token with
               | Lexer.COMMA -> advance st; read_positional ()
               | Lexer.RPAREN -> ()
+              | Lexer.EOF ->
+                raise (Parse_error (t_check2.loc.start, "expected ')' to close argument list"))
               | _ -> raise (Parse_error (t_check2.loc.start, "expected ',' or ')'")))
          in
          read_positional ();
@@ -288,7 +292,7 @@ and parse_term st =
     let start = t.loc.start in
     advance st;
     parse_lambda st start
-  | _ -> raise (Parse_error (t.loc.start, "expected node, string with '?', '(' or 'loop'"))
+  | _ -> raise (Parse_error (t.loc.start, "expected node, string with '?', '(', 'loop', or '\\' (lambda)"))
 
 let parse_program tokens =
   let st = make tokens in
