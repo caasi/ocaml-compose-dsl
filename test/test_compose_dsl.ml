@@ -1507,6 +1507,38 @@ let test_print_no_type_ann () =
     "Seq(Node(\"a\", [], []), Node(\"b\", [], []))"
     (Printer.to_string ast)
 
+let test_print_lambda () =
+  let ast = parse_ok "\\ x -> a" in
+  Alcotest.(check string) "printed"
+    "Lambda(x, Node(\"a\", [], []))"
+    (Printer.to_string ast)
+
+let test_print_var () =
+  let ast = parse_ok "\\ x -> x" in
+  match ast.desc with
+  | Lambda (_, body) ->
+    Alcotest.(check string) "printed"
+      "Var(\"x\")"
+      (Printer.to_string body)
+  | _ -> Alcotest.fail "expected Lambda"
+
+let test_print_app () =
+  let tokens = Lexer.tokenize "let f = \\ x -> x\nf(a)" in
+  let ast = Parser.parse_program tokens in
+  match ast.desc with
+  | Let (_, _, body) ->
+    let s = Printer.to_string body in
+    Alcotest.(check bool) "starts with App" true
+      (String.length s >= 3 && String.sub s 0 3 = "App")
+  | _ -> Alcotest.fail "expected Let"
+
+let test_print_let () =
+  let tokens = Lexer.tokenize "let f = a\nf" in
+  let ast = Parser.parse_program tokens in
+  let s = Printer.to_string ast in
+  Alcotest.(check bool) "starts with Let" true
+    (String.length s >= 3 && String.sub s 0 3 = "Let")
+
 let printer_tests =
   [ "simple node", `Quick, test_print_simple_node
   ; "node with args", `Quick, test_print_node_with_args
@@ -1524,6 +1556,10 @@ let printer_tests =
   ; "type annotation", `Quick, test_print_type_ann
   ; "type annotation in seq", `Quick, test_print_type_ann_in_seq
   ; "no type annotation unchanged", `Quick, test_print_no_type_ann
+  ; "lambda", `Quick, test_print_lambda
+  ; "var", `Quick, test_print_var
+  ; "app", `Quick, test_print_app
+  ; "let", `Quick, test_print_let
   ]
 
 (* Integration: full pipeline parse_program >>> reduce >>> check *)
