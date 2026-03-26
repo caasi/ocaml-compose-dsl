@@ -93,7 +93,7 @@ Comments can annotate the concrete types when the structure isn't obvious from n
 
 ## Type Annotations
 
-Nodes and terms can carry optional type annotations using `::`:
+Terms can carry optional type annotations using `::`:
 
 ```
 fetch(url: "https://example.com") :: URL -> HTML
@@ -205,7 +205,7 @@ ocaml-compose-dsl --help
 ocaml-compose-dsl --version
 ```
 
-Exits `0` with AST output in a constructor-style format (e.g. `TypeAnn(Node(...), "Input", "Output")` for annotated terms) on valid input, `1` with error messages on structural problems. Well-formedness warnings (e.g. `?` without matching `|||`) are printed to stderr without affecting the exit code.
+Exits `0` with AST output in a constructor-style format (e.g. `TypeAnn(Var("name"), "Input", "Output")` for annotated terms) on valid input, `1` with error messages on parse or reduction errors. Well-formedness warnings (e.g. `?` without matching `|||`) are printed to stderr without affecting the exit code.
 
 ## Literate Arrow Documents
 
