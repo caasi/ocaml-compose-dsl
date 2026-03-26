@@ -1129,6 +1129,67 @@ let test_parse_type_ann_missing_output_error () =
      in
      Alcotest.(check bool) "error mentions ->" true (contains msg "->"))
 
+(* Helper that parses with parse_program and reduces *)
+let reduce_ok input =
+  let tokens = Lexer.tokenize input in
+  let ast = Parser.parse_program tokens in
+  Reducer.reduce ast
+
+let reduce_fails input =
+  match reduce_ok input with
+  | _ -> Alcotest.fail "expected reduce error"
+  | exception Reducer.Reduce_error _ -> ()
+
+let test_reduce_no_lambda () =
+  (* Plain Arrow pipeline passes through unchanged *)
+  let ast = reduce_ok "a >>> b" in
+  Alcotest.(check string) "printed"
+    "Seq(Node(\"a\", [], []), Node(\"b\", [], []))"
+    (Printer.to_string ast)
+
+let test_reduce_let_simple () =
+  let ast = reduce_ok "let f = a >>> b\nf" in
+  Alcotest.(check string) "printed"
+    "Seq(Node(\"a\", [], []), Node(\"b\", [], []))"
+    (Printer.to_string ast)
+
+let test_reduce_lambda_apply () =
+  let ast = reduce_ok "let f = \\ x -> x >>> a\nf(b)" in
+  Alcotest.(check string) "printed"
+    "Seq(Node(\"b\", [], []), Node(\"a\", [], []))"
+    (Printer.to_string ast)
+
+let test_reduce_lambda_multi_param () =
+  let ast = reduce_ok "let f = \\ x, y -> x >>> y\nf(a, b)" in
+  Alcotest.(check string) "printed"
+    "Seq(Node(\"a\", [], []), Node(\"b\", [], []))"
+    (Printer.to_string ast)
+
+let test_reduce_let_chain () =
+  let ast = reduce_ok "let a = x\nlet b = a\nb" in
+  Alcotest.(check string) "printed"
+    "Node(\"x\", [], [])"
+    (Printer.to_string ast)
+
+let test_reduce_nested_application () =
+  let ast = reduce_ok "let f = \\ x -> x\nlet g = \\ y -> f(y)\ng(a)" in
+  Alcotest.(check string) "printed"
+    "Node(\"a\", [], [])"
+    (Printer.to_string ast)
+
+let test_reduce_free_variable () =
+  (* y is not in scope, so it's parsed as Node, not Var — no error *)
+  let ast = reduce_ok "let f = \\ x -> y\nf(a)" in
+  Alcotest.(check string) "printed"
+    "Node(\"y\", [], [])"
+    (Printer.to_string ast)
+
+let test_reduce_arity_mismatch () =
+  reduce_fails "let f = \\ x, y -> x\nf(a)"
+
+let test_reduce_non_function_apply () =
+  reduce_fails "let f = a\nf(b)"
+
 let test_parse_let_simple () =
   let tokens = Lexer.tokenize "let f = a >>> b\nf" in
   let ast = Parser.parse_program tokens in
@@ -1465,10 +1526,23 @@ let printer_tests =
   ; "no type annotation unchanged", `Quick, test_print_no_type_ann
   ]
 
+let reducer_tests =
+  [ "no lambda passthrough", `Quick, test_reduce_no_lambda
+  ; "let simple", `Quick, test_reduce_let_simple
+  ; "lambda apply", `Quick, test_reduce_lambda_apply
+  ; "lambda multi param", `Quick, test_reduce_lambda_multi_param
+  ; "let chain", `Quick, test_reduce_let_chain
+  ; "nested application", `Quick, test_reduce_nested_application
+  ; "free variable error", `Quick, test_reduce_free_variable
+  ; "arity mismatch error", `Quick, test_reduce_arity_mismatch
+  ; "non-function apply error", `Quick, test_reduce_non_function_apply
+  ]
+
 let () =
   Alcotest.run "compose-dsl"
     [ "Lexer", lexer_tests
     ; "Parser", parser_tests
     ; "Checker", checker_tests
     ; "Printer", printer_tests
+    ; "Reducer", reducer_tests
     ]
