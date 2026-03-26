@@ -1,6 +1,6 @@
 # String Literal as First-Class Expression — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make string literals valid expressions so they can be used as positional arguments, in pipelines, and anywhere a `term` can appear.
 
@@ -19,7 +19,7 @@
 
 This task will break compilation across the entire project. That's expected — subsequent tasks fix each module one by one.
 
-- [ ] **Step 1: Remove `question_term` type and update `expr_desc`**
+- [x] **Step 1: Remove `question_term` type and update `expr_desc`**
 
 In `lib/ast.ml`, delete the `question_term` type (lines 14–16) and modify `expr_desc`:
 
@@ -56,12 +56,12 @@ and expr_desc =
   | Let of string * expr * expr      (** [let x = expr] followed by rest of program *)
 ```
 
-- [ ] **Step 2: Verify the project does NOT compile**
+- [x] **Step 2: Verify the project does NOT compile**
 
 Run: `dune build 2>&1 | head -5`
 Expected: Compilation errors in printer.ml, parser.ml, reducer.ml, checker.ml, and tests (missing `question_term`, exhaustiveness warnings for `StringLit`).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add lib/ast.ml
@@ -76,7 +76,7 @@ git commit -m "feat(ast): add StringLit, remove question_term, change Question t
 - Modify: `lib/printer.ml`
 - Test: `test/test_compose_dsl.ml` (printer tests)
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Add to `test/test_compose_dsl.ml`, near the existing `test_print_question_string` / `test_print_question_node`:
 
@@ -94,7 +94,7 @@ Register in `printer_tests`:
   ; "string lit", `Quick, test_print_string_lit
 ```
 
-- [ ] **Step 2: Update printer.ml**
+- [x] **Step 2: Update printer.ml**
 
 Delete `question_term_to_string` entirely. In `to_string`, replace:
 
@@ -109,7 +109,7 @@ with:
     | Question inner -> Printf.sprintf "Question(%s)" (to_string inner)
 ```
 
-- [ ] **Step 3: Update existing printer test expectations**
+- [x] **Step 3: Update existing printer test expectations**
 
 `test_print_question_string` — change expected from:
 ```
@@ -129,12 +129,12 @@ to:
 Seq(Question(Node("validate", [method: Ident("test_suite")], [])), ...)
 ```
 
-- [ ] **Step 4: Verify printer.ml compiles (other modules still broken)**
+- [x] **Step 4: Verify printer.ml compiles (other modules still broken)**
 
 Run: `dune build 2>&1 | grep "Error" | grep -v "printer" | head -5`
 Expected: Errors in parser.ml, reducer.ml, checker.ml — but NOT printer.ml.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/printer.ml test/test_compose_dsl.ml
@@ -149,7 +149,7 @@ git commit -m "feat(printer): handle StringLit and Question(expr)"
 - Modify: `lib/reducer.ml`
 - Test: `test/test_compose_dsl.ml` (reducer tests)
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Add to test file near existing reducer tests:
 
@@ -179,7 +179,7 @@ Register in `reducer_tests`:
   ; "string lit apply error", `Quick, test_reduce_string_lit_apply_error
 ```
 
-- [ ] **Step 2: Update all pattern matches in reducer.ml**
+- [x] **Step 2: Update all pattern matches in reducer.ml**
 
 **`free_vars`** — change:
 ```ocaml
@@ -238,12 +238,12 @@ to:
   | Question inner -> verify inner
 ```
 
-- [ ] **Step 3: Verify reducer.ml compiles**
+- [x] **Step 3: Verify reducer.ml compiles**
 
 Run: `dune build 2>&1 | grep "Error" | grep -v "reducer\|printer" | head -5`
 Expected: Errors only in parser.ml, checker.ml, tests.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/reducer.ml test/test_compose_dsl.ml
@@ -258,7 +258,7 @@ git commit -m "feat(reducer): add StringLit passthrough, recurse into Question(e
 - Modify: `lib/checker.ml`
 - Test: `test/test_compose_dsl.ml` (checker tests)
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```ocaml
 let test_check_string_lit_no_error () =
@@ -276,7 +276,7 @@ Register in `checker_tests`:
   ; "string lit question with alt", `Quick, test_check_string_lit_question_with_alt
 ```
 
-- [ ] **Step 2: Update checker.ml**
+- [x] **Step 2: Update checker.ml**
 
 **`normalize`** — change:
 ```ocaml
@@ -318,12 +318,12 @@ to:
     | Question _ -> ()
 ```
 
-- [ ] **Step 3: Verify checker.ml compiles**
+- [x] **Step 3: Verify checker.ml compiles**
 
 Run: `dune build 2>&1 | grep "Error" | grep -v "checker\|reducer\|printer" | head -5`
 Expected: Errors only in parser.ml and tests.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/checker.ml test/test_compose_dsl.ml
@@ -338,7 +338,7 @@ git commit -m "feat(checker): add StringLit leaf handling, update Question patte
 - Modify: `lib/parser.ml`
 - Test: `test/test_compose_dsl.ml` (parser tests)
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```ocaml
 let test_parse_string_lit () =
@@ -386,7 +386,7 @@ Register in `parser_tests`:
   ; "string lit in par", `Quick, test_parse_string_lit_in_par
 ```
 
-- [ ] **Step 2: Update `parse_term` STRING branch**
+- [x] **Step 2: Update `parse_term` STRING branch**
 
 Replace lines 195–203 in `lib/parser.ml`:
 
@@ -418,7 +418,7 @@ with:
      | _ -> str_expr)
 ```
 
-- [ ] **Step 3: Update IDENT `?` path — `QNode` to `Question(Node expr)`**
+- [x] **Step 3: Update IDENT `?` path — `QNode` to `Question(Node expr)`**
 
 In `parse_term`, the named-args branch (around line 233) has:
 
@@ -446,7 +446,7 @@ Replace with:
             mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Question node_expr)
 ```
 
-- [ ] **Step 4: Update `attach_comments_right`**
+- [x] **Step 4: Update `attach_comments_right`**
 
 Replace:
 ```ocaml
@@ -463,7 +463,7 @@ with:
 
 This recurses into the inner expression. For `Question(Node n)`, comments will be attached to the node. For `Question(StringLit _)`, comments are dropped (same as old `QString` behavior).
 
-- [ ] **Step 5: Update error message**
+- [x] **Step 5: Update error message**
 
 Replace line 306:
 ```ocaml
@@ -476,7 +476,7 @@ with:
   | _ -> raise (Parse_error (t.loc.start, "expected node, string, '(', 'loop', or '\\' (lambda)"))
 ```
 
-- [ ] **Step 6: Update existing test expectations**
+- [x] **Step 6: Update existing test expectations**
 
 Tests that match `Ast.Question (Ast.QString s)` need to change to `Ast.Question { desc = Ast.StringLit s; _ }`:
 
@@ -523,12 +523,12 @@ Register replacements in `parser_tests`:
   ; "bare string alone", `Quick, test_parse_bare_string_alone
 ```
 
-- [ ] **Step 7: Run all tests**
+- [x] **Step 7: Run all tests**
 
 Run: `dune test`
 Expected: All tests pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add lib/parser.ml test/test_compose_dsl.ml
@@ -543,7 +543,7 @@ git commit -m "feat(parser): accept bare string literals as terms, update Questi
 - Modify: `README.md` (EBNF grammar section)
 - Modify: `CLAUDE.md` (Ast documentation)
 
-- [ ] **Step 1: Update EBNF in README.md**
+- [x] **Step 1: Update EBNF in README.md**
 
 Replace the `term` and `question_term` productions (lines 35–44) with:
 
@@ -559,7 +559,7 @@ term     = node , [ "?" ]                          (* node, optionally question 
 
 Delete the standalone `question_term` production entirely.
 
-- [ ] **Step 2: Update CLAUDE.md Ast documentation**
+- [x] **Step 2: Update CLAUDE.md Ast documentation**
 
 In the `Ast` bullet point, add `StringLit` to the list of ADT variants and update the `Question` description. Change:
 
@@ -569,12 +569,12 @@ to:
 
 > `Ast` — ADT for DSL expressions: Node, StringLit (string literal as expression), Seq (`>>>`), Par (`***`), Fanout (`&&&`), Alt (`|||`), Loop, Group, Question (`?`), Lambda (`\x -> body`), Var (variable reference), App (positional application), Let (`let x = expr`). Lambda, Var, App, and Let are reduced away by the Reducer before structural checking. Values: String, Ident, Number (with optional unit suffix, e.g. `100mg`), List. Question takes an `expr` directly (parser restricts to Node or StringLit).
 
-- [ ] **Step 3: Run full test suite**
+- [x] **Step 3: Run full test suite**
 
 Run: `dune test`
 Expected: All tests pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add README.md CLAUDE.md
@@ -585,12 +585,12 @@ git commit -m "docs: update EBNF grammar and Ast documentation for StringLit"
 
 ### Task 7: Final verification
 
-- [ ] **Step 1: Run full test suite one more time**
+- [x] **Step 1: Run full test suite one more time**
 
 Run: `dune test`
 Expected: All tests pass.
 
-- [ ] **Step 2: Test the CLI with the motivating example**
+- [x] **Step 2: Test the CLI with the motivating example**
 
 Run:
 ```bash
@@ -599,7 +599,7 @@ greet("alice")' | dune exec ocaml-compose-dsl
 ```
 Expected: Success (exit 0), outputs `Seq(Node("hello", [], []), StringLit("alice"))`.
 
-- [ ] **Step 3: Test string question still works via CLI**
+- [x] **Step 3: Test string question still works via CLI**
 
 Run:
 ```bash
@@ -607,7 +607,7 @@ echo '"is this ok"? >>> (yes ||| no)' | dune exec ocaml-compose-dsl
 ```
 Expected: Success, outputs `Seq(Question(StringLit("is this ok")), Group(Alt(Node("yes", [], []), Node("no", [], []))))`.
 
-- [ ] **Step 4: Test bare string alone via CLI**
+- [x] **Step 4: Test bare string alone via CLI**
 
 Run:
 ```bash
