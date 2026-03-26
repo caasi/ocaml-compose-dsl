@@ -1195,6 +1195,21 @@ let test_reduce_arity_mismatch () =
 let test_reduce_non_function_apply () =
   reduce_fails "let f = a\nf(b)"
 
+let test_reduce_string_lit_passthrough () =
+  let ast = reduce_ok {|"hello" >>> a|} in
+  Alcotest.(check string) "printed"
+    {|Seq(StringLit("hello"), Node("a", [], []))|}
+    (Printer.to_string ast)
+
+let test_reduce_string_lit_as_arg () =
+  let ast = reduce_ok ({|let f = \x -> x >>> a|} ^ "\n" ^ {|f("hello")|}) in
+  Alcotest.(check string) "printed"
+    {|Seq(StringLit("hello"), Node("a", [], []))|}
+    (Printer.to_string ast)
+
+let test_reduce_string_lit_apply_error () =
+  reduce_fails ({|let s = "hello"|} ^ "\n" ^ {|s("world")|})
+
 let test_parse_let_simple () =
   let tokens = Lexer.tokenize "let f = a >>> b\nf" in
   let ast = Parser.parse_program tokens in
@@ -1600,6 +1615,9 @@ let reducer_tests =
   ; "free variable as node", `Quick, test_reduce_free_variable
   ; "arity mismatch error", `Quick, test_reduce_arity_mismatch
   ; "non-function apply error", `Quick, test_reduce_non_function_apply
+  ; "string lit passthrough", `Quick, test_reduce_string_lit_passthrough
+  ; "string lit as arg", `Quick, test_reduce_string_lit_as_arg
+  ; "string lit apply error", `Quick, test_reduce_string_lit_apply_error
   ]
 
 (* Lambda with type annotations in body *)
