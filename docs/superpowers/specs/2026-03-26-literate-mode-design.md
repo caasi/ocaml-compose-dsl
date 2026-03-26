@@ -41,13 +41,17 @@ val extract : string -> block list
 (** Scans a Markdown string and returns all ```arrow / ```arr code blocks
     in order of appearance. Only recognizes backtick fences. The opening
     fence line may have up to 3 leading spaces (CommonMark rule). The info
-    string must be exactly "arrow" or "arr", optionally followed by
-    whitespace. *)
+    string, after trimming trailing whitespace, must equal exactly "arrow"
+    or "arr" — prefix matches like "arrows" or "arrow-diagram" do not
+    count. Matching regex: ^[ ]{0,3}`{3}(arrow|arr)\s*$ *)
 
 val combine : block list -> string * (int * int) list
-(** Concatenates all blocks with newline separators. Returns:
-    - The combined source string
-    - An offset table: list of (combined_start, markdown_start), both 1-based.
+(** Concatenates all blocks separated by a single newline ("\n"). Each
+    block's content is included verbatim (trailing newlines preserved).
+    Returns:
+    - The combined source string ("" if block list is empty)
+    - An offset table: list of (combined_start, markdown_start), both 1-based
+      ([] if block list is empty).
     Used to translate line numbers from combined source back to Markdown. *)
 
 val translate_line : (int * int) list -> int -> int
@@ -60,9 +64,10 @@ val translate_line : (int * int) list -> int -> int
 
 The extractor is a line-by-line state machine with two states: `Outside` and `Inside`.
 
-- **Outside → Inside**: A line matching `^ {0,3}``` ``` `` followed by `arrow` or `arr`, optionally followed by whitespace, triggers entry. The content starts on the next line. `markdown_start` records the line after the opening fence (1-based).
-- **Inside → Outside**: A line matching `^ {0,3}``` ``` `` (closing fence) triggers exit. The closing fence line is not included in block content.
+- **Outside → Inside**: A line matching the regex `^[ ]{0,3}`{3}(arrow|arr)\s*$` triggers entry. Only exactly 3 backticks are recognized (not 4+). The content starts on the next line. `markdown_start` records the line after the opening fence (1-based).
+- **Inside → Outside**: A line matching `^[ ]{0,3}`{3}\s*$` (exactly 3 backticks, no info string) triggers exit. The closing fence line is not included in block content.
 - Tilde fences (`~~~`) are ignored.
+- Nested fences with 4+ backticks are not recognized and will be treated as plain content if inside a block, or ignored if outside.
 
 ### Line Number Translation
 
@@ -75,6 +80,14 @@ markdown_line = combined_line - combined_start + markdown_start
 All values are 1-based, matching the Lexer's convention. `translate_line` searches the table from the end to find the entry where `combined_start <= target_line`.
 
 The Lexer internally uses 1-based line/col tracking. This module's interface aligns with that — no base conversion needed at the boundary.
+
+## Library Changes (`lib/compose_dsl.ml`)
+
+Expose the new module so the CLI can access it as `Compose_dsl.Markdown`:
+
+```ocaml
+module Markdown = Markdown
+```
 
 ## CLI Changes (`bin/main.ml`)
 
@@ -105,7 +118,7 @@ in
 
 ### Error Reporting
 
-All `Printf.eprintf` calls for lex errors, parse errors, check errors, and warnings pass the line number through `Compose_dsl.Markdown.translate_line offset_table` before printing.
+All `Printf.eprintf` calls for lex errors, parse errors, check errors, and warnings pass the line number through `Compose_dsl.Markdown.translate_line offset_table` before printing. This covers `pos.line` (lex/parse errors) and `loc.start.line` (checker errors/warnings). The current CLI only prints `start` positions; if `end_` positions are printed in the future, they must also be translated.
 
 Column numbers are unchanged — each code block's content preserves its original columns.
 
