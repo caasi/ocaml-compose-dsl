@@ -1820,6 +1820,95 @@ let mixed_arg_tests =
   ; "integration mixed args", `Quick, test_integration_mixed_args
   ]
 
+(* === Markdown tests === *)
+
+let test_md_extract_single_block () =
+  let input = "# Title\n\n```arrow\na >>> b\n```\n\nSome text\n" in
+  let blocks = Markdown.extract input in
+  Alcotest.(check int) "one block" 1 (List.length blocks);
+  let b = List.hd blocks in
+  Alcotest.(check string) "content" "a >>> b\n" b.Markdown.content;
+  Alcotest.(check int) "markdown_start" 4 b.Markdown.markdown_start
+
+let test_md_extract_multiple_blocks () =
+  let input = "# Title\n\n```arrow\na >>> b\n```\n\nText\n\n```arr\nc >>> d\n```\n" in
+  let blocks = Markdown.extract input in
+  Alcotest.(check int) "two blocks" 2 (List.length blocks);
+  let b1 = List.nth blocks 0 in
+  let b2 = List.nth blocks 1 in
+  Alcotest.(check string) "block1 content" "a >>> b\n" b1.Markdown.content;
+  Alcotest.(check int) "block1 start" 4 b1.Markdown.markdown_start;
+  Alcotest.(check string) "block2 content" "c >>> d\n" b2.Markdown.content;
+  Alcotest.(check int) "block2 start" 10 b2.Markdown.markdown_start
+
+let test_md_extract_no_blocks () =
+  let input = "# Title\n\nJust text\n\n```python\nprint('hi')\n```\n" in
+  let blocks = Markdown.extract input in
+  Alcotest.(check int) "no blocks" 0 (List.length blocks)
+
+let test_md_extract_tilde_ignored () =
+  let input = "~~~arrow\na >>> b\n~~~\n" in
+  let blocks = Markdown.extract input in
+  Alcotest.(check int) "no blocks" 0 (List.length blocks)
+
+let test_md_extract_indented_fence () =
+  let input = "   ```arrow\na >>> b\n   ```\n" in
+  let blocks = Markdown.extract input in
+  Alcotest.(check int) "one block" 1 (List.length blocks);
+  Alcotest.(check string) "content" "a >>> b\n" (List.hd blocks).Markdown.content
+
+let test_md_extract_4space_not_fence () =
+  let input = "    ```arrow\na >>> b\n    ```\n" in
+  let blocks = Markdown.extract input in
+  Alcotest.(check int) "no blocks" 0 (List.length blocks)
+
+let test_md_extract_prefix_rejected () =
+  let input = "```arrows\na >>> b\n```\n```arrow-diagram\nc >>> d\n```\n" in
+  let blocks = Markdown.extract input in
+  Alcotest.(check int) "no blocks" 0 (List.length blocks)
+
+let test_md_extract_4backtick_ignored () =
+  let input = "````arrow\na >>> b\n````\n" in
+  let blocks = Markdown.extract input in
+  Alcotest.(check int) "no blocks" 0 (List.length blocks)
+
+let test_md_extract_trailing_whitespace () =
+  let input = "```arrow  \na >>> b\n```\n" in
+  let blocks = Markdown.extract input in
+  Alcotest.(check int) "one block" 1 (List.length blocks)
+
+let test_md_extract_extra_text_rejected () =
+  let input = "```arrow some-label\na >>> b\n```\n" in
+  let blocks = Markdown.extract input in
+  Alcotest.(check int) "no blocks" 0 (List.length blocks)
+
+let test_md_extract_arr_info_string () =
+  let input = "```arr\na >>> b\n```\n" in
+  let blocks = Markdown.extract input in
+  Alcotest.(check int) "one block" 1 (List.length blocks);
+  Alcotest.(check string) "content" "a >>> b\n" (List.hd blocks).Markdown.content
+
+let test_md_extract_unclosed_block () =
+  let input = "```arrow\na >>> b\n" in
+  let blocks = Markdown.extract input in
+  Alcotest.(check int) "one block" 1 (List.length blocks);
+  Alcotest.(check string) "content" "a >>> b\n" (List.hd blocks).Markdown.content
+
+let markdown_tests =
+  [ "single block", `Quick, test_md_extract_single_block
+  ; "multiple blocks", `Quick, test_md_extract_multiple_blocks
+  ; "no blocks", `Quick, test_md_extract_no_blocks
+  ; "tilde ignored", `Quick, test_md_extract_tilde_ignored
+  ; "indented fence", `Quick, test_md_extract_indented_fence
+  ; "4-space not fence", `Quick, test_md_extract_4space_not_fence
+  ; "prefix rejected", `Quick, test_md_extract_prefix_rejected
+  ; "4+ backtick ignored", `Quick, test_md_extract_4backtick_ignored
+  ; "trailing whitespace", `Quick, test_md_extract_trailing_whitespace
+  ; "extra text rejected", `Quick, test_md_extract_extra_text_rejected
+  ; "arr info string", `Quick, test_md_extract_arr_info_string
+  ; "unclosed block", `Quick, test_md_extract_unclosed_block
+  ]
+
 let () =
   Alcotest.run "compose-dsl"
     [ "Lexer", lexer_tests
@@ -1830,4 +1919,5 @@ let () =
     ; "Integration", integration_tests
     ; "Edge cases", edge_case_tests
     ; "Mixed args", mixed_arg_tests
+    ; "Markdown", markdown_tests
     ]
