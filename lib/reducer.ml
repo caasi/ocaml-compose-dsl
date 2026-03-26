@@ -22,7 +22,11 @@ let rec desugar (e : expr) : expr =
 (* Substitute Var(name) with replacement in expr *)
 let rec substitute (name : string) (replacement : expr) (e : expr) : expr =
   match e.desc with
-  | Var v when v = name -> replacement
+  | Var v when v = name ->
+    (* Preserve type annotation from the original Var expression *)
+    (match e.type_ann with
+     | None -> replacement
+     | Some _ -> { replacement with type_ann = e.type_ann })
   | Var _ -> e
   | Node _ | Question _ -> e
   | Seq (a, b) -> { e with desc = Seq (substitute name replacement a, substitute name replacement b) }

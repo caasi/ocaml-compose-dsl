@@ -1596,6 +1596,76 @@ let reducer_tests =
   ; "non-function apply error", `Quick, test_reduce_non_function_apply
   ]
 
+(* Lambda with type annotations in body *)
+let test_reduce_lambda_with_type_ann () =
+  let ast = reduce_ok "let f = \\ x -> x :: A -> B\nf(a)" in
+  Alcotest.(check string) "printed"
+    "TypeAnn(Node(\"a\", [], []), \"A\", \"B\")"
+    (Printer.to_string ast)
+
+(* Lambda with Arrow operators in args *)
+let test_reduce_lambda_complex_args () =
+  let ast = reduce_ok "let f = \\ x, y -> x >>> y\nf(a >>> b, c)" in
+  Alcotest.(check string) "printed"
+    "Seq(Seq(Node(\"a\", [], []), Node(\"b\", [], [])), Node(\"c\", [], []))"
+    (Printer.to_string ast)
+
+(* Unicode in lambda params *)
+let test_parse_lambda_unicode_param () =
+  let ast = parse_ok "\\ \xe8\xa7\xb8\xe7\x99\xbc -> \xe8\xa7\xb8\xe7\x99\xbc >>> \xe5\xae\x8c\xe6\x88\x90" in
+  match ast.desc with
+  | Lambda (["\xe8\xa7\xb8\xe7\x99\xbc"], _) -> ()
+  | _ -> Alcotest.fail "expected Lambda with unicode param"
+
+(* Let binding with unicode name *)
+let test_parse_let_unicode_name () =
+  let tokens = Lexer.tokenize "let \xe5\xaf\xa9\xe6\x9f\xbb = a >>> b\n\xe5\xaf\xa9\xe6\x9f\xbb" in
+  let ast = Parser.parse_program tokens in
+  match ast.desc with
+  | Let ("\xe5\xaf\xa9\xe6\x9f\xbb", _, _) -> ()
+  | _ -> Alcotest.fail "expected Let with unicode name"
+
+(* Empty pipeline body after let *)
+let test_parse_let_error_no_body () =
+  match Lexer.tokenize "let f = a" |> Parser.parse_program with
+  | _ -> Alcotest.fail "expected parse error (no body after let)"
+  | exception Parser.Parse_error _ -> ()
+
+(* Lambda with zero params — should be parse error *)
+let test_parse_lambda_no_params () =
+  match Lexer.tokenize "\\ -> a" |> Parser.parse with
+  | _ -> Alcotest.fail "expected parse error"
+  | exception Parser.Parse_error _ -> ()
+
+(* Positional args on undefined name — reduce error *)
+let test_reduce_positional_on_undefined () =
+  reduce_fails "f(a, b)"
+
+(* let keyword can no longer be used as a node name *)
+let test_parse_let_keyword_not_node () =
+  match Lexer.tokenize "let >>> a" |> Parser.parse with
+  | _ -> Alcotest.fail "expected parse error (let is now a keyword)"
+  | exception Parser.Parse_error _ -> ()
+
+(* Comments inside lambda body *)
+let test_parse_lambda_with_comment () =
+  let ast = parse_ok "\\ x -> x -- hello\n>>> a" in
+  match ast.desc with
+  | Lambda _ -> ()
+  | _ -> Alcotest.fail "expected Lambda"
+
+let edge_case_tests =
+  [ "lambda with type ann", `Quick, test_reduce_lambda_with_type_ann
+  ; "lambda complex args", `Quick, test_reduce_lambda_complex_args
+  ; "lambda unicode param", `Quick, test_parse_lambda_unicode_param
+  ; "let unicode name", `Quick, test_parse_let_unicode_name
+  ; "let error no body", `Quick, test_parse_let_error_no_body
+  ; "lambda no params error", `Quick, test_parse_lambda_no_params
+  ; "positional on undefined", `Quick, test_reduce_positional_on_undefined
+  ; "let keyword not node", `Quick, test_parse_let_keyword_not_node
+  ; "lambda with comment", `Quick, test_parse_lambda_with_comment
+  ]
+
 let () =
   Alcotest.run "compose-dsl"
     [ "Lexer", lexer_tests
@@ -1604,4 +1674,5 @@ let () =
     ; "Printer", printer_tests
     ; "Reducer", reducer_tests
     ; "Integration", integration_tests
+    ; "Edge cases", edge_case_tests
     ]
