@@ -1959,6 +1959,30 @@ let markdown_tests =
   ; "translate empty", `Quick, test_md_translate_empty
   ]
 
+let test_md_literate_end_to_end () =
+  let input = "# Doc\n\n```arrow\nlet f = a >>> b\nf\n```\n\nText\n" in
+  let blocks = Markdown.extract input in
+  let source, _table = Markdown.combine blocks in
+  let tokens = Lexer.tokenize source in
+  let ast = Parser.parse_program tokens in
+  let _ast = Reducer.reduce ast in
+  ()
+
+let test_md_literate_error_line_translation () =
+  let input = "# Doc\n\n```arrow\n!!!\n```\n" in
+  let blocks = Markdown.extract input in
+  let source, table = Markdown.combine blocks in
+  match Lexer.tokenize source with
+  | exception Lexer.Lex_error (pos, _msg) ->
+    let translated = Markdown.translate_line table pos.line in
+    Alcotest.(check int) "error at markdown line 4" 4 translated
+  | _ -> Alcotest.fail "expected lex error"
+
+let markdown_integration_tests =
+  [ "literate end-to-end", `Quick, test_md_literate_end_to_end
+  ; "error line translation", `Quick, test_md_literate_error_line_translation
+  ]
+
 let () =
   Alcotest.run "compose-dsl"
     [ "Lexer", lexer_tests
@@ -1970,4 +1994,5 @@ let () =
     ; "Edge cases", edge_case_tests
     ; "Mixed args", mixed_arg_tests
     ; "Markdown", markdown_tests
+    ; "Markdown integration", markdown_integration_tests
     ]
