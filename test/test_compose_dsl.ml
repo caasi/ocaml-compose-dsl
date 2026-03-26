@@ -1172,6 +1172,13 @@ let test_reduce_curried_free_var_apply () =
     {|App(App(Var("f"), [Positional(Var("b"))]), [Positional(Var("c"))])|}
     (Printer.to_string ast)
 
+let test_reduce_curried_free_var_lambda_rejected () =
+  (* Lambda hidden inside curried free var app must be caught by verify *)
+  match reduce_ok "let g = f(\\ x -> x)\ng(a)" with
+  | _ -> Alcotest.fail "expected reduce error (lambda not fully applied)"
+  | exception Reducer.Reduce_error (_, msg) ->
+    Alcotest.(check bool) "mentions lambda" true (contains msg "lambda")
+
 let test_reduce_string_lit_passthrough () =
   let ast = reduce_ok {|"hello" >>> a|} in
   Alcotest.(check string) "printed"
@@ -1599,6 +1606,7 @@ let reducer_tests =
   ; "arity mismatch error", `Quick, test_reduce_arity_mismatch
   ; "free var apply survives", `Quick, test_reduce_free_var_apply
   ; "curried free var apply", `Quick, test_reduce_curried_free_var_apply
+  ; "curried free var lambda rejected", `Quick, test_reduce_curried_free_var_lambda_rejected
   ; "string lit passthrough", `Quick, test_reduce_string_lit_passthrough
   ; "string lit as arg", `Quick, test_reduce_string_lit_as_arg
   ; "string lit apply error", `Quick, test_reduce_string_lit_apply_error

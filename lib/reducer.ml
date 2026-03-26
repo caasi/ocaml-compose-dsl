@@ -143,8 +143,12 @@ let rec verify (e : expr) : unit =
   | Lambda _ ->
     raise (Reduce_error (e.loc.start, "lambda expression not fully applied"))
   | Var _ -> ()
-  | App ({ desc = Var _; _ }, args)
-  | App ({ desc = App ({ desc = Var _; _ }, _); _ }, args) ->
+  | App ({ desc = Var _; _ }, args) ->
+    List.iter (function
+      | Named _ -> ()
+      | Positional e -> verify e) args
+  | App (({ desc = App ({ desc = Var _; _ }, _); _ } as fn), args) ->
+    verify fn;
     List.iter (function
       | Named _ -> ()
       | Positional e -> verify e) args
