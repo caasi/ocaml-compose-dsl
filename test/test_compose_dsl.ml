@@ -1894,6 +1894,13 @@ let test_md_extract_unclosed_block () =
   Alcotest.(check int) "one block" 1 (List.length blocks);
   Alcotest.(check string) "content" "a >>> b\n" (List.hd blocks).Markdown.content
 
+let test_md_extract_crlf () =
+  let input = "```arrow\r\na >>> b\r\n```\r\n" in
+  let blocks = Markdown.extract input in
+  Alcotest.(check int) "one block" 1 (List.length blocks);
+  Alcotest.(check string) "content" "a >>> b\n" (List.hd blocks).Markdown.content;
+  Alcotest.(check int) "markdown_start" 2 (List.hd blocks).Markdown.markdown_start
+
 let test_md_combine_single () =
   let blocks = [{ Markdown.content = "a >>> b\n"; markdown_start = 10 }] in
   let source, table = Markdown.combine blocks in
@@ -1951,6 +1958,7 @@ let markdown_tests =
   ; "extra text rejected", `Quick, test_md_extract_extra_text_rejected
   ; "arr info string", `Quick, test_md_extract_arr_info_string
   ; "unclosed block", `Quick, test_md_extract_unclosed_block
+  ; "crlf line endings", `Quick, test_md_extract_crlf
   ; "combine single", `Quick, test_md_combine_single
   ; "combine multiple", `Quick, test_md_combine_multiple
   ; "combine empty", `Quick, test_md_combine_empty

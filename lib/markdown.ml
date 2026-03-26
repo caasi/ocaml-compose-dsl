@@ -44,8 +44,18 @@ let drop_last_empty = function
     | "" :: rest -> List.rev rest
     | _ -> lines
 
+let strip_cr line =
+  let len = String.length line in
+  if len > 0 && line.[len - 1] = '\r' then String.sub line 0 (len - 1)
+  else line
+
 let extract input =
-  let lines = drop_last_empty (String.split_on_char '\n' input) in
+  let lines =
+    input
+    |> String.split_on_char '\n'
+    |> List.map strip_cr
+    |> drop_last_empty
+  in
   let rec scan lines line_num state acc =
     match lines, state with
     | [], `Outside -> List.rev acc
@@ -69,6 +79,9 @@ let extract input =
   in
   scan lines 1 `Outside []
 
+(* Counts '\n' characters. Safe because extract always appends '\n' after
+   each content line (line 70), so block content is guaranteed to end with
+   '\n' and count_lines == number of lines in the block. *)
 let count_lines s =
   let n = ref 0 in
   String.iter (fun c -> if c = '\n' then incr n) s;
