@@ -46,6 +46,10 @@ term     = node
 node     = ident , [ "(" , [ call_args ] , ")" ] ;
 
 call_args = named_args | positional_args ;
+                (* disambiguation: IDENT ":" → named_args;
+                   otherwise → positional_args when callee is
+                   a bound variable (let/lambda), named_args
+                   when callee is an unbound node name *)
 
 named_args      = arg , { "," , arg } ;
 positional_args = seq_expr , { "," , seq_expr } ;
@@ -58,7 +62,9 @@ value    = string
          | "[" , [ value , { "," , value } ] , "]"
          ;
 
-ident       = ident_start , { ident_char } ;
+ident       = ident_start , { ident_char } - reserved ;
+                (* reserved words are excluded at the lexer level *)
+reserved    = "let" | "loop" ;
 ident_start = ? any valid UTF-8 codepoint that is not an ASCII digit,
                 not ASCII whitespace, and not one of ( ) [ ] : , > * | & - " .
                 ! # $ % ^ + = { } < ; ' ` ~ / ? @ \ ? ;
@@ -185,8 +191,6 @@ phase1 >>> phase2
 ```
 
 Lambdas and let bindings are reduced to pure Arrow pipelines before structural checking. They provide abstraction without adding runtime semantics.
-
-> **Note:** `let` and `loop` are reserved keywords and cannot be used as node names.
 
 Identifiers and unit suffixes accept any non-ASCII UTF-8 codepoint, so the DSL works naturally with non-Latin scripts. Error positions report codepoint-level columns, not byte offsets.
 

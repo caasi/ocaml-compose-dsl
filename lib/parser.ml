@@ -324,11 +324,3 @@ let parse_program tokens =
   in
   read_lets ()
 
-let parse tokens =
-  let st = make tokens in
-  let expr = parse_seq_expr st in
-  let t = current st in
-  (match t.token with
-   | Lexer.EOF -> ()
-   | _ -> raise (Parse_error (t.loc.start, "expected end of input")));
-  expr

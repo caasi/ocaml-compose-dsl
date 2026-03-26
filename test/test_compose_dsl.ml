@@ -2,7 +2,7 @@ open Compose_dsl
 
 let parse_ok input =
   let tokens = Lexer.tokenize input in
-  Parser.parse tokens
+  Parser.parse_program tokens
 
 let desc_of input = (parse_ok input).desc
 
@@ -13,13 +13,14 @@ let parse_fails input =
 
 let check_ok input =
   let ast = parse_ok input in
+  let ast = Reducer.reduce ast in
   let result = Checker.check ast in
   Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
   ast
 
-
 let check_ok_with_warnings input =
   let ast = parse_ok input in
+  let ast = Reducer.reduce ast in
   let result = Checker.check ast in
   Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
   result.Checker.warnings
@@ -1640,7 +1641,7 @@ let test_parse_let_error_no_body () =
 
 (* Lambda with zero params — should be parse error *)
 let test_parse_lambda_no_params () =
-  match Lexer.tokenize "\\ -> a" |> Parser.parse with
+  match Lexer.tokenize "\\ -> a" |> Parser.parse_program with
   | _ -> Alcotest.fail "expected parse error"
   | exception Parser.Parse_error _ -> ()
 
@@ -1650,7 +1651,7 @@ let test_reduce_positional_on_undefined () =
 
 (* let keyword can no longer be used as a node name *)
 let test_parse_let_keyword_not_node () =
-  match Lexer.tokenize "let >>> a" |> Parser.parse with
+  match Lexer.tokenize "let >>> a" |> Parser.parse_program with
   | _ -> Alcotest.fail "expected parse error (let is now a keyword)"
   | exception Parser.Parse_error _ -> ()
 
@@ -1663,7 +1664,7 @@ let test_parse_lambda_with_comment () =
 
 (* Duplicate lambda params — should be parse error *)
 let test_parse_lambda_duplicate_params () =
-  match Lexer.tokenize "\\ x, x -> x" |> Parser.parse with
+  match Lexer.tokenize "\\ x, x -> x" |> Parser.parse_program with
   | _ -> Alcotest.fail "expected parse error (duplicate param)"
   | exception Parser.Parse_error (_, msg) ->
     let contains s sub =
