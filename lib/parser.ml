@@ -99,8 +99,8 @@ let rec attach_comments_right (e : expr) comments =
     | Alt (a, b) -> { e with desc = Alt (a, attach_comments_right b comments) }
     | Group inner -> { e with desc = Group (attach_comments_right inner comments) }
     | Loop inner -> { e with desc = Loop (attach_comments_right inner comments) }
-    | Question (QNode n) -> { e with desc = Question (QNode { n with comments = n.comments @ comments }) }
-    | Question (QString _) -> e
+    | StringLit _ -> e (* intentionally drop comments; string literals have no comment field *)
+    | Question inner -> { e with desc = Question (attach_comments_right inner comments) }
     | Lambda _ | Var _ | App _ | Let _ -> e
 
 let parse_type_ann st =
@@ -194,13 +194,15 @@ and parse_term st =
   match t.token with
   | Lexer.STRING s ->
     advance st;
+    let str_end = st.last_loc.end_ in
     let _ = eat_comments st in
     let t2 = current st in
+    let str_expr = mk_expr { start = t.loc.start; end_ = str_end } (StringLit s) in
     (match t2.token with
      | Lexer.QUESTION ->
        advance st;
-       mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Question (QString s))
-     | _ -> raise (Parse_error (t.loc.start, "bare string is not a valid term; did you mean to add '?'?")))
+       mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Question str_expr)
+     | _ -> str_expr)
   | Lexer.IDENT name ->
     advance st;
     let in_scope = StringSet.mem name st.scope in
@@ -230,7 +232,8 @@ and parse_term st =
          (match t2.token with
           | Lexer.QUESTION ->
             advance st;
-            mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Question (QNode n))
+            let node_expr = mk_expr { start = t.loc.start; end_ = rparen_end } (Node n) in
+            mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Question node_expr)
           | _ ->
             mk_expr { start = t.loc.start; end_ = rparen_end } (Node n))
        end else begin
@@ -284,7 +287,8 @@ and parse_term st =
          (match t2.token with
           | Lexer.QUESTION ->
             advance st;
-            mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Question (QNode n))
+            let node_expr = mk_expr { start = t.loc.start; end_ = ident_end } (Node n) in
+            mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Question node_expr)
           | _ ->
             mk_expr { start = t.loc.start; end_ = ident_end } (Node n))
        end)
@@ -303,7 +307,7 @@ and parse_term st =
     let start = t.loc.start in
     advance st;
     parse_lambda st start
-  | _ -> raise (Parse_error (t.loc.start, "expected node, string with '?', '(', 'loop', or '\\' (lambda)"))
+  | _ -> raise (Parse_error (t.loc.start, "expected node, string, '(', 'loop', or '\\' (lambda)"))
 
 let parse_program tokens =
   let st = make tokens in

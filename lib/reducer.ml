@@ -8,7 +8,8 @@ module StringSet = Set.Make(String)
 let rec free_vars (e : expr) : StringSet.t =
   match e.desc with
   | Var v -> StringSet.singleton v
-  | Node _ | Question _ -> StringSet.empty
+  | Node _ | StringLit _ -> StringSet.empty
+  | Question inner -> free_vars inner
   | Seq (a, b) | Par (a, b) | Fanout (a, b) | Alt (a, b) ->
     StringSet.union (free_vars a) (free_vars b)
   | Loop body | Group body -> free_vars body
@@ -36,7 +37,8 @@ let rec desugar (e : expr) : expr =
   | Group inner -> { e with desc = Group (desugar inner) }
   | Lambda (params, body) -> { e with desc = Lambda (params, desugar body) }
   | App (fn, args) -> { e with desc = App (desugar fn, List.map desugar args) }
-  | Node _ | Var _ | Question _ -> e
+  | Node _ | Var _ | StringLit _ -> e
+  | Question inner -> { e with desc = Question (desugar inner) }
 
 (* Substitute Var(name) with replacement in expr *)
 let rec substitute fresh_name (name : string) (replacement : expr) (e : expr) : expr =
@@ -47,7 +49,8 @@ let rec substitute fresh_name (name : string) (replacement : expr) (e : expr) : 
      | None -> replacement
      | Some _ -> { replacement with type_ann = e.type_ann })
   | Var _ -> e
-  | Node _ | Question _ -> e
+  | Node _ | StringLit _ -> e
+  | Question inner -> { e with desc = Question (substitute fresh_name name replacement inner) }
   | Seq (a, b) -> { e with desc = Seq (substitute fresh_name name replacement a, substitute fresh_name name replacement b) }
   | Par (a, b) -> { e with desc = Par (substitute fresh_name name replacement a, substitute fresh_name name replacement b) }
   | Fanout (a, b) -> { e with desc = Fanout (substitute fresh_name name replacement a, substitute fresh_name name replacement b) }
@@ -98,6 +101,9 @@ let rec beta_reduce fresh_name (e : expr) : expr =
      | Var v ->
        raise (Reduce_error (e.loc.start,
          Printf.sprintf "undefined variable '%s'" v))
+     | StringLit s ->
+       raise (Reduce_error (e.loc.start,
+         Printf.sprintf "%S is a string literal and cannot be applied" s))
      | _ ->
        raise (Reduce_error (e.loc.start, "expression is not a function and cannot be applied")))
   | Seq (a, b) -> { e with desc = Seq (beta_reduce fresh_name a, beta_reduce fresh_name b) }
@@ -107,7 +113,8 @@ let rec beta_reduce fresh_name (e : expr) : expr =
   | Loop body -> { e with desc = Loop (beta_reduce fresh_name body) }
   | Group inner -> { e with desc = Group (beta_reduce fresh_name inner) }
   | Lambda _ -> e  (* unapplied lambda -- will be caught by verify *)
-  | Node _ | Var _ | Question _ | Let _ -> e
+  | Node _ | Var _ | StringLit _ | Let _ -> e
+  | Question inner -> { e with desc = Question (beta_reduce fresh_name inner) }
 
 (* Verify no unreduced nodes remain *)
 let rec verify (e : expr) : unit =
@@ -123,7 +130,8 @@ let rec verify (e : expr) : unit =
     raise (Reduce_error (e.loc.start, "unreduced let binding"))
   | Seq (a, b) | Par (a, b) | Fanout (a, b) | Alt (a, b) -> verify a; verify b
   | Loop body | Group body -> verify body
-  | Node _ | Question _ -> ()
+  | Node _ | StringLit _ -> ()
+  | Question inner -> verify inner
 
 let reduce (e : expr) : expr =
   let counter = ref 0 in

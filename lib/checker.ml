@@ -12,7 +12,8 @@ let rec normalize (e : expr) : expr =
   | Fanout (a, b) -> { e with desc = Fanout (normalize a, normalize b) }
   | Alt (a, b) -> { e with desc = Alt (normalize a, normalize b) }
   | Loop body -> { e with desc = Loop (normalize body) }
-  | Node _ | Question _ -> e
+  | Node _ | StringLit _ -> e
+  | Question inner -> { e with desc = Question (normalize inner) }
   | Lambda _ | Var _ | App _ | Let _ -> e
 
 let check (expr : expr) =
@@ -24,9 +25,14 @@ let check (expr : expr) =
      saturation at 0) for Alt. Only downstream ||| can match upstream ?. *)
   let rec scan_questions counter (e : expr) =
     match e.desc with
+    (* Intentionally treat Question as a leaf: do NOT recurse into inner.
+       Recursing would let an Alt inside the operand decrement the counter,
+       violating the invariant that only downstream ||| matches upstream ?.
+       The parser restricts inner to Node or StringLit, so no nested
+       Question can hide here. *)
     | Question _ -> counter + 1
     | Alt _ -> max 0 (counter - 1)
-    | Node _ -> counter
+    | Node _ | StringLit _ -> counter
     | Seq (a, b) ->
       let counter' = scan_questions counter a in
       scan_questions counter' b
@@ -95,7 +101,8 @@ let check (expr : expr) =
          Balance checking happens on the enclosing scope after normalize
          strips all Group wrappers. *)
       go inner
-    | Question _ -> ()
+    | StringLit _ -> ()
+    | Question inner -> go inner
     | Lambda _ | Var _ | App _ | Let _ ->
       add_error e.loc "unreduced lambda/variable/application/let node; run Reducer.reduce before Checker.check"
   in

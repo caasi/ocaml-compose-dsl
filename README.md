@@ -32,14 +32,11 @@ typed_term  = term , [ "::" , type_expr ] ;
 
 type_expr   = ident , "->" , ident ;
 
-question_term = string , "?"                       (* question — produces Either *)
-              | node , "?"
-              ;
-
-term     = node
+term     = node , [ "?" ]                          (* node, optionally question *)
+         | string , [ "?" ]                        (* string literal, optionally question;
+                                                      AST represents both as Question(expr) *)
          | "loop" , "(" , seq_expr , ")"            (* feedback loop *)
          | "(" , seq_expr , ")"                    (* grouping *)
-         | question_term
          | lambda
          ;
 
