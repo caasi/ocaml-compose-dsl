@@ -12,7 +12,8 @@ let rec normalize (e : expr) : expr =
   | Fanout (a, b) -> { e with desc = Fanout (normalize a, normalize b) }
   | Alt (a, b) -> { e with desc = Alt (normalize a, normalize b) }
   | Loop body -> { e with desc = Loop (normalize body) }
-  | Node _ | Question _ -> e
+  | Node _ | StringLit _ -> e
+  | Question inner -> { e with desc = Question (normalize inner) }
   | Lambda _ | Var _ | App _ | Let _ -> e
 
 let check (expr : expr) =
@@ -26,7 +27,7 @@ let check (expr : expr) =
     match e.desc with
     | Question _ -> counter + 1
     | Alt _ -> max 0 (counter - 1)
-    | Node _ -> counter
+    | Node _ | StringLit _ -> counter
     | Seq (a, b) ->
       let counter' = scan_questions counter a in
       scan_questions counter' b
@@ -95,6 +96,7 @@ let check (expr : expr) =
          Balance checking happens on the enclosing scope after normalize
          strips all Group wrappers. *)
       go inner
+    | StringLit _ -> ()
     | Question _ -> ()
     | Lambda _ | Var _ | App _ | Let _ ->
       add_error e.loc "unreduced lambda/variable/application/let node; run Reducer.reduce before Checker.check"

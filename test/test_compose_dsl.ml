@@ -906,6 +906,14 @@ let test_check_question_warning_loc () =
   Alcotest.(check int) "warning start line" 1 w.loc.start.line;
   Alcotest.(check int) "warning start col" 1 w.loc.start.col
 
+let test_check_string_lit_no_error () =
+  let _ = check_ok {|"hello" >>> a|} in
+  ()
+
+let test_check_string_lit_question_with_alt () =
+  let warnings = check_ok_with_warnings {|"is valid"? >>> (yes ||| no)|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
 
 (* === Parser loc span tests === *)
 
@@ -1507,6 +1515,8 @@ let checker_tests =
   ; "question direct alt operand", `Quick, test_check_question_direct_alt_operand
   ; "question multiple with tail alt operand", `Quick, test_check_question_multiple_with_tail_alt_operand
   ; "question warning loc", `Quick, test_check_question_warning_loc
+  ; "string lit no error", `Quick, test_check_string_lit_no_error
+  ; "string lit question with alt", `Quick, test_check_string_lit_question_with_alt
   ]
 
 let test_print_type_ann () =
