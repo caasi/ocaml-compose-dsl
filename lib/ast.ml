@@ -27,3 +27,7 @@ and expr_desc =
   | Loop of expr
   | Group of expr
   | Question of question_term
+  | Lambda of string list * expr    (** [\x, y -> body] *)
+  | Var of string                   (** [variable reference] *)
+  | App of expr * expr list         (** [f(arg1, arg2)] *)
+  | Let of string * expr * expr     (** [let x = expr] followed by rest of program *)

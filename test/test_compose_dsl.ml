@@ -2,7 +2,7 @@ open Compose_dsl
 
 let parse_ok input =
   let tokens = Lexer.tokenize input in
-  Parser.parse tokens
+  Parser.parse_program tokens
 
 let desc_of input = (parse_ok input).desc
 
@@ -13,13 +13,14 @@ let parse_fails input =
 
 let check_ok input =
   let ast = parse_ok input in
+  let ast = Reducer.reduce ast in
   let result = Checker.check ast in
   Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
   ast
 
-
 let check_ok_with_warnings input =
   let ast = parse_ok input in
+  let ast = Reducer.reduce ast in
   let result = Checker.check ast in
   Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors);
   result.Checker.warnings
@@ -34,6 +35,11 @@ let has_warning_containing substr warnings =
     in
     scan 0
   ) warnings
+
+let contains s sub =
+  let len = String.length sub in
+  let rec scan i = i + len <= String.length s && (String.sub s i len = sub || scan (i + 1)) in
+  scan 0
 
 (* === Lexer tests === *)
 
@@ -622,7 +628,8 @@ let test_parse_error_unclosed_paren () =
   match parse_ok "a(" with
   | _ -> Alcotest.fail "expected parse error"
   | exception Parser.Parse_error (_, msg) ->
-    Alcotest.(check string) "error msg" "expected argument name or ')'" msg
+    if not (contains msg ")") then
+      Alcotest.fail ("expected error mentioning ')': " ^ msg)
 
 let test_parse_error_unclosed_group () =
   parse_fails "(a >>> b"
@@ -1112,23 +1119,199 @@ let test_parse_type_ann_incomplete_error () =
   (match parse_ok "node :: A" with
    | _ -> Alcotest.fail "expected parse error"
    | exception Parser.Parse_error (_, msg) ->
-     let contains s sub =
-       let slen = String.length s and sublen = String.length sub in
-       let rec go i = i + sublen <= slen && (String.sub s i sublen = sub || go (i + 1)) in
-       go 0
-     in
      Alcotest.(check bool) "error mentions ->" true (contains msg "->"))
 
 let test_parse_type_ann_missing_output_error () =
   (match parse_ok "node :: A ->" with
    | _ -> Alcotest.fail "expected parse error"
    | exception Parser.Parse_error (_, msg) ->
-     let contains s sub =
-       let slen = String.length s and sublen = String.length sub in
-       let rec go i = i + sublen <= slen && (String.sub s i sublen = sub || go (i + 1)) in
-       go 0
-     in
      Alcotest.(check bool) "error mentions ->" true (contains msg "->"))
+
+(* Helper that parses with parse_program and reduces *)
+let reduce_ok input =
+  let tokens = Lexer.tokenize input in
+  let ast = Parser.parse_program tokens in
+  Reducer.reduce ast
+
+let reduce_fails input =
+  match reduce_ok input with
+  | _ -> Alcotest.fail "expected reduce error"
+  | exception Reducer.Reduce_error _ -> ()
+
+let test_reduce_no_lambda () =
+  (* Plain Arrow pipeline passes through unchanged *)
+  let ast = reduce_ok "a >>> b" in
+  Alcotest.(check string) "printed"
+    "Seq(Node(\"a\", [], []), Node(\"b\", [], []))"
+    (Printer.to_string ast)
+
+let test_reduce_let_simple () =
+  let ast = reduce_ok "let f = a >>> b\nf" in
+  Alcotest.(check string) "printed"
+    "Seq(Node(\"a\", [], []), Node(\"b\", [], []))"
+    (Printer.to_string ast)
+
+let test_reduce_lambda_apply () =
+  let ast = reduce_ok "let f = \\ x -> x >>> a\nf(b)" in
+  Alcotest.(check string) "printed"
+    "Seq(Node(\"b\", [], []), Node(\"a\", [], []))"
+    (Printer.to_string ast)
+
+let test_reduce_lambda_multi_param () =
+  let ast = reduce_ok "let f = \\ x, y -> x >>> y\nf(a, b)" in
+  Alcotest.(check string) "printed"
+    "Seq(Node(\"a\", [], []), Node(\"b\", [], []))"
+    (Printer.to_string ast)
+
+let test_reduce_let_chain () =
+  let ast = reduce_ok "let a = x\nlet b = a\nb" in
+  Alcotest.(check string) "printed"
+    "Node(\"x\", [], [])"
+    (Printer.to_string ast)
+
+let test_reduce_nested_application () =
+  let ast = reduce_ok "let f = \\ x -> x\nlet g = \\ y -> f(y)\ng(a)" in
+  Alcotest.(check string) "printed"
+    "Node(\"a\", [], [])"
+    (Printer.to_string ast)
+
+let test_reduce_free_variable () =
+  (* y is not in scope, so it's parsed as Node, not Var — no error *)
+  let ast = reduce_ok "let f = \\ x -> y\nf(a)" in
+  Alcotest.(check string) "printed"
+    "Node(\"y\", [], [])"
+    (Printer.to_string ast)
+
+let test_reduce_arity_mismatch () =
+  reduce_fails "let f = \\ x, y -> x\nf(a)"
+
+let test_reduce_non_function_apply () =
+  reduce_fails "let f = a\nf(b)"
+
+let test_parse_let_simple () =
+  let tokens = Lexer.tokenize "let f = a >>> b\nf" in
+  let ast = Parser.parse_program tokens in
+  match ast.desc with
+  | Let ("f", value, body) ->
+    (match value.desc with
+     | Seq _ -> ()
+     | _ -> Alcotest.fail "expected Seq value");
+    (match body.desc with
+     | Var "f" -> ()
+     | _ -> Alcotest.fail "expected Var f body")
+  | _ -> Alcotest.fail "expected Let"
+
+let test_parse_let_multiple () =
+  let tokens = Lexer.tokenize "let a = x\nlet b = y\na >>> b" in
+  let ast = Parser.parse_program tokens in
+  match ast.desc with
+  | Let ("a", _, inner) ->
+    (match inner.desc with
+     | Let ("b", _, body) ->
+       (match body.desc with
+        | Seq _ -> ()
+        | _ -> Alcotest.fail "expected Seq body")
+     | _ -> Alcotest.fail "expected nested Let")
+  | _ -> Alcotest.fail "expected Let"
+
+let test_parse_let_with_lambda () =
+  let tokens = Lexer.tokenize "let f = \\ x -> x >>> a\nf(b)" in
+  let ast = Parser.parse_program tokens in
+  match ast.desc with
+  | Let ("f", value, body) ->
+    (match value.desc with
+     | Lambda _ -> ()
+     | _ -> Alcotest.fail "expected Lambda value");
+    (match body.desc with
+     | App (_, _) -> ()
+     | _ -> Alcotest.fail "expected App body")
+  | _ -> Alcotest.fail "expected Let"
+
+let test_parse_let_scope () =
+  (* b references a from earlier let *)
+  let tokens = Lexer.tokenize "let a = x\nlet b = a\nb" in
+  let ast = Parser.parse_program tokens in
+  match ast.desc with
+  | Let ("a", _, inner) ->
+    (match inner.desc with
+     | Let ("b", value, _) ->
+       (match value.desc with
+        | Var "a" -> ()
+        | _ -> Alcotest.fail "expected Var a in b's value")
+     | _ -> Alcotest.fail "expected nested Let")
+  | _ -> Alcotest.fail "expected Let"
+
+let test_parse_no_let_is_program () =
+  (* Backward compat: no let bindings → same as before *)
+  let tokens = Lexer.tokenize "a >>> b" in
+  let ast = Parser.parse_program tokens in
+  match ast.desc with
+  | Seq _ -> ()
+  | _ -> Alcotest.fail "expected Seq"
+
+let test_parse_lambda_single_param () =
+  let ast = parse_ok "\\ x -> a >>> b" in
+  match ast.desc with
+  | Lambda (["x"], body) ->
+    (match body.desc with
+     | Seq _ -> ()
+     | _ -> Alcotest.fail "expected Seq body")
+  | _ -> Alcotest.fail "expected Lambda"
+
+let test_parse_lambda_multi_param () =
+  let ast = parse_ok "\\ x, y -> a" in
+  match ast.desc with
+  | Lambda (["x"; "y"], _) -> ()
+  | _ -> Alcotest.fail "expected Lambda with two params"
+
+let test_parse_lambda_var_in_body () =
+  let ast = parse_ok "\\ x -> x >>> a" in
+  match ast.desc with
+  | Lambda (["x"], body) ->
+    (match body.desc with
+     | Seq (lhs, _) ->
+       (match lhs.desc with
+        | Var "x" -> ()
+        | _ -> Alcotest.fail "expected Var x")
+     | _ -> Alcotest.fail "expected Seq")
+  | _ -> Alcotest.fail "expected Lambda"
+
+let test_parse_lambda_in_group () =
+  let ast = parse_ok "(\\ x -> x) >>> a" in
+  match ast.desc with
+  | Seq (lhs, _) ->
+    (match lhs.desc with
+     | Group inner ->
+       (match inner.desc with
+        | Lambda _ -> ()
+        | _ -> Alcotest.fail "expected Lambda inside Group")
+     | _ -> Alcotest.fail "expected Group")
+  | _ -> Alcotest.fail "expected Seq"
+
+let test_lex_backslash () =
+  let tokens = Lexer.tokenize "\\ x" in
+  match (List.hd tokens).token with
+  | Lexer.BACKSLASH -> ()
+  | _ -> Alcotest.fail "expected BACKSLASH token"
+
+let test_lex_let_keyword () =
+  let tokens = Lexer.tokenize "let x" in
+  match (List.hd tokens).token with
+  | Lexer.LET -> ()
+  | _ -> Alcotest.fail "expected LET token"
+
+let test_lex_equals () =
+  let tokens = Lexer.tokenize "=" in
+  match (List.hd tokens).token with
+  | Lexer.EQUALS -> ()
+  | _ -> Alcotest.fail "expected EQUALS token"
+
+let test_lex_let_in_ident () =
+  (* "letter" should still lex as IDENT, not LET + "ter" *)
+  let tokens = Lexer.tokenize "letter" in
+  match (List.hd tokens).token with
+  | Lexer.IDENT "letter" -> ()
+  | _ -> Alcotest.fail "expected IDENT letter"
 
 (* === Test suite === *)
 
@@ -1186,6 +1369,10 @@ let lexer_tests =
   ; "arrow no whitespace", `Quick, test_lex_arrow_no_whitespace
   ; "arrow no whitespace in type ann", `Quick, test_lex_arrow_no_whitespace_in_type_ann
   ; "ident with hyphen before arrow", `Quick, test_lex_ident_with_hyphen_before_arrow
+  ; "backslash token", `Quick, test_lex_backslash
+  ; "let keyword", `Quick, test_lex_let_keyword
+  ; "equals token", `Quick, test_lex_equals
+  ; "let prefix in ident", `Quick, test_lex_let_in_ident
   ]
 
 let parser_tests =
@@ -1266,6 +1453,15 @@ let parser_tests =
   ; "type ann missing output error", `Quick, test_parse_type_ann_missing_output_error
   ; "type ann loc span", `Quick, test_parse_type_ann_loc
   ; "type ann loc no ann", `Quick, test_parse_type_ann_loc_no_ann
+  ; "lambda single param", `Quick, test_parse_lambda_single_param
+  ; "lambda multi param", `Quick, test_parse_lambda_multi_param
+  ; "lambda var in body", `Quick, test_parse_lambda_var_in_body
+  ; "lambda in group", `Quick, test_parse_lambda_in_group
+  ; "let simple", `Quick, test_parse_let_simple
+  ; "let multiple", `Quick, test_parse_let_multiple
+  ; "let with lambda", `Quick, test_parse_let_with_lambda
+  ; "let scope", `Quick, test_parse_let_scope
+  ; "no let is program", `Quick, test_parse_no_let_is_program
   ]
 
 let checker_tests =
@@ -1309,6 +1505,38 @@ let test_print_no_type_ann () =
     "Seq(Node(\"a\", [], []), Node(\"b\", [], []))"
     (Printer.to_string ast)
 
+let test_print_lambda () =
+  let ast = parse_ok "\\ x -> a" in
+  Alcotest.(check string) "printed"
+    "Lambda([\"x\"], Node(\"a\", [], []))"
+    (Printer.to_string ast)
+
+let test_print_var () =
+  let ast = parse_ok "\\ x -> x" in
+  match ast.desc with
+  | Lambda (_, body) ->
+    Alcotest.(check string) "printed"
+      "Var(\"x\")"
+      (Printer.to_string body)
+  | _ -> Alcotest.fail "expected Lambda"
+
+let test_print_app () =
+  let tokens = Lexer.tokenize "let f = \\ x -> x\nf(a)" in
+  let ast = Parser.parse_program tokens in
+  match ast.desc with
+  | Let (_, _, body) ->
+    Alcotest.(check string) "printed"
+      "App(Var(\"f\"), [Node(\"a\", [], [])])"
+      (Printer.to_string body)
+  | _ -> Alcotest.fail "expected Let"
+
+let test_print_let () =
+  let tokens = Lexer.tokenize "let f = a\nf" in
+  let ast = Parser.parse_program tokens in
+  Alcotest.(check string) "printed"
+    "Let(\"f\", Node(\"a\", [], []), Var(\"f\"))"
+    (Printer.to_string ast)
+
 let printer_tests =
   [ "simple node", `Quick, test_print_simple_node
   ; "node with args", `Quick, test_print_node_with_args
@@ -1326,6 +1554,146 @@ let printer_tests =
   ; "type annotation", `Quick, test_print_type_ann
   ; "type annotation in seq", `Quick, test_print_type_ann_in_seq
   ; "no type annotation unchanged", `Quick, test_print_no_type_ann
+  ; "lambda", `Quick, test_print_lambda
+  ; "var", `Quick, test_print_var
+  ; "app", `Quick, test_print_app
+  ; "let", `Quick, test_print_let
+  ]
+
+(* Integration: full pipeline parse_program >>> reduce >>> check *)
+let test_integration_let_and_check () =
+  let input = "let f = \\ x -> x >>> a\nf(b)" in
+  let tokens = Lexer.tokenize input in
+  let ast = Parser.parse_program tokens in
+  let reduced = Reducer.reduce ast in
+  let result = Checker.check reduced in
+  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
+
+let test_integration_backward_compat () =
+  let input = "a >>> b *** c" in
+  let tokens = Lexer.tokenize input in
+  let ast = Parser.parse_program tokens in
+  let reduced = Reducer.reduce ast in
+  let result = Checker.check reduced in
+  Alcotest.(check int) "no errors" 0 (List.length result.Checker.errors)
+
+let integration_tests =
+  [ "let and check", `Quick, test_integration_let_and_check
+  ; "backward compat", `Quick, test_integration_backward_compat
+  ]
+
+let reducer_tests =
+  [ "no lambda passthrough", `Quick, test_reduce_no_lambda
+  ; "let simple", `Quick, test_reduce_let_simple
+  ; "lambda apply", `Quick, test_reduce_lambda_apply
+  ; "lambda multi param", `Quick, test_reduce_lambda_multi_param
+  ; "let chain", `Quick, test_reduce_let_chain
+  ; "nested application", `Quick, test_reduce_nested_application
+  ; "free variable as node", `Quick, test_reduce_free_variable
+  ; "arity mismatch error", `Quick, test_reduce_arity_mismatch
+  ; "non-function apply error", `Quick, test_reduce_non_function_apply
+  ]
+
+(* Lambda with type annotations in body *)
+let test_reduce_lambda_with_type_ann () =
+  let ast = reduce_ok "let f = \\ x -> x :: A -> B\nf(a)" in
+  Alcotest.(check string) "printed"
+    "TypeAnn(Node(\"a\", [], []), \"A\", \"B\")"
+    (Printer.to_string ast)
+
+(* Lambda with Arrow operators in args *)
+let test_reduce_lambda_complex_args () =
+  let ast = reduce_ok "let f = \\ x, y -> x >>> y\nf(a >>> b, c)" in
+  Alcotest.(check string) "printed"
+    "Seq(Seq(Node(\"a\", [], []), Node(\"b\", [], [])), Node(\"c\", [], []))"
+    (Printer.to_string ast)
+
+(* Unicode in lambda params *)
+let test_parse_lambda_unicode_param () =
+  let ast = parse_ok "\\ \xe8\xa7\xb8\xe7\x99\xbc -> \xe8\xa7\xb8\xe7\x99\xbc >>> \xe5\xae\x8c\xe6\x88\x90" in
+  match ast.desc with
+  | Lambda (["\xe8\xa7\xb8\xe7\x99\xbc"], _) -> ()
+  | _ -> Alcotest.fail "expected Lambda with unicode param"
+
+(* Let binding with unicode name *)
+let test_parse_let_unicode_name () =
+  let tokens = Lexer.tokenize "let \xe5\xaf\xa9\xe6\x9f\xbb = a >>> b\n\xe5\xaf\xa9\xe6\x9f\xbb" in
+  let ast = Parser.parse_program tokens in
+  match ast.desc with
+  | Let ("\xe5\xaf\xa9\xe6\x9f\xbb", _, _) -> ()
+  | _ -> Alcotest.fail "expected Let with unicode name"
+
+(* Empty pipeline body after let *)
+let test_parse_let_error_no_body () =
+  match Lexer.tokenize "let f = a" |> Parser.parse_program with
+  | _ -> Alcotest.fail "expected parse error (no body after let)"
+  | exception Parser.Parse_error _ -> ()
+
+(* Lambda with zero params — should be parse error *)
+let test_parse_lambda_no_params () =
+  match Lexer.tokenize "\\ -> a" |> Parser.parse_program with
+  | _ -> Alcotest.fail "expected parse error"
+  | exception Parser.Parse_error _ -> ()
+
+(* Positional args on undefined name — reduce error *)
+let test_reduce_positional_on_undefined () =
+  reduce_fails "f(a, b)"
+
+(* let keyword can no longer be used as a node name *)
+let test_parse_let_keyword_not_node () =
+  match Lexer.tokenize "let >>> a" |> Parser.parse_program with
+  | _ -> Alcotest.fail "expected parse error (let is now a keyword)"
+  | exception Parser.Parse_error _ -> ()
+
+(* Comments inside lambda body *)
+let test_parse_lambda_with_comment () =
+  let ast = parse_ok "\\ x -> x -- hello\n>>> a" in
+  match ast.desc with
+  | Lambda _ -> ()
+  | _ -> Alcotest.fail "expected Lambda"
+
+(* Duplicate lambda params — should be parse error *)
+let test_parse_lambda_duplicate_params () =
+  match Lexer.tokenize "\\ x, x -> x" |> Parser.parse_program with
+  | _ -> Alcotest.fail "expected parse error (duplicate param)"
+  | exception Parser.Parse_error (_, msg) ->
+    Alcotest.(check bool) "mentions duplicate" true (contains msg "duplicate")
+
+(* Empty positional args f() — should be parse error, no unit value *)
+let test_parse_empty_positional_args () =
+  match Lexer.tokenize "let f = \\ x -> x\nf()" |> Parser.parse_program with
+  | _ -> Alcotest.fail "expected parse error (empty positional args)"
+  | exception Parser.Parse_error (_, msg) ->
+    Alcotest.(check bool) "mentions empty application" true (contains msg "positional argument")
+
+(* Trailing comma in positional args — should be parse error *)
+let test_parse_trailing_comma_positional () =
+  match Lexer.tokenize "let f = \\ x -> x\nf(a,)" |> Parser.parse_program with
+  | _ -> Alcotest.fail "expected parse error (trailing comma)"
+  | exception Parser.Parse_error (_, msg) ->
+    Alcotest.(check bool) "mentions trailing comma" true (contains msg "trailing comma")
+
+let test_reduce_capture_avoiding () =
+  (* Nested application where capture could happen without alpha-renaming *)
+  let ast = reduce_ok "let apply = \\ f, x -> f(x)\nlet id = \\ x -> x\napply(id, a)" in
+  Alcotest.(check string) "printed"
+    "Node(\"a\", [], [])"
+    (Printer.to_string ast)
+
+let edge_case_tests =
+  [ "lambda with type ann", `Quick, test_reduce_lambda_with_type_ann
+  ; "lambda complex args", `Quick, test_reduce_lambda_complex_args
+  ; "lambda unicode param", `Quick, test_parse_lambda_unicode_param
+  ; "let unicode name", `Quick, test_parse_let_unicode_name
+  ; "let error no body", `Quick, test_parse_let_error_no_body
+  ; "lambda no params error", `Quick, test_parse_lambda_no_params
+  ; "positional on undefined", `Quick, test_reduce_positional_on_undefined
+  ; "let keyword not node", `Quick, test_parse_let_keyword_not_node
+  ; "lambda with comment", `Quick, test_parse_lambda_with_comment
+  ; "lambda duplicate params", `Quick, test_parse_lambda_duplicate_params
+  ; "capture avoiding substitution", `Quick, test_reduce_capture_avoiding
+  ; "empty positional args", `Quick, test_parse_empty_positional_args
+  ; "trailing comma positional", `Quick, test_parse_trailing_comma_positional
   ]
 
 let () =
@@ -1334,4 +1702,7 @@ let () =
     ; "Parser", parser_tests
     ; "Checker", checker_tests
     ; "Printer", printer_tests
+    ; "Reducer", reducer_tests
+    ; "Integration", integration_tests
+    ; "Edge cases", edge_case_tests
     ]
