@@ -16,7 +16,7 @@
 
 **Files:**
 - Modify: `lib/lexer.ml:1-3` (token type), `lib/lexer.ml:92-96` (read_ident keyword matching)
-- Test: `test/test_compose_dsl.ml`
+- Test: `test/test_*.ml`
 
 - [ ] **Step 1: Write failing lexer tests**
 
@@ -89,7 +89,7 @@ Expected: All tests pass (existing + 4 new lexer tests).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lib/lexer.ml test/test_compose_dsl.ml
+git add lib/lexer.ml test/test_*.ml
 git commit -m "feat(lexer): add IN keyword token"
 ```
 
@@ -99,7 +99,7 @@ git commit -m "feat(lexer): add IN keyword token"
 
 **Files:**
 - Modify: `lib/parser.ml:263-288` (parse_program / read_lets)
-- Test: `test/test_compose_dsl.ml`
+- Test: `test/test_*.ml`
 
 - [ ] **Step 1: Write failing parser tests for `let ... in`**
 
@@ -215,7 +215,7 @@ Expected: New let-in tests pass. Some other tests that used old syntax may still
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lib/parser.ml test/test_compose_dsl.ml
+git add lib/parser.ml test/test_*.ml
 git commit -m "feat(parser): require 'in' keyword after let binding value"
 ```
 
@@ -225,7 +225,7 @@ git commit -m "feat(parser): require 'in' keyword after let binding value"
 
 **Files:**
 - Modify: `lib/parser.ml:252-256` (parse_term LPAREN branch)
-- Test: `test/test_compose_dsl.ml`
+- Test: `test/test_*.ml`
 
 - [ ] **Step 1: Write failing test for parenthesized let-in**
 
@@ -318,7 +318,7 @@ Expected: Parenthesized let-in test passes.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lib/parser.ml test/test_compose_dsl.ml
+git add lib/parser.ml test/test_*.ml
 git commit -m "feat(parser): support let...in inside parenthesized groups"
 ```
 
@@ -327,7 +327,7 @@ git commit -m "feat(parser): support let...in inside parenthesized groups"
 ### Task 4: Update All Existing Tests to Use `in` Syntax
 
 **Files:**
-- Modify: `test/test_compose_dsl.ml` — all tests that use old `let` syntax
+- Modify: `test/test_*.ml` — all tests that use old `let` syntax
 
 - [ ] **Step 1: Identify and update all test inputs using old let syntax**
 
@@ -391,7 +391,7 @@ Expected: All tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add test/test_compose_dsl.ml
+git add test/test_*.ml
 git commit -m "test: update all let tests to use 'in' syntax"
 ```
 
@@ -400,7 +400,7 @@ git commit -m "test: update all let tests to use 'in' syntax"
 ### Task 5: Add New Parser Error Tests
 
 **Files:**
-- Modify: `test/test_compose_dsl.ml`
+- Modify: `test/test_*.ml`
 
 - [ ] **Step 1: Write error tests for let-in edge cases**
 
@@ -444,7 +444,7 @@ Expected: All pass (these test current behavior after Task 2-3 changes).
 - [ ] **Step 3: Commit**
 
 ```bash
-git add test/test_compose_dsl.ml
+git add test/test_*.ml
 git commit -m "test: add let...in edge case and error tests"
 ```
 
@@ -548,7 +548,7 @@ The verify/test block (lines 64-68):
 ```arrow
 let verify = verify_ebnf :: Code -> Spec in   -- check README.md EBNF still matches parser/lexer
 let test =
-  update_tests :: Spec -> Test             -- update or add tests in test/test_compose_dsl.ml
+  update_tests :: Spec -> Test             -- update or add tests in test/test_*.ml
   >>> dune_test :: Test -> Pass in             -- run dune test, confirm all pass
 let implement = implement :: Code -> Code >>> verify >>> test in
 implement
