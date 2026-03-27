@@ -1329,6 +1329,30 @@ let test_lex_let_in_ident () =
   | Lexer.IDENT "letter" -> ()
   | _ -> Alcotest.fail "expected IDENT letter"
 
+let test_lex_in_keyword () =
+  let tokens = Lexer.tokenize "in" in
+  match (List.hd tokens).token with
+  | Lexer.IN -> ()
+  | _ -> Alcotest.fail "expected IN token"
+
+let test_lex_in_inside_ident () =
+  let tokens = Lexer.tokenize "input" in
+  match (List.hd tokens).token with
+  | Lexer.IDENT "input" -> ()
+  | _ -> Alcotest.fail "expected IDENT input, not IN"
+
+let test_lex_in_as_prefix_of_ident () =
+  let tokens = Lexer.tokenize "in_progress" in
+  match (List.hd tokens).token with
+  | Lexer.IDENT "in_progress" -> ()
+  | _ -> Alcotest.fail "expected IDENT in_progress"
+
+let test_lex_in_after_ident () =
+  let tokens = Lexer.tokenize "x in" in
+  match tokens with
+  | [{ token = Lexer.IDENT "x"; _ }; { token = Lexer.IN; _ }; { token = Lexer.EOF; _ }] -> ()
+  | _ -> Alcotest.fail "expected IDENT x, IN, EOF"
+
 (* === Test suite === *)
 
 let lexer_tests =
@@ -1389,6 +1413,10 @@ let lexer_tests =
   ; "let keyword", `Quick, test_lex_let_keyword
   ; "equals token", `Quick, test_lex_equals
   ; "let prefix in ident", `Quick, test_lex_let_in_ident
+  ; "in keyword", `Quick, test_lex_in_keyword
+  ; "in inside ident", `Quick, test_lex_in_inside_ident
+  ; "in as prefix of ident", `Quick, test_lex_in_as_prefix_of_ident
+  ; "in after ident", `Quick, test_lex_in_after_ident
   ]
 
 let parser_tests =

@@ -18,6 +18,7 @@ type token =
   | ARROW (** [->] *)
   | BACKSLASH (** [\] *)
   | LET (** [let] keyword *)
+  | IN  (** [in] keyword *)
   | EQUALS (** [=] *)
   | COMMENT of string
   | EOF
@@ -92,6 +93,7 @@ let tokenize input =
     let tok = match s with
       | "loop" -> LOOP
       | "let" -> LET
+      | "in" -> IN
       | _ -> IDENT s
     in
     { token = tok; loc = { start = p; end_ = pos () } }
