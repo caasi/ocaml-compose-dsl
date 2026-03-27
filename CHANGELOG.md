@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-03-28
+
+### Changed
+- **BREAKING:** `let` bindings now require `in` keyword to delimit scope: `let x = expr in body` (previously `let x = expr` with implicit "rest of program" scope)
+- `( ... )` grouping now accepts full program grammar (including `let ... in`) inside parentheses
+
+### Added
+- `IN` keyword token in lexer
+- Migration hint error message when old `let` syntax (without `in`) is detected
+
 ## [0.8.0] - 2026-03-27
 
 ### Added
