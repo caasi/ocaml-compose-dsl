@@ -71,7 +71,7 @@ let rec token buf =
   | Opt '-', Plus digit, Opt ('.', Plus digit), Opt (ident_start, Star ident_char)
                   -> NUMBER (lexeme_string buf)
   | ident_start, Star ident_char -> IDENT (lexeme_string buf)
-  | "--", Star (Compl '\n')     -> COMMENT (lexeme_string buf)
+  | "--", Star (Compl '\n')     -> COMMENT (strip_comment_prefix (lexeme_string buf))
   | Plus white_space            -> token buf
   | eof                         -> EOF
   | _                           -> raise (Lex_error ...)
@@ -83,6 +83,7 @@ Key properties:
 - **`->` lookahead**: Sedlex's longest-match semantics with priority ordering naturally resolves the `ident_char` vs `->` ambiguity that the hand-written lexer handles with explicit lookahead.
 - **Negative numbers**: The `Opt '-'` in the NUMBER rule could conflict with `->` (arrow) or `--` (comment). Sedlex's longest-match resolves `->` and `--` because they are longer than a bare `-`. However, `- 3` (space between minus and digit) would NOT be a negative number — this matches the current lexer behavior where `-` must be immediately followed by a digit.
 - **Location tracking**: Sedlex provides `Sedlexing.lexeme_start` / `lexeme_end` as codepoint offsets. A thin adapter must convert these to `Ast.loc` records. The adapter maintains a line/column counter (codepoint-based) by scanning for newlines in each lexeme. This is necessary because Menhir internally uses `Lexing.position` (byte-based), but our AST uses codepoint-based columns. The adapter function populates both: `Lexing.position` for Menhir's internal use, and a side-channel `Ast.loc` that semantic actions can reference.
+- **Comment whitespace**: The current hand-written lexer strips leading whitespace after `--` before capturing the comment body. The sedlex rule must apply a post-match `strip_comment_prefix` to preserve this behavior and avoid test failures on comment token values.
 - **Menhir interface**: A thin adapter function `unit -> token * Lexing.position * Lexing.position` supplies the Menhir incremental API.
 
 ### Menhir Parser Grammar
