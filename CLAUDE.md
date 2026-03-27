@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `dune build` — build everything
 - `dune exec ocaml-compose-dsl` — run the main executable
 - `dune test` — run all tests (alcotest)
-- `dune exec test/test_compose_dsl.exe -- test <Suite> <N>` — run a single test by suite name and index
+- `dune exec test/main.exe -- test <Suite> <N>` — run a single test by suite name and index
 - `dune clean` — remove build artifacts
 
 ## Project Structure

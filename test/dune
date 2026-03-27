@@ -1,4 +1,4 @@
 (test
- (name test_compose_dsl)
+ (name main)
  (package ocaml-compose-dsl-lib)
  (libraries compose_dsl alcotest))
