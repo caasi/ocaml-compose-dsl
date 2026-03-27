@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 > **Skill:** This project ships a `/compose` skill for Claude Code. Use it to validate DSL syntax, plan tool composition, or write pipelines. If the skill is not installed, you can check the [README](./README.md) for grammar and semantics, or search the internet for `ocaml-compose-dsl` / `compose skill claude code`.
 >
-> **Binary:** `ocaml-compose-dsl` (or `dune exec ocaml-compose-dsl`) can validate any `arrow` code block — pipe a snippet through it to check syntax.
+> **Binary:** `ocaml-compose-dsl` (or `dune exec ocaml-compose-dsl`) can validate Arrow syntax. The `arrow` blocks in this file form a single chained program via `let ... in` — validate them together with `dune exec ocaml-compose-dsl -- --literate CLAUDE.md`, not individually.
 
 ## Arrow DSL Conventions
 
