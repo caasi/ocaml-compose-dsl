@@ -245,7 +245,7 @@ Register in `parser_tests`:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `dune exec test/test_compose_dsl.exe -- test Parser 'let parenthesized value'`
+Run: `dune exec test/main.exe -- test Parser 'let parenthesized value'`
 Expected: FAIL — `parse_term`'s `LPAREN` branch calls `parse_seq_expr`, which doesn't handle `let`.
 
 - [ ] **Step 3: Update `parse_term` to use `read_lets` inside parens**
