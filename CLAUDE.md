@@ -30,15 +30,15 @@ Two opam packages defined in `dune-project` (opam files are auto-generated via `
 Library modules form a pipeline themselves:
 
 ```arrow
-let lex = Lexer :: String -> Token
-let parse = Parser :: Token -> Ast       -- parse_program entry point
-let reduce = Reducer :: Ast -> Ast       -- desugar let, beta reduce lambda
-let check = Checker :: Ast -> Result
-let md = Markdown :: Markdown -> String  -- literate mode: extract arrow blocks
-let pipeline = md >>> lex >>> parse >>> reduce >>> check
+let lex = Lexer :: String -> Token in
+let parse = Parser :: Token -> Ast in       -- parse_program entry point
+let reduce = Reducer :: Ast -> Ast in       -- desugar let, beta reduce lambda
+let check = Checker :: Ast -> Result in
+let md = Markdown :: Markdown -> String in  -- literate mode: extract arrow blocks
+let pipeline = md >>> lex >>> parse >>> reduce >>> check in
 ```
 
-- `Ast` — ADT for DSL expressions: Var (variable reference, bound or free), StringLit (string literal as expression), Seq (`>>>`), Par (`***`), Fanout (`&&&`), Alt (`|||`), Loop, Group, Question (`?`), Lambda (`\x -> body`), App (unified application with `call_arg list` — mixed named/positional), Let (`let x = expr`). Lambda and Let are reduced away by the Reducer. Free Var and App with free Var callee survive reduction. Values: String, Ident, Number (with optional unit suffix, e.g. `100mg`), List. Question takes an `expr` directly (parser allows Var, StringLit, or App). Expressions carry optional `type_ann` (`:: Ident -> Ident`) for documentation.
+- `Ast` — ADT for DSL expressions: Var (variable reference, bound or free), StringLit (string literal as expression), Seq (`>>>`), Par (`***`), Fanout (`&&&`), Alt (`|||`), Loop, Group, Question (`?`), Lambda (`\x -> body`), App (unified application with `call_arg list` — mixed named/positional), Let (`let x = expr in body`). Lambda and Let are reduced away by the Reducer. Free Var and App with free Var callee survive reduction. Values: String, Ident, Number (with optional unit suffix, e.g. `100mg`), List. Question takes an `expr` directly (parser allows Var, StringLit, or App). Expressions carry optional `type_ann` (`:: Ident -> Ident`) for documentation.
 - `Lexer` — tokenizer, raises `Lex_error` on invalid input. Supports Unicode identifiers and unit suffixes (non-ASCII bytes accepted). Column positions track codepoints, not bytes (via `String.get_utf_8_uchar`). Tokens include `DOUBLE_COLON` (`::`) and `ARROW` (`->`); `read_ident` uses lookahead to stop before `->` so that `A->B` tokenizes correctly despite `-` being a valid identifier character.
 - `Parser` — recursive descent parser, raises `Parse_error`. Single entry point: `parse_program` (handles both `let` bindings and plain expressions). Per-arg disambiguation: `IDENT ":"` → Named arg, otherwise → Positional arg.
 - `Reducer` — desugars `Let` into `App(Lambda)`, performs beta reduction (substituting args into lambda bodies). Free `Var` and `App` with free `Var` callee survive reduction. Raises `Reduce_error` on arity mismatch, named args on lambda, non-function application, or unreduced nodes. Alpha-renaming counter is local to each `reduce` call (deterministic, thread-safe).
@@ -61,11 +61,11 @@ dune exec ocaml-compose-dsl -- --literate README.md
 Every code change should follow this workflow:
 
 ```arrow
-let verify = verify_ebnf :: Code -> Spec   -- check README.md EBNF still matches parser/lexer
+let verify = verify_ebnf :: Code -> Spec in   -- check README.md EBNF still matches parser/lexer
 let test =
   update_tests :: Spec -> Test             -- update or add tests in test/test_compose_dsl.ml
-  >>> dune_test :: Test -> Pass             -- run dune test, confirm all pass
-let implement = implement :: Code -> Code >>> verify >>> test
+  >>> dune_test :: Test -> Pass in             -- run dune test, confirm all pass
+let implement = implement :: Code -> Code >>> verify >>> test in
 ```
 
 The EBNF in `README.md` is the language spec. If parser behavior and EBNF diverge, either fix the parser or update the EBNF.
@@ -87,13 +87,13 @@ macOS x86_64 binary is **not built in CI** (Rosetta cross-compile doesn't work w
 let docs =
   update_docs(file: "CLAUDE.md")
   &&& update_docs(file: "README.md")
-  &&& update_docs(file: "CHANGELOG.md")
+  &&& update_docs(file: "CHANGELOG.md") in
 let version_bump =
   bump(file: "dune-project")
   >>> docs
   >>> build -- dune build to regenerate opam files
   >>> test  -- dune test to confirm nothing broke
-  >>> commit
+  >>> commit in
 ```
 
 ### Releasing
@@ -116,8 +116,7 @@ version_bump
 - **Arrow laws rewriting** — now that the reducer exists, add an optimization pass that applies Arrow algebraic laws to simplify pipeline structure. Sits between reduce and check: `parse >>> reduce >>> optimize >>> check`. Candidates: associativity normalization, functor law for `***` (`(a *** b) >>> (c *** d)` → `(a >>> c) *** (b >>> d)`), identity elimination.
 - **Expression-level comments** — currently comments only attach to `node.comments`, so `Var`/`Lambda`/`App`/`Let` nodes silently drop comments during parsing. After reduction, comments on variables are lost entirely. Two candidate designs: (a) add a `comments: string list` field to `expr` (like `type_ann`), making comments a first-class expression annotation that survives reduction; (b) add a `Commented of expr * string list` AST node wrapper that the reducer passes through. Both require updating `substitute` to preserve/merge comments when replacing a `Var`. Design (a) is cleaner but touches every `mk_expr` call and pattern match; design (b) is less invasive but adds a wrapping layer.
 - **De Bruijn index IR** — replace the current alpha-renaming approach in the reducer with a de Bruijn index intermediate representation. Convert named AST to de Bruijn IR before reduction, perform substitution via index shifting (structurally capture-avoiding), then convert back to named AST. Eliminates the per-`reduce`-call `fresh_name` counter and makes substitution correctness a structural property rather than an algorithmic one. See: "Lambda Calculus and Combinators" (Hindley & Seldin), locally nameless representation as a lighter alternative.
-- **`in` keyword for let scope** — introduce `let x = expr in body` syntax to explicitly delimit `let` scope, replacing the current implicit "rest of program" scoping. This would make the reducer's substitution boundary explicit, solving the curried free variable application depth issue (see Known Bugs) and aligning with standard functional language semantics. Alternative: use `;` as a separator. Requires lexer token, parser changes, and possibly AST adjustment.
-- **`let ... in` as expression form** — currently `let ... in` is only valid at the program top level (parsed by `read_lets`). A future extension could make `let ... in` a full expression form that can appear in any expr position (e.g., as a `seq_expr` operand, inside function arguments, etc.), similar to OCaml/Haskell. This would require lifting let-parsing out of `parse_program` and into the expression grammar. Deferred as YAGNI until a concrete use case arises.
+- **`let ... in` as expression form** — `let ... in` inside parenthesized groups is already supported (parsed by `parse_program_inner`). The remaining work is lifting it into `seq_expr` directly so it can appear in any expression position (e.g., as a `seq_expr` operand, inside function arguments) without requiring parentheses, similar to OCaml/Haskell. Deferred as YAGNI until a concrete use case arises.
 - **Cost annotation and critical path analysis** — nodes already support unit-suffixed numbers (`3s`, `500ms`) as arg values, so `cost:` / `weight:` args need zero grammar changes. The AST is a free arrow — cost propagation maps naturally: `Seq` = sum, `Par`/`Fanout` = max, `Alt` = max or weighted average, `Loop` = cost × iterations. Enables PERT/CPM-style critical path identification, bottleneck detection in parallel branches, and cost-aware optimization (don't apply Arrow law rewrites that increase latency). See: Airflow `priority_weight`, Halide auto-scheduler, free arrows for static analysis (Fancher 2017), Granule graded modal types.
 
 ## Plans
