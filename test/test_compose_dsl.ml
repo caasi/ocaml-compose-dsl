@@ -1847,6 +1847,12 @@ let test_parse_let_in_positional_arg_error () =
   | _ -> Alcotest.fail "expected parse error (let not valid in positional arg)"
   | exception Parser.Parse_error _ -> ()
 
+let test_parse_in_as_term_error () =
+  match Lexer.tokenize "a >>> in" |> Parser.parse_program with
+  | _ -> Alcotest.fail "expected parse error (in as term)"
+  | exception Parser.Parse_error (_, msg) ->
+    Alcotest.(check bool) "reserved keyword hint" true (contains msg "reserved keyword")
+
 let test_parse_let_ident_starting_with_in () =
   let ast = parse_ok "let x = in_progress in x" in
   Alcotest.(check string) "printed"
@@ -1871,6 +1877,7 @@ let edge_case_tests =
   ; "let in lambda body error", `Quick, test_parse_let_in_lambda_body_error
   ; "let in positional arg error", `Quick, test_parse_let_in_positional_arg_error
   ; "let ident starting with in", `Quick, test_parse_let_ident_starting_with_in
+  ; "in as term error", `Quick, test_parse_in_as_term_error
   ]
 
 let mixed_arg_tests =

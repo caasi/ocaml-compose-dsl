@@ -258,6 +258,7 @@ and parse_term st =
     let start = t.loc.start in
     advance st;
     parse_lambda st start
+  | Lexer.IN -> raise (Parse_error (t.loc.start, "'in' is a reserved keyword and cannot be used as an identifier"))
   | _ -> raise (Parse_error (t.loc.start, "expected node, string, '(', 'loop', or '\\' (lambda)"))
 
 and parse_program_inner st =
