@@ -6,7 +6,7 @@
 
 ## Problem
 
-`let` bindings currently scope over "the rest of the program" implicitly. The parser's `read_lets` recursively consumes everything after the binding as the body, relying on position/newlines to determine scope:
+`let` bindings currently scope over "the rest of the program" implicitly. The parser's `read_lets` recursively consumes all remaining tokens after the binding as the body — there is no delimiter marking where the scope ends:
 
 ```
 let x = a >>> b
@@ -45,6 +45,7 @@ let_binding = "let" , ident , "=" , seq_expr ;
 ```ebnf
 program     = let_expr | pipeline ;
 let_expr    = "let" , ident , "=" , seq_expr , "in" , program ;
+reserved    = "let" | "loop" | "in" ;
 ```
 
 `let_expr` is right-recursive through `program`, allowing natural nesting. The value part (`seq_expr`) stops at `in`, so the parser always knows where the value ends and the body begins.
@@ -60,12 +61,26 @@ Add `IN` token as a keyword, same treatment as `LET` and `LOOP`:
 
 ### Parser (`lib/parser.ml`)
 
-Modify `read_lets` (or the equivalent parsing function inside `parse_program`):
+**`parse_program` / `read_lets`:**
 
 1. Parse `let IDENT = seq_expr` as before
 2. `expect` an `IN` token after the value's `seq_expr`
 3. Recursively call `read_lets` to parse the body (which is `program` — either another `let_expr` or a `pipeline`)
 4. Return `Let(name, value, body)` — same AST shape as before
+
+**`parse_term` grouping — support `let ... in` inside parentheses:**
+
+Currently `parse_term`'s `LPAREN` branch calls `parse_seq_expr`. This must change to call the `program`-level parser (i.e., `read_lets` or equivalent) so that `(let y = a in y)` is valid. Without this change, the parenthesized nested let test case would fail.
+
+This means `( ... )` grouping now accepts the full `program` grammar, not just `seq_expr`. The `Group` wrapper behavior is unchanged — it wraps whatever expression the inner parser returns (which may now be a `Let` node).
+
+**Lambda body — remains `seq_expr`:**
+
+`parse_lambda` continues to call `parse_seq_expr` for the body. `let ... in` inside a lambda body requires parentheses: `\x -> (let y = x in y)`. Writing `\x -> let y = x in y` is a parse error. This keeps the grammar unambiguous — `let f = \x -> x >>> a in f(b)` parses as `let f = (\x -> x >>> a) in f(b)` because `in` terminates the let's value `seq_expr`, not the lambda body.
+
+**Positional arguments — remain `seq_expr`:**
+
+`parse_call_arg` calls `parse_seq_expr` for positional arguments. `let ... in` inside a positional argument requires parentheses: `f((let x = a in x))`. Writing `f(let x = a in x)` is a parse error.
 
 **Migration hint on error:** When `expect IN` fails, detect if the next token could be the start of an expression (i.e., the old implicit-scope pattern). If so, produce a descriptive error:
 
@@ -103,6 +118,7 @@ No changes. The `Let` variant remains `Let of string * expr * expr`.
 | `in` keyword | `"in"` | `IN` token |
 | `in` inside identifier | `"input"` | `IDENT "input"` |
 | `in` after identifier | `"x in"` | `IDENT "x"`, `IN` |
+| `in` as prefix of ident | `"input"` | `IDENT "input"` (not `IN` + `IDENT "put"`) |
 
 ### Parser Tests — Positive
 
@@ -113,13 +129,16 @@ No changes. The `Let` variant remains `Let of string * expr * expr`.
 | Parenthesized value | `let x = (let y = a in y) in x` | `Let("x", Let("y", Var("a"), Var("y")), Var("x"))` |
 | Let with complex value | `let f = a >>> b in f >>> c` | `Let("f", Seq(Var("a"), Var("b")), Seq(Var("f"), Var("c")))` |
 | Let with lambda value | `let f = \x -> x >>> a in f(b)` | `Let("f", Lambda(["x"], Seq(Var("x"), Var("a"))), App(Var("f"), [Positional(Var("b"))]))` |
+| Ident starting with `in` | `let x = in_progress in x` | `Let("x", Var("in_progress"), Var("x"))` |
 
 ### Parser Tests — Error
 
 | Test | Input | Expected Error |
 |------|-------|---------------|
-| Old syntax (no `in`) | `let x = a\nx` | Parse error with migration hint |
+| Old syntax (no `in`) | `let x = a\nx` | Parse error with migration hint mentioning `in` |
 | Missing `in` at EOF | `let x = a` | Parse error expecting `in` |
+| Let in lambda body (no parens) | `\x -> let y = x in y` | Parse error (let not valid in `seq_expr`) |
+| Let in positional arg (no parens) | `f(let x = a in x)` | Parse error (let not valid in `seq_expr`) |
 
 ### Reducer Tests
 
