@@ -1265,6 +1265,13 @@ let test_parse_let_complex_value () =
     {|Let("f", Seq(Var("a"), Var("b")), Seq(Var("f"), Var("c")))|}
     (Printer.to_string ast)
 
+let test_parse_let_parenthesized_value () =
+  let tokens = Lexer.tokenize "let x = (let y = a in y) in x" in
+  let ast = Parser.parse_program tokens in
+  Alcotest.(check string) "printed"
+    {|Let("x", Group(Let("y", Var("a"), Var("y"))), Var("x"))|}
+    (Printer.to_string ast)
+
 let test_parse_no_let_is_program () =
   let tokens = Lexer.tokenize "a >>> b" in
   let ast = Parser.parse_program tokens in
@@ -1510,6 +1517,7 @@ let parser_tests =
   ; "let with lambda", `Quick, test_parse_let_with_lambda
   ; "let scope", `Quick, test_parse_let_scope
   ; "let complex value", `Quick, test_parse_let_complex_value
+  ; "let parenthesized value", `Quick, test_parse_let_parenthesized_value
   ; "no let is program", `Quick, test_parse_no_let_is_program
   ; "string lit", `Quick, test_parse_string_lit
   ; "string lit as positional arg", `Quick, test_parse_string_lit_as_positional_arg

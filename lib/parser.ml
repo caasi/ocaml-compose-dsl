@@ -251,7 +251,7 @@ and parse_term st =
     mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Loop body)
   | Lexer.LPAREN ->
     advance st;
-    let inner = parse_seq_expr st in
+    let inner = parse_program_inner st in
     expect st (fun tok -> tok = Lexer.RPAREN) "expected ')'";
     mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Group inner)
   | Lexer.BACKSLASH ->
@@ -260,38 +260,38 @@ and parse_term st =
     parse_lambda st start
   | _ -> raise (Parse_error (t.loc.start, "expected node, string, '(', 'loop', or '\\' (lambda)"))
 
+and parse_program_inner st =
+  let _ = eat_comments st in
+  let t = current st in
+  match t.token with
+  | Lexer.LET ->
+    advance st;
+    let t_name = current st in
+    let name = match t_name.token with
+      | Lexer.IDENT s -> advance st; s
+      | _ -> raise (Parse_error (t_name.loc.start, "expected identifier after 'let'"))
+    in
+    expect st (fun tok -> tok = Lexer.EQUALS) "expected '=' after let binding name";
+    let value = parse_seq_expr st in
+    let t_in = current st in
+    (match t_in.token with
+     | Lexer.IN -> advance st
+     | _ ->
+       let hint = Printf.sprintf
+         "expected 'in' after let binding value\nHint: let bindings now require 'in'. Change:\n  let %s = expr\n  body\nto:\n  let %s = expr in body"
+         name name
+       in
+       raise (Parse_error (t_in.loc.start, hint)));
+    let rest = parse_program_inner st in
+    mk_expr { start = t.loc.start; end_ = rest.loc.end_ } (Let (name, value, rest))
+  | _ ->
+    parse_seq_expr st
+
 let parse_program tokens =
   let st = make tokens in
-  let rec read_lets () =
-    let _ = eat_comments st in
-    let t = current st in
-    match t.token with
-    | Lexer.LET ->
-      advance st;
-      let t_name = current st in
-      let name = match t_name.token with
-        | Lexer.IDENT s -> advance st; s
-        | _ -> raise (Parse_error (t_name.loc.start, "expected identifier after 'let'"))
-      in
-      expect st (fun tok -> tok = Lexer.EQUALS) "expected '=' after let binding name";
-      let value = parse_seq_expr st in
-      let t_in = current st in
-      (match t_in.token with
-       | Lexer.IN -> advance st
-       | _ ->
-         let hint = Printf.sprintf
-           "expected 'in' after let binding value\nHint: let bindings now require 'in'. Change:\n  let %s = expr\n  body\nto:\n  let %s = expr in body"
-           name name
-         in
-         raise (Parse_error (t_in.loc.start, hint)));
-      let rest = read_lets () in
-      mk_expr { start = t.loc.start; end_ = rest.loc.end_ } (Let (name, value, rest))
-    | _ ->
-      let expr = parse_seq_expr st in
-      let t_end = current st in
-      (match t_end.token with
-       | Lexer.EOF -> ()
-       | _ -> raise (Parse_error (t_end.loc.start, "expected end of input")));
-      expr
-  in
-  read_lets ()
+  let ast = parse_program_inner st in
+  let t_end = current st in
+  (match t_end.token with
+   | Lexer.EOF -> ()
+   | _ -> raise (Parse_error (t_end.loc.start, "expected end of input")));
+  ast
