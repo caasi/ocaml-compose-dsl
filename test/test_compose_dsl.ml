@@ -1831,6 +1831,28 @@ let test_integration_mixed_args () =
   let result = Checker.check reduced in
   Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
 
+let test_parse_let_old_syntax_error () =
+  match Lexer.tokenize "let x = a\nx" |> Parser.parse_program with
+  | _ -> Alcotest.fail "expected parse error (old syntax)"
+  | exception Parser.Parse_error (_, msg) ->
+    Alcotest.(check bool) "migration hint" true (contains msg "in")
+
+let test_parse_let_in_lambda_body_error () =
+  match Lexer.tokenize "\\ x -> let y = x in y" |> Parser.parse_program with
+  | _ -> Alcotest.fail "expected parse error (let not valid in lambda body)"
+  | exception Parser.Parse_error _ -> ()
+
+let test_parse_let_in_positional_arg_error () =
+  match Lexer.tokenize "f(let x = a in x)" |> Parser.parse_program with
+  | _ -> Alcotest.fail "expected parse error (let not valid in positional arg)"
+  | exception Parser.Parse_error _ -> ()
+
+let test_parse_let_ident_starting_with_in () =
+  let ast = parse_ok "let x = in_progress in x" in
+  Alcotest.(check string) "printed"
+    {|Let("x", Var("in_progress"), Var("x"))|}
+    (Printer.to_string ast)
+
 let edge_case_tests =
   [ "lambda with type ann", `Quick, test_reduce_lambda_with_type_ann
   ; "lambda complex args", `Quick, test_reduce_lambda_complex_args
@@ -1845,6 +1867,10 @@ let edge_case_tests =
   ; "capture avoiding substitution", `Quick, test_reduce_capture_avoiding
   ; "empty application arity", `Quick, test_reduce_empty_application_arity
   ; "trailing comma args", `Quick, test_parse_trailing_comma_args
+  ; "let old syntax error", `Quick, test_parse_let_old_syntax_error
+  ; "let in lambda body error", `Quick, test_parse_let_in_lambda_body_error
+  ; "let in positional arg error", `Quick, test_parse_let_in_positional_arg_error
+  ; "let ident starting with in", `Quick, test_parse_let_ident_starting_with_in
   ]
 
 let mixed_arg_tests =
