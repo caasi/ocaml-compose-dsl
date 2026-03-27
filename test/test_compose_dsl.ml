@@ -1098,7 +1098,7 @@ let test_parse_string_lit () =
   | _ -> Alcotest.fail "expected Seq(StringLit, Var)"
 
 let test_parse_string_lit_as_positional_arg () =
-  let ast = reduce_ok ({|let f = \x -> x >>> a|} ^ "\n" ^ {|f("hello")|}) in
+  let ast = reduce_ok {|let f = \x -> x >>> a in f("hello")|} in
   Alcotest.(check string) "printed"
     {|Seq(StringLit("hello"), Var("a"))|}
     (Printer.to_string ast)
@@ -1120,69 +1120,69 @@ let test_reduce_no_lambda () =
     (Printer.to_string ast)
 
 let test_reduce_let_simple () =
-  let ast = reduce_ok "let f = a >>> b\nf" in
+  let ast = reduce_ok "let f = a >>> b in f" in
   Alcotest.(check string) "printed"
     {|Seq(Var("a"), Var("b"))|}
     (Printer.to_string ast)
 
 let test_reduce_lambda_apply () =
-  let ast = reduce_ok "let f = \\ x -> x >>> a\nf(b)" in
+  let ast = reduce_ok "let f = \\ x -> x >>> a in f(b)" in
   Alcotest.(check string) "printed"
     {|Seq(Var("b"), Var("a"))|}
     (Printer.to_string ast)
 
 let test_reduce_lambda_multi_param () =
-  let ast = reduce_ok "let f = \\ x, y -> x >>> y\nf(a, b)" in
+  let ast = reduce_ok "let f = \\ x, y -> x >>> y in f(a, b)" in
   Alcotest.(check string) "printed"
     {|Seq(Var("a"), Var("b"))|}
     (Printer.to_string ast)
 
 let test_reduce_let_chain () =
-  let ast = reduce_ok "let a = x\nlet b = a\nb" in
+  let ast = reduce_ok "let a = x in let b = a in b" in
   Alcotest.(check string) "printed"
     {|Var("x")|}
     (Printer.to_string ast)
 
 let test_reduce_nested_application () =
-  let ast = reduce_ok "let f = \\ x -> x\nlet g = \\ y -> f(y)\ng(a)" in
+  let ast = reduce_ok "let f = \\ x -> x in let g = \\ y -> f(y) in g(a)" in
   Alcotest.(check string) "printed"
     {|Var("a")|}
     (Printer.to_string ast)
 
 let test_reduce_free_variable () =
   (* y is free in the lambda body — survives as Var *)
-  let ast = reduce_ok "let f = \\ x -> y\nf(a)" in
+  let ast = reduce_ok "let f = \\ x -> y in f(a)" in
   Alcotest.(check string) "printed"
     {|Var("y")|}
     (Printer.to_string ast)
 
 let test_reduce_arity_mismatch () =
-  reduce_fails "let f = \\ x, y -> x\nf(a)"
+  reduce_fails "let f = \\ x, y -> x in f(a)"
 
 let test_reduce_free_var_apply () =
   (* Applying a bound variable that resolves to a free Var now survives *)
-  let ast = reduce_ok "let f = a\nf(b)" in
+  let ast = reduce_ok "let f = a in f(b)" in
   Alcotest.(check string) "printed"
     {|App(Var("a"), [Positional(Var("b"))])|}
     (Printer.to_string ast)
 
 let test_reduce_curried_free_var_apply () =
   (* Curried application on free var: let g = f(b) then g(c) *)
-  let ast = reduce_ok "let g = f(b)\ng(c)" in
+  let ast = reduce_ok "let g = f(b) in g(c)" in
   Alcotest.(check string) "printed"
     {|App(App(Var("f"), [Positional(Var("b"))]), [Positional(Var("c"))])|}
     (Printer.to_string ast)
 
 let test_reduce_curried_free_var_lambda_rejected () =
   (* Lambda hidden inside curried free var app must be caught by verify *)
-  match reduce_ok "let g = f(\\ x -> x)\ng(a)" with
+  match reduce_ok "let g = f(\\ x -> x) in g(a)" with
   | _ -> Alcotest.fail "expected reduce error (lambda not fully applied)"
   | exception Reducer.Reduce_error (_, msg) ->
     Alcotest.(check bool) "mentions lambda" true (contains msg "lambda")
 
 let test_reduce_deep_curried_free_var_apply () =
   (* Depth-3 curried free var: let h = g(d) where g = f(b) *)
-  let ast = reduce_ok "let g = f(b)\nlet h = g(c)\nh(d)" in
+  let ast = reduce_ok "let g = f(b) in let h = g(c) in h(d)" in
   Alcotest.(check string) "printed"
     {|App(App(App(Var("f"), [Positional(Var("b"))]), [Positional(Var("c"))]), [Positional(Var("d"))])|}
     (Printer.to_string ast)
@@ -1194,13 +1194,13 @@ let test_reduce_string_lit_passthrough () =
     (Printer.to_string ast)
 
 let test_reduce_string_lit_as_arg () =
-  let ast = reduce_ok ({|let f = \x -> x >>> a|} ^ "\n" ^ {|f("hello")|}) in
+  let ast = reduce_ok {|let f = \x -> x >>> a in f("hello")|} in
   Alcotest.(check string) "printed"
     {|Seq(StringLit("hello"), Var("a"))|}
     (Printer.to_string ast)
 
 let test_reduce_string_lit_apply_error () =
-  match reduce_ok ({|let s = "hello"|} ^ "\n" ^ {|s("world")|}) with
+  match reduce_ok {|let s = "hello" in s("world")|} with
   | _ -> Alcotest.fail "expected reduce error"
   | exception Reducer.Reduce_error (_, msg) ->
     Alcotest.(check bool) "error mentions string literal"
@@ -1584,7 +1584,7 @@ let test_print_var () =
   | _ -> Alcotest.fail "expected Lambda"
 
 let test_print_app () =
-  let tokens = Lexer.tokenize "let f = \\ x -> x\nf(a)" in
+  let tokens = Lexer.tokenize "let f = \\ x -> x in f(a)" in
   let ast = Parser.parse_program tokens in
   match ast.desc with
   | Let (_, _, body) ->
@@ -1594,7 +1594,7 @@ let test_print_app () =
   | _ -> Alcotest.fail "expected Let"
 
 let test_print_let () =
-  let tokens = Lexer.tokenize "let f = a\nf" in
+  let tokens = Lexer.tokenize "let f = a in f" in
   let ast = Parser.parse_program tokens in
   Alcotest.(check string) "printed"
     {|Let("f", Var("a"), Var("f"))|}
@@ -1626,7 +1626,7 @@ let printer_tests =
 
 (* Integration: full pipeline parse_program >>> reduce >>> check *)
 let test_integration_let_and_check () =
-  let input = "let f = \\ x -> x >>> a\nf(b)" in
+  let input = "let f = \\ x -> x >>> a in f(b)" in
   let tokens = Lexer.tokenize input in
   let ast = Parser.parse_program tokens in
   let reduced = Reducer.reduce ast in
@@ -1666,14 +1666,14 @@ let reducer_tests =
 
 (* Lambda with type annotations in body *)
 let test_reduce_lambda_with_type_ann () =
-  let ast = reduce_ok "let f = \\ x -> x :: A -> B\nf(a)" in
+  let ast = reduce_ok "let f = \\ x -> x :: A -> B in f(a)" in
   Alcotest.(check string) "printed"
     {|TypeAnn(Var("a"), "A", "B")|}
     (Printer.to_string ast)
 
 (* Lambda with Arrow operators in args *)
 let test_reduce_lambda_complex_args () =
-  let ast = reduce_ok "let f = \\ x, y -> x >>> y\nf(a >>> b, c)" in
+  let ast = reduce_ok "let f = \\ x, y -> x >>> y in f(a >>> b, c)" in
   Alcotest.(check string) "printed"
     {|Seq(Seq(Var("a"), Var("b")), Var("c"))|}
     (Printer.to_string ast)
@@ -1687,17 +1687,18 @@ let test_parse_lambda_unicode_param () =
 
 (* Let binding with unicode name *)
 let test_parse_let_unicode_name () =
-  let tokens = Lexer.tokenize "let \xe5\xaf\xa9\xe6\x9f\xbb = a >>> b\n\xe5\xaf\xa9\xe6\x9f\xbb" in
+  let tokens = Lexer.tokenize "let \xe5\xaf\xa9\xe6\x9f\xbb = a >>> b in \xe5\xaf\xa9\xe6\x9f\xbb" in
   let ast = Parser.parse_program tokens in
   match ast.desc with
   | Let ("\xe5\xaf\xa9\xe6\x9f\xbb", _, _) -> ()
   | _ -> Alcotest.fail "expected Let with unicode name"
 
-(* Empty pipeline body after let *)
+(* Missing 'in' after let binding *)
 let test_parse_let_error_no_body () =
   match Lexer.tokenize "let f = a" |> Parser.parse_program with
-  | _ -> Alcotest.fail "expected parse error (no body after let)"
-  | exception Parser.Parse_error _ -> ()
+  | _ -> Alcotest.fail "expected parse error (no 'in' after let)"
+  | exception Parser.Parse_error (_, msg) ->
+    Alcotest.(check bool) "mentions 'in'" true (contains msg "in")
 
 (* Lambda with zero params — should be parse error *)
 let test_parse_lambda_no_params () =
@@ -1734,7 +1735,7 @@ let test_parse_lambda_duplicate_params () =
 
 (* Empty application f() — now parses OK, but arity error at reduce *)
 let test_reduce_empty_application_arity () =
-  match reduce_ok "let f = \\ x -> x\nf()" with
+  match reduce_ok "let f = \\ x -> x in f()" with
   | _ -> Alcotest.fail "expected reduce error (arity mismatch)"
   | exception Reducer.Reduce_error (_, msg) ->
     Alcotest.(check bool) "mentions arity" true (contains msg "arity")
@@ -1747,7 +1748,7 @@ let test_parse_trailing_comma_args () =
     Alcotest.(check bool) "mentions trailing comma" true (contains msg "trailing comma")
 
 let test_reduce_capture_avoiding () =
-  let ast = reduce_ok "let apply = \\ f, x -> f(x)\nlet id = \\ x -> x\napply(id, a)" in
+  let ast = reduce_ok "let apply = \\ f, x -> f(x) in let id = \\ x -> x in apply(id, a)" in
   Alcotest.(check string) "printed"
     {|Var("a")|}
     (Printer.to_string ast)
@@ -1790,13 +1791,13 @@ let test_parse_empty_parens_app () =
   | _ -> Alcotest.fail "expected App(Var noop, [])"
 
 let test_reduce_mixed_args () =
-  let ast = reduce_ok "let v = a >>> b\npush(remote: origin, v)" in
+  let ast = reduce_ok "let v = a >>> b in push(remote: origin, v)" in
   Alcotest.(check string) "printed"
     {|App(Var("push"), [Named(remote: Ident("origin")), Positional(Seq(Var("a"), Var("b")))])|}
     (Printer.to_string ast)
 
 let test_reduce_named_args_on_lambda_error () =
-  reduce_fails "let f = \\ x -> x\nf(key: val)"
+  reduce_fails "let f = \\ x -> x in f(key: val)"
 
 let test_reduce_free_var_with_named () =
   let ast = reduce_ok {|push(remote: origin)|} in
@@ -1811,7 +1812,7 @@ let test_reduce_free_var_bare () =
     (Printer.to_string ast)
 
 let test_check_mixed_args_no_error () =
-  let _ = check_ok "let v = a >>> b\npush(remote: origin, v)" in
+  let _ = check_ok "let v = a >>> b in push(remote: origin, v)" in
   ()
 
 let test_check_question_in_positional_arg () =
@@ -1823,7 +1824,7 @@ let test_check_app_question_with_alt () =
   ()
 
 let test_integration_mixed_args () =
-  let input = "let v = some_pipeline\npush(remote: origin, v)" in
+  let input = "let v = some_pipeline in push(remote: origin, v)" in
   let tokens = Lexer.tokenize input in
   let ast = Parser.parse_program tokens in
   let reduced = Reducer.reduce ast in
@@ -2011,7 +2012,7 @@ let markdown_tests =
   ]
 
 let test_md_literate_end_to_end () =
-  let input = "# Doc\n\n```arrow\nlet f = a >>> b\nf\n```\n\nText\n" in
+  let input = "# Doc\n\n```arrow\nlet f = a >>> b in f\n```\n\nText\n" in
   let blocks = Markdown.extract input in
   let source, _table = Markdown.combine blocks in
   let tokens = Lexer.tokenize source in
