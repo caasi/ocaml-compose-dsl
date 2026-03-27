@@ -18,6 +18,9 @@ program     = let_expr | pipeline ;
 let_expr    = "let" , ident , "=" , seq_expr , "in" , program ;
 
 lambda  = "\" , ident , { "," , ident } , "->" , seq_expr ;
+                                                    (* body is seq_expr, not program;
+                                                       let_expr is only valid at program level
+                                                       or inside grouping parens *)
 
 pipeline = seq_expr ;
 
