@@ -63,7 +63,7 @@ Every code change should follow this workflow:
 ```arrow
 let verify = verify_ebnf :: Code -> Spec in   -- check README.md EBNF still matches parser/lexer
 let test =
-  update_tests :: Spec -> Test             -- update or add tests in test/test_compose_dsl.ml
+  update_tests :: Spec -> Test             -- update or add tests under test/ (e.g., test_lexer.ml, test_parser.ml)
   >>> dune_test :: Test -> Pass in             -- run dune test, confirm all pass
 let implement = implement :: Code -> Code >>> verify >>> test in
 ```
