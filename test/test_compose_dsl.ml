@@ -1835,7 +1835,7 @@ let test_parse_let_old_syntax_error () =
   match Lexer.tokenize "let x = a\nx" |> Parser.parse_program with
   | _ -> Alcotest.fail "expected parse error (old syntax)"
   | exception Parser.Parse_error (_, msg) ->
-    Alcotest.(check bool) "migration hint" true (contains msg "in")
+    Alcotest.(check bool) "migration hint" true (contains msg "Hint:")
 
 let test_parse_let_in_lambda_body_error () =
   match Lexer.tokenize "\\ x -> let y = x in y" |> Parser.parse_program with
