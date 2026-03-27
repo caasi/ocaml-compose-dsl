@@ -1207,7 +1207,7 @@ let test_reduce_string_lit_apply_error () =
       true (contains msg "string literal")
 
 let test_parse_let_simple () =
-  let tokens = Lexer.tokenize "let f = a >>> b\nf" in
+  let tokens = Lexer.tokenize "let f = a >>> b in f" in
   let ast = Parser.parse_program tokens in
   match ast.desc with
   | Let ("f", value, body) ->
@@ -1220,7 +1220,7 @@ let test_parse_let_simple () =
   | _ -> Alcotest.fail "expected Let"
 
 let test_parse_let_multiple () =
-  let tokens = Lexer.tokenize "let a = x\nlet b = y\na >>> b" in
+  let tokens = Lexer.tokenize "let a = x in let b = y in a >>> b" in
   let ast = Parser.parse_program tokens in
   match ast.desc with
   | Let ("a", _, inner) ->
@@ -1233,7 +1233,7 @@ let test_parse_let_multiple () =
   | _ -> Alcotest.fail "expected Let"
 
 let test_parse_let_with_lambda () =
-  let tokens = Lexer.tokenize "let f = \\ x -> x >>> a\nf(b)" in
+  let tokens = Lexer.tokenize "let f = \\ x -> x >>> a in f(b)" in
   let ast = Parser.parse_program tokens in
   match ast.desc with
   | Let ("f", value, body) ->
@@ -1246,8 +1246,7 @@ let test_parse_let_with_lambda () =
   | _ -> Alcotest.fail "expected Let"
 
 let test_parse_let_scope () =
-  (* Without scope tracking, a in b's value is parsed as Var "a" *)
-  let tokens = Lexer.tokenize "let a = x\nlet b = a\nb" in
+  let tokens = Lexer.tokenize "let a = x in let b = a in b" in
   let ast = Parser.parse_program tokens in
   match ast.desc with
   | Let ("a", _, inner) ->
@@ -1258,6 +1257,13 @@ let test_parse_let_scope () =
         | _ -> Alcotest.fail "expected Var a in b's value")
      | _ -> Alcotest.fail "expected nested Let")
   | _ -> Alcotest.fail "expected Let"
+
+let test_parse_let_complex_value () =
+  let tokens = Lexer.tokenize "let f = a >>> b in f >>> c" in
+  let ast = Parser.parse_program tokens in
+  Alcotest.(check string) "printed"
+    {|Let("f", Seq(Var("a"), Var("b")), Seq(Var("f"), Var("c")))|}
+    (Printer.to_string ast)
 
 let test_parse_no_let_is_program () =
   let tokens = Lexer.tokenize "a >>> b" in
@@ -1503,6 +1509,7 @@ let parser_tests =
   ; "let multiple", `Quick, test_parse_let_multiple
   ; "let with lambda", `Quick, test_parse_let_with_lambda
   ; "let scope", `Quick, test_parse_let_scope
+  ; "let complex value", `Quick, test_parse_let_complex_value
   ; "no let is program", `Quick, test_parse_no_let_is_program
   ; "string lit", `Quick, test_parse_string_lit
   ; "string lit as positional arg", `Quick, test_parse_string_lit_as_positional_arg

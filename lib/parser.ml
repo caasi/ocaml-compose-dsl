@@ -275,6 +275,15 @@ let parse_program tokens =
       in
       expect st (fun tok -> tok = Lexer.EQUALS) "expected '=' after let binding name";
       let value = parse_seq_expr st in
+      let t_in = current st in
+      (match t_in.token with
+       | Lexer.IN -> advance st
+       | _ ->
+         let hint = Printf.sprintf
+           "expected 'in' after let binding value\nHint: let bindings now require 'in'. Change:\n  let %s = expr\n  body\nto:\n  let %s = expr in body"
+           name name
+         in
+         raise (Parse_error (t_in.loc.start, hint)));
       let rest = read_lets () in
       mk_expr { start = t.loc.start; end_ = rest.loc.end_ } (Let (name, value, rest))
     | _ ->
