@@ -45,9 +45,10 @@ term     = ident , [ "(" , [ call_args ] , ")" ] , [ "?" ]
          ;
 
 call_args = call_arg , { "," , call_arg } ;
-call_arg  = ident , ":" , value                    (* Named — per-arg disambiguation via IDENT ":" *)
+call_arg  = arg_key , ":" , value                   (* Named — per-arg disambiguation via key ":" *)
           | seq_expr                                (* Positional — any expression *)
           ;
+arg_key   = ident | "in" ;                          (* reserved words allowed as named arg keys *)
 
 value    = string
          | number
