@@ -13,9 +13,9 @@ The DSL uses Arrow combinators because they sit at the sweet spot between shell 
 ## Grammar (EBNF)
 
 ```ebnf
-program = { let_binding } , pipeline ;
+program     = let_expr | pipeline ;
 
-let_binding = "let" , ident , "=" , seq_expr ;
+let_expr    = "let" , ident , "=" , seq_expr , "in" , program ;
 
 lambda  = "\" , ident , { "," , ident } , "->" , seq_expr ;
 
@@ -37,7 +37,7 @@ term     = ident , [ "(" , [ call_args ] , ")" ] , [ "?" ]
          | string , [ "?" ]                        (* string literal, optionally question;
                                                       AST represents both as Question(expr) *)
          | "loop" , "(" , seq_expr , ")"            (* feedback loop *)
-         | "(" , seq_expr , ")"                    (* grouping *)
+         | "(" , program , ")"                     (* grouping — accepts let_expr *)
          | lambda
          ;
 
@@ -54,7 +54,7 @@ value    = string
 
 ident       = ident_start , { ident_char } - reserved ;
                 (* reserved words are excluded at the lexer level *)
-reserved    = "let" | "loop" ;
+reserved    = "let" | "loop" | "in" ;
 ident_start = ? any valid UTF-8 codepoint that is not an ASCII digit,
                 not ASCII whitespace, and not one of ( ) [ ] : , > * | & - " .
                 ! # $ % ^ + = { } < ; ' ` ~ / ? @ \ ? ;
@@ -166,22 +166,21 @@ implementation :: Code -> Commit
 ```
 
 ```
-let greet = \name -> hello(to: name) >>> respond
+let greet = \name -> hello(to: name) >>> respond in
 greet(alice) >>> greet(bob)
 ```
 
 ```
 let review = \trigger, fix ->
   loop(trigger >>> (pass ||| fix))
-
-let phase1 = gather >>> review(check?, rework)
-let phase2 = build >>> review(test?, fix)
-
+in
+let phase1 = gather >>> review(check?, rework) in
+let phase2 = build >>> review(test?, fix) in
 phase1 >>> phase2
 ```
 
 ```
-let v = some_pipeline
+let v = some_pipeline in
 push(remote: origin, v)
 ```
 
