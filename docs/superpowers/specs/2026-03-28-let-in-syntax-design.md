@@ -126,7 +126,7 @@ No changes. The `Let` variant remains `Let of string * expr * expr`.
 |------|-------|-------------|
 | Simple let-in | `let x = a in x` | `Let("x", Var("a"), Var("x"))` |
 | Nested let-in | `let x = a in let y = b in x >>> y` | `Let("x", Var("a"), Let("y", Var("b"), Seq(Var("x"), Var("y"))))` |
-| Parenthesized value | `let x = (let y = a in y) in x` | `Let("x", Let("y", Var("a"), Var("y")), Var("x"))` |
+| Parenthesized value | `let x = (let y = a in y) in x` | `Let("x", Group(Let("y", Var("a"), Var("y"))), Var("x"))` |
 | Let with complex value | `let f = a >>> b in f >>> c` | `Let("f", Seq(Var("a"), Var("b")), Seq(Var("f"), Var("c")))` |
 | Let with lambda value | `let f = \x -> x >>> a in f(b)` | `Let("f", Lambda(["x"], Seq(Var("x"), Var("a"))), App(Var("f"), [Positional(Var("b"))]))` |
 | Ident starting with `in` | `let x = in_progress in x` | `Let("x", Var("in_progress"), Var("x"))` |
