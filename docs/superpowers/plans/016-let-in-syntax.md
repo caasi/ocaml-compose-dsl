@@ -84,7 +84,7 @@ In `read_ident`, add `"in"` to the keyword match (line 92-95):
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `dune test 2>&1 | tail -5`
-Expected: All tests pass (existing + 3 new lexer tests).
+Expected: All tests pass (existing + 4 new lexer tests).
 
 - [ ] **Step 5: Commit**
 
