@@ -70,10 +70,10 @@ let rec parse_value st =
 let rec parse_call_arg st =
   let t = current st in
   match t.token with
-  | Lexer.IDENT _ ->
+  | Lexer.IDENT _ | Lexer.IN ->
     (match st.tokens with
      | _ :: { Lexer.token = Lexer.COLON; _ } :: _ ->
-       let key = match t.token with Lexer.IDENT k -> k | _ -> assert false in
+       let key = match t.token with Lexer.IDENT k -> k | Lexer.IN -> "in" | _ -> assert false in
        advance st;
        advance st;
        let value = parse_value st in

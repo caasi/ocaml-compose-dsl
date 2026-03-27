@@ -1880,6 +1880,12 @@ let edge_case_tests =
   ; "in as term error", `Quick, test_parse_in_as_term_error
   ]
 
+let test_parse_in_as_named_arg () =
+  let ast = parse_ok "pipe(in: source, out: dest)" in
+  Alcotest.(check string) "printed"
+    {|App(Var("pipe"), [Named(in: Ident("source")), Named(out: Ident("dest"))])|}
+    (Printer.to_string ast)
+
 let mixed_arg_tests =
   [ "mixed named and positional", `Quick, test_parse_mixed_args
   ; "positional then named", `Quick, test_parse_positional_then_named
@@ -1895,6 +1901,7 @@ let mixed_arg_tests =
   ; "check question in positional arg", `Quick, test_check_question_in_positional_arg
   ; "check app question with alt", `Quick, test_check_app_question_with_alt
   ; "integration mixed args", `Quick, test_integration_mixed_args
+  ; "in as named arg key", `Quick, test_parse_in_as_named_arg
   ]
 
 (* === Markdown tests === *)
