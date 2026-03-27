@@ -278,7 +278,7 @@ and parse_program_inner st =
      | Lexer.IN -> advance st
      | _ ->
        let hint = Printf.sprintf
-         "expected 'in' after let binding value\nHint: let bindings now require 'in'. Change:\n  let %s = expr\n  body\nto:\n  let %s = expr in body"
+         "expected 'in' after let binding value\nHint: let bindings now require 'in'. Change:\n  let %S = expr\n  body\nto:\n  let %S = expr in body"
          name name
        in
        raise (Parse_error (t_in.loc.start, hint)));
