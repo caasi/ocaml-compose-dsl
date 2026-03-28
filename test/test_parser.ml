@@ -225,13 +225,16 @@ let test_parse_error_unclosed_paren () =
     Alcotest.fail ("expected error mentioning ')': " ^ msg)
 
 let test_parse_error_unclosed_group () =
-  parse_fails "(a >>> b"
+  let msg = parse_error_msg "(a >>> b" in
+  Alcotest.(check bool) "mentions ')'" true (contains msg "')'")
 
 let test_parse_error_missing_loop_paren () =
-  parse_fails "loop a"
+  let msg = parse_error_msg "loop a" in
+  Alcotest.(check bool) "mentions '('" true (contains msg "'('")
 
 let test_parse_error_trailing_operator () =
-  parse_fails "a >>>"
+  let msg = parse_error_msg "a >>>" in
+  Alcotest.(check bool) "mentions expression" true (contains msg "expected expression")
 
 (* plan examples *)
 let test_parse_plan_example_1 () =

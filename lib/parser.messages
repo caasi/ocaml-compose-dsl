@@ -21,7 +21,7 @@ program: STRING STRING
 ## STRING
 ##
 
-syntax error
+unexpected token after string literal
 
 program: LPAREN SEQ
 ##
@@ -35,7 +35,7 @@ program: LPAREN SEQ
 ## LPAREN
 ##
 
-syntax error
+expected expression or ')' after '('
 
 program: LPAREN RPAREN STRING
 ##
@@ -48,7 +48,7 @@ program: LPAREN RPAREN STRING
 ## LPAREN RPAREN
 ##
 
-syntax error
+unexpected token after '()'
 
 program: LOOP STRING
 ##
@@ -72,7 +72,7 @@ program: LOOP LPAREN SEQ
 ## LOOP LPAREN
 ##
 
-syntax error
+expected expression after 'loop('
 
 program: IDENT STRING
 ##
@@ -87,7 +87,7 @@ program: IDENT STRING
 ## IDENT
 ##
 
-syntax error
+unexpected token after identifier
 
 program: IDENT LPAREN SEQ
 ##
@@ -112,7 +112,7 @@ program: IDENT LPAREN IN STRING
 ## IN
 ##
 
-syntax error
+expected ':' after 'in' for named argument
 
 program: IDENT LPAREN IN COLON SEQ
 ##
@@ -124,7 +124,7 @@ program: IDENT LPAREN IN COLON SEQ
 ## IN COLON
 ##
 
-syntax error
+expected value after ':'
 
 program: IDENT LPAREN IDENT COLON LBRACKET SEQ
 ##
@@ -136,7 +136,7 @@ program: IDENT LPAREN IDENT COLON LBRACKET SEQ
 ## LBRACKET
 ##
 
-syntax error
+expected value or ']' in list
 
 program: IDENT LPAREN IDENT COLON LBRACKET IDENT STRING
 ##
@@ -149,7 +149,7 @@ program: IDENT LPAREN IDENT COLON LBRACKET IDENT STRING
 ## value
 ##
 
-syntax error
+expected ',' or ']' in list
 
 program: IDENT LPAREN IDENT COLON LBRACKET IDENT COMMA SEQ
 ##
@@ -161,7 +161,7 @@ program: IDENT LPAREN IDENT COLON LBRACKET IDENT COMMA SEQ
 ## value COMMA
 ##
 
-syntax error
+expected value after ',' in list
 
 program: IDENT LPAREN IDENT STRING
 ##
@@ -177,7 +177,7 @@ program: IDENT LPAREN IDENT STRING
 ## IDENT
 ##
 
-syntax error
+unexpected token in argument list
 
 program: IDENT LPAREN IDENT COLON SEQ
 ##
@@ -189,7 +189,7 @@ program: IDENT LPAREN IDENT COLON SEQ
 ## IDENT COLON
 ##
 
-syntax error
+expected value after ':' in named argument
 
 program: BACKSLASH STRING
 ##
@@ -238,7 +238,7 @@ program: BACKSLASH IDENT ARROW SEQ
 ## BACKSLASH lambda_params ARROW
 ##
 
-syntax error
+expected expression for lambda body after '->'
 
 program: IDENT DOUBLE_COLON IDENT ARROW IDENT STRING
 ##
@@ -252,7 +252,7 @@ program: IDENT DOUBLE_COLON IDENT ARROW IDENT STRING
 ## typed_term
 ##
 
-syntax error
+unexpected token after expression
 
 program: IDENT PAR SEQ
 ##
@@ -264,7 +264,7 @@ program: IDENT PAR SEQ
 ## typed_term PAR
 ##
 
-syntax error
+expected expression after '***'
 
 program: IDENT QUESTION STRING
 ##
@@ -277,7 +277,7 @@ program: IDENT QUESTION STRING
 ## term
 ##
 
-syntax error
+unexpected token after expression
 
 program: IDENT DOUBLE_COLON STRING
 ##
@@ -337,7 +337,7 @@ program: IDENT FANOUT SEQ
 ## typed_term FANOUT
 ##
 
-syntax error
+expected expression after '&&&'
 
 program: IDENT ALT SEQ
 ##
@@ -349,7 +349,7 @@ program: IDENT ALT SEQ
 ## par_expr ALT
 ##
 
-syntax error
+expected expression after '|||'
 
 program: IDENT SEQ SEQ
 ##
@@ -361,7 +361,7 @@ program: IDENT SEQ SEQ
 ## alt_expr SEQ
 ##
 
-syntax error
+expected expression after '>>>'
 
 program: IDENT LPAREN RPAREN STRING
 ##
@@ -374,7 +374,7 @@ program: IDENT LPAREN RPAREN STRING
 ## IDENT LPAREN call_args_or_unit RPAREN
 ##
 
-syntax error
+unexpected token after function call
 
 program: IDENT LPAREN STRING IN
 ##
@@ -468,7 +468,7 @@ program: LET IDENT EQUALS SEQ
 ## LET IDENT EQUALS
 ##
 
-syntax error
+expected expression after '=' in let binding
 
 program: LET IDENT EQUALS IDENT EOF
 ##
@@ -502,7 +502,7 @@ program: LET IDENT EQUALS IDENT IN SEQ
 ## LET IDENT EQUALS seq_expr IN
 ##
 
-syntax error
+expected expression after 'in' in let binding
 
 program: LPAREN IDENT IN
 ##
@@ -549,4 +549,3 @@ program: IDENT IN
 ##
 
 'in' is a reserved keyword and cannot be used as an identifier
-

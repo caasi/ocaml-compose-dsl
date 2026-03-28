@@ -37,8 +37,8 @@ let parse input =
     in
     let msg =
       match reserved_keyword_hint !last_token with
-      | Some hint when String.trim base_msg = "syntax error" -> hint
-      | _ -> String.trim base_msg
+      | Some hint -> hint
+      | None -> String.trim base_msg
     in
     let p = lexbuf.lex_start_p in
     let pos = { line = p.pos_lnum; col = p.pos_cnum - p.pos_bol + 1 } in
