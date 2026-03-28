@@ -129,9 +129,7 @@ let test_md_combine_semicolon_separator () =
     { Markdown.content = "c >>> d\n"; markdown_start = 15 };
   ] in
   let source, _table = Markdown.combine blocks in
-  assert (Helpers.contains source ";");
-  assert (Helpers.contains source "a >>> b");
-  assert (Helpers.contains source "c >>> d")
+  Alcotest.(check string) "source" "a >>> b\n;\nc >>> d\n" source
 
 let test_md_combine_single_no_semicolon () =
   let blocks = [
