@@ -97,9 +97,19 @@ let test_parse_in_as_named_arg () =
     {|App(Var("pipe"), [Named(in: Ident("source")), Named(out: Ident("dest"))])|}
     (Printer.to_string ast)
 
+let test_integration_multi_statement () =
+  let prog = Helpers.parse_program_ok "let x = a in x; b >>> c" in
+  let reduced = Reducer.reduce_program prog in
+  let result = Checker.check_program reduced in
+  Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings);
+  let output = Printer.program_to_string reduced in
+  assert (Helpers.contains output "Var(\"a\")");
+  assert (Helpers.contains output "Seq")
+
 let tests =
   [ "let and check", `Quick, test_integration_let_and_check
   ; "backward compat", `Quick, test_integration_backward_compat
+  ; "multi statement", `Quick, test_integration_multi_statement
   ]
 
 let mixed_arg_tests =
