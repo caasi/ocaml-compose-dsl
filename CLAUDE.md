@@ -31,8 +31,8 @@ Library modules form a pipeline themselves:
 
 ```arrow
 let parse = Parse_errors :: String -> Program in -- Menhir incremental API; drives Lexer internally
-let reduce = Reducer :: Ast -> Ast in        -- desugar let, beta reduce lambda
-let check = Checker :: Ast -> Result in
+let reduce = Reducer :: Program -> Program in -- desugar let, beta reduce lambda
+let check = Checker :: Program -> Result in
 let md = Markdown :: Markdown -> String in   -- literate mode: extract arrow blocks
 md >>> parse >>> reduce >>> check
 ```
