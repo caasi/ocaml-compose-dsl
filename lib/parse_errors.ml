@@ -30,4 +30,5 @@ let parse input =
     let pos = Lexer.current_pos st in
     raise (Parse_error (pos, String.trim msg))
   in
-  I.loop_handle succeed fail supplier checkpoint
+  try I.loop_handle succeed fail supplier checkpoint
+  with Ast.Duplicate_param (pos, msg) -> raise (Parse_error (pos, msg))

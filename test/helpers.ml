@@ -10,14 +10,12 @@ let parse_fails input =
   | _ -> Alcotest.fail "expected parse error"
   | exception Parser.Error -> ()
   | exception Lexer.Lex_error _ -> ()
-  | exception Ast.Duplicate_param _ -> ()
   | exception Parse_errors.Parse_error _ -> ()
 
 let parse_error_msg input =
   match parse_ok input with
   | _ -> Alcotest.fail "expected parse error"
   | exception Parse_errors.Parse_error (_, msg) -> msg
-  | exception Ast.Duplicate_param (_, msg) -> msg
   | exception Lexer.Lex_error (_, msg) -> msg
   | exception Parser.Error -> "syntax error"
 
