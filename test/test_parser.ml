@@ -673,6 +673,24 @@ let test_parse_let_ident_starting_with_in () =
     {|Let("x", Var("in_progress"), Var("x"))|}
     (Printer.to_string ast)
 
+let test_parse_unit_type_ann_input () =
+  let ast = parse_ok "node :: () -> Output" in
+  match ast.type_ann with
+  | Some { input = "()"; output = "Output" } -> ()
+  | _ -> Alcotest.fail "expected type_ann { input = \"()\"; output = \"Output\" }"
+
+let test_parse_unit_type_ann_output () =
+  let ast = parse_ok "node :: Input -> ()" in
+  match ast.type_ann with
+  | Some { input = "Input"; output = "()" } -> ()
+  | _ -> Alcotest.fail "expected type_ann { input = \"Input\"; output = \"()\" }"
+
+let test_parse_unit_type_ann_both () =
+  let ast = parse_ok "node :: () -> ()" in
+  match ast.type_ann with
+  | Some { input = "()"; output = "()" } -> ()
+  | _ -> Alcotest.fail "expected type_ann { input = \"()\"; output = \"()\" }"
+
 let test_parse_unit_standalone () =
   match desc_of "()" with
   | Ast.Unit -> ()
@@ -788,6 +806,9 @@ let tests =
   ; "unit in seq", `Quick, test_parse_unit_in_seq
   ; "unit nested", `Quick, test_parse_unit_nested
   ; "unit question", `Quick, test_parse_unit_question
+  ; "type ann unit input", `Quick, test_parse_unit_type_ann_input
+  ; "type ann unit output", `Quick, test_parse_unit_type_ann_output
+  ; "type ann unit both", `Quick, test_parse_unit_type_ann_both
   ]
 
 let test_parse_lambda_returns_unit () =

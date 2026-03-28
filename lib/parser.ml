@@ -122,23 +122,25 @@ and attach_comments_right (e : expr) comments =
     | Question inner -> { e with desc = Question (attach_comments_right inner comments) }
     | Var _ | App _ | Lambda _ | Let _ | Unit -> e
 
+and parse_type_name st =
+  let t = current st in
+  match t.token with
+  | Lexer.IDENT name -> advance st; name
+  | Lexer.LPAREN ->
+    advance st;
+    expect st (fun tok -> tok = Lexer.RPAREN) "expected ')' in unit type '()'";
+    "()"
+  | _ -> raise (Parse_error (t.loc.start, "expected type name or '()' in type annotation after '::' or '->'"))
+
 and parse_type_ann st =
   let t = current st in
   match t.token with
   | Lexer.DOUBLE_COLON ->
     advance st;
-    let t_in = current st in
-    (match t_in.token with
-     | Lexer.IDENT input ->
-       advance st;
-       expect st (fun tok -> tok = Lexer.ARROW) "expected '->' in type annotation";
-       let t_out = current st in
-       (match t_out.token with
-        | Lexer.IDENT output ->
-          advance st;
-          Some { input; output }
-        | _ -> raise (Parse_error (t_out.loc.start, "expected type name after '->'")))
-     | _ -> raise (Parse_error (t_in.loc.start, "expected type name after '::'")))
+    let input = parse_type_name st in
+    expect st (fun tok -> tok = Lexer.ARROW) "expected '->' in type annotation";
+    let output = parse_type_name st in
+    Some { input; output }
   | _ -> None
 
 and parse_seq_expr st =
