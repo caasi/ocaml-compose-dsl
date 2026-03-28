@@ -83,15 +83,14 @@ let rec parse_call_arg st =
   | _ ->
     Positional (parse_seq_expr st)
 
-and parse_call_args st =
-  let t_start = current st in
+and parse_call_args ~lparen_start st =
   let args = ref [] in
   let rec go () =
     let t = current st in
     match t.token with
     | Lexer.RPAREN ->
       if !args = [] then
-        args := [Positional (mk_expr { start = t_start.loc.start; end_ = t.loc.start } Unit)]
+        args := [Positional (mk_expr { start = lparen_start; end_ = t.loc.end_ } Unit)]
     | _ ->
       args := parse_call_arg st :: !args;
       let t2 = current st in
@@ -225,8 +224,9 @@ and parse_term st =
     let t_next = current st in
     (match t_next.token with
      | Lexer.LPAREN ->
+       let lparen_start = t_next.loc.start in
        advance st;
-       let args = parse_call_args st in
+       let args = parse_call_args ~lparen_start st in
        expect st (fun tok -> tok = Lexer.RPAREN) "expected ')'";
        let rparen_end = st.last_loc.end_ in
        let _ = eat_comments st in
