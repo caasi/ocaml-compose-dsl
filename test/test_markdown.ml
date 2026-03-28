@@ -149,8 +149,7 @@ let test_md_literate_end_to_end () =
   let input = "# Doc\n\n```arrow\nlet f = a >>> b in f\n```\n\nText\n" in
   let blocks = Markdown.extract input in
   let source, _table = Markdown.combine blocks in
-  let tokens = Lexer.tokenize source in
-  let ast = Parser.parse_program tokens in
+  let ast = Helpers.parse_ok source in
   let _ast = Reducer.reduce ast in
   ()
 

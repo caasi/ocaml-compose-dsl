@@ -220,20 +220,26 @@ let test_parse_unicode_unit_value () =
 
 (* error cases *)
 let test_parse_error_unclosed_paren () =
-  match parse_ok "a(" with
-  | _ -> Alcotest.fail "expected parse error"
-  | exception Parser.Parse_error (_, msg) ->
-    if not (contains msg ")") then
-      Alcotest.fail ("expected error mentioning ')': " ^ msg)
+  let msg = parse_error_msg "a(" in
+  if not (contains msg ")") then
+    Alcotest.fail ("expected error mentioning ')': " ^ msg)
 
 let test_parse_error_unclosed_group () =
-  parse_fails "(a >>> b"
+  let msg = parse_error_msg "(a >>> b" in
+  Alcotest.(check bool) "mentions ')'" true (contains msg "')'")
 
 let test_parse_error_missing_loop_paren () =
-  parse_fails "loop a"
+  let msg = parse_error_msg "loop a" in
+  Alcotest.(check bool) "mentions '('" true (contains msg "'('")
+
+(* reserved keyword hint must not override specific state messages *)
+let test_parse_error_loop_in_keeps_specific_msg () =
+  let msg = parse_error_msg "loop in" in
+  Alcotest.(check bool) "mentions '(' not 'reserved keyword'" true (contains msg "'('")
 
 let test_parse_error_trailing_operator () =
-  parse_fails "a >>>"
+  let msg = parse_error_msg "a >>>" in
+  Alcotest.(check bool) "mentions expression" true (contains msg "expected expression")
 
 (* plan examples *)
 let test_parse_plan_example_1 () =
@@ -347,6 +353,14 @@ let test_parse_node_with_args_loc () =
   Alcotest.(check int) "start col" 1 ast.loc.start.col;
   Alcotest.(check int) "end col" 8 ast.loc.end_.col
 
+(* inner App loc in f(x)? should include the closing paren, matching f(x) *)
+let test_parse_question_app_loc () =
+  let ast = parse_ok "f(x)?" in
+  match ast.desc with
+  | Ast.Question inner ->
+    Alcotest.(check int) "inner App end col" 5 inner.loc.end_.col
+  | _ -> Alcotest.fail "expected Question(App(...))"
+
 let test_parse_unicode_node_loc () =
   let ast = parse_ok "翻譯" in
   Alcotest.(check int) "start col" 1 ast.loc.start.col;
@@ -438,16 +452,12 @@ let test_parse_type_ann_loc_no_ann () =
   Alcotest.(check int) "end col" 5 ast.loc.end_.col
 
 let test_parse_type_ann_incomplete_error () =
-  (match parse_ok "node :: A" with
-   | _ -> Alcotest.fail "expected parse error"
-   | exception Parser.Parse_error (_, msg) ->
-     Alcotest.(check bool) "error mentions ->" true (contains msg "->"))
+  let msg = parse_error_msg "node :: A" in
+  Alcotest.(check bool) "error mentions ->" true (contains msg "->")
 
 let test_parse_type_ann_missing_output_error () =
-  (match parse_ok "node :: A ->" with
-   | _ -> Alcotest.fail "expected parse error"
-   | exception Parser.Parse_error (_, msg) ->
-     Alcotest.(check bool) "error mentions ->" true (contains msg "->"))
+  let msg = parse_error_msg "node :: A ->" in
+  Alcotest.(check bool) "error mentions ->" true (contains msg "->")
 
 (* === String lit parse tests === *)
 
@@ -475,8 +485,7 @@ let test_parse_string_lit_in_par () =
 (* === Let/lambda parser tests === *)
 
 let test_parse_let_simple () =
-  let tokens = Lexer.tokenize "let f = a >>> b in f" in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok "let f = a >>> b in f" in
   match ast.desc with
   | Let ("f", value, body) ->
     (match value.desc with
@@ -488,8 +497,7 @@ let test_parse_let_simple () =
   | _ -> Alcotest.fail "expected Let"
 
 let test_parse_let_multiple () =
-  let tokens = Lexer.tokenize "let a = x in let b = y in a >>> b" in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok "let a = x in let b = y in a >>> b" in
   match ast.desc with
   | Let ("a", _, inner) ->
     (match inner.desc with
@@ -501,8 +509,7 @@ let test_parse_let_multiple () =
   | _ -> Alcotest.fail "expected Let"
 
 let test_parse_let_with_lambda () =
-  let tokens = Lexer.tokenize "let f = \\ x -> x >>> a in f(b)" in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok "let f = \\ x -> x >>> a in f(b)" in
   match ast.desc with
   | Let ("f", value, body) ->
     (match value.desc with
@@ -514,8 +521,7 @@ let test_parse_let_with_lambda () =
   | _ -> Alcotest.fail "expected Let"
 
 let test_parse_let_scope () =
-  let tokens = Lexer.tokenize "let a = x in let b = a in b" in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok "let a = x in let b = a in b" in
   match ast.desc with
   | Let ("a", _, inner) ->
     (match inner.desc with
@@ -527,22 +533,19 @@ let test_parse_let_scope () =
   | _ -> Alcotest.fail "expected Let"
 
 let test_parse_let_complex_value () =
-  let tokens = Lexer.tokenize "let f = a >>> b in f >>> c" in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok "let f = a >>> b in f >>> c" in
   Alcotest.(check string) "printed"
     {|Let("f", Seq(Var("a"), Var("b")), Seq(Var("f"), Var("c")))|}
     (Printer.to_string ast)
 
 let test_parse_let_parenthesized_value () =
-  let tokens = Lexer.tokenize "let x = (let y = a in y) in x" in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok "let x = (let y = a in y) in x" in
   Alcotest.(check string) "printed"
     {|Let("x", Group(Let("y", Var("a"), Var("y"))), Var("x"))|}
     (Printer.to_string ast)
 
 let test_parse_no_let_is_program () =
-  let tokens = Lexer.tokenize "a >>> b" in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok "a >>> b" in
   match ast.desc with
   | Seq _ -> ()
   | _ -> Alcotest.fail "expected Seq"
@@ -597,30 +600,23 @@ let test_parse_lambda_unicode_param () =
 
 (* Let binding with unicode name *)
 let test_parse_let_unicode_name () =
-  let tokens = Lexer.tokenize "let \xe5\xaf\xa9\xe6\x9f\xbb = a >>> b in \xe5\xaf\xa9\xe6\x9f\xbb" in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok "let \xe5\xaf\xa9\xe6\x9f\xbb = a >>> b in \xe5\xaf\xa9\xe6\x9f\xbb" in
   match ast.desc with
   | Let ("\xe5\xaf\xa9\xe6\x9f\xbb", _, _) -> ()
   | _ -> Alcotest.fail "expected Let with unicode name"
 
 (* Missing 'in' after let binding *)
 let test_parse_let_error_no_body () =
-  match Lexer.tokenize "let f = a" |> Parser.parse_program with
-  | _ -> Alcotest.fail "expected parse error (no 'in' after let)"
-  | exception Parser.Parse_error (_, msg) ->
-    Alcotest.(check bool) "mentions 'in'" true (contains msg "in")
+  let msg = parse_error_msg "let f = a" in
+  Alcotest.(check bool) "mentions 'in'" true (contains msg "in")
 
 (* Lambda with zero params — should be parse error *)
 let test_parse_lambda_no_params () =
-  match Lexer.tokenize "\\ -> a" |> Parser.parse_program with
-  | _ -> Alcotest.fail "expected parse error"
-  | exception Parser.Parse_error _ -> ()
+  parse_fails "\\ -> a"
 
 (* let keyword can no longer be used as a node name *)
 let test_parse_let_keyword_not_node () =
-  match Lexer.tokenize "let >>> a" |> Parser.parse_program with
-  | _ -> Alcotest.fail "expected parse error (let is now a keyword)"
-  | exception Parser.Parse_error _ -> ()
+  parse_fails "let >>> a"
 
 (* Comments inside lambda body *)
 let test_parse_lambda_with_comment () =
@@ -629,43 +625,44 @@ let test_parse_lambda_with_comment () =
   | Lambda _ -> ()
   | _ -> Alcotest.fail "expected Lambda"
 
-(* Duplicate lambda params — should be parse error *)
+(* Duplicate lambda params — should raise Parse_error pointing to the duplicate param *)
 let test_parse_lambda_duplicate_params () =
-  match Lexer.tokenize "\\ x, x -> x" |> Parser.parse_program with
+  match parse_ok "\\ x, x -> x" with
   | _ -> Alcotest.fail "expected parse error (duplicate param)"
-  | exception Parser.Parse_error (_, msg) ->
-    Alcotest.(check bool) "mentions duplicate" true (contains msg "duplicate")
+  | exception Parse_errors.Parse_error (pos, msg) ->
+    Alcotest.(check bool) "mentions duplicate" true (contains msg "duplicate");
+    Alcotest.(check int) "duplicate param col" 6 pos.col
+  | exception Ast.Duplicate_param _ ->
+    Alcotest.fail "Duplicate_param should be caught by Parse_errors.parse and re-raised as Parse_error"
 
 (* Trailing comma in args — should be parse error *)
 let test_parse_trailing_comma_args () =
-  match Lexer.tokenize "f(a,)" |> Parser.parse_program with
-  | _ -> Alcotest.fail "expected parse error (trailing comma)"
-  | exception Parser.Parse_error (_, msg) ->
-    Alcotest.(check bool) "mentions trailing comma" true (contains msg "trailing comma")
+  let msg = parse_error_msg "f(a,)" in
+  Alcotest.(check bool) "mentions trailing comma" true (contains msg "trailing comma")
 
 (* === Let-in edge case tests === *)
 
 let test_parse_let_old_syntax_error () =
-  match Lexer.tokenize "let x = a\nx" |> Parser.parse_program with
-  | _ -> Alcotest.fail "expected parse error (old syntax)"
-  | exception Parser.Parse_error (_, msg) ->
-    Alcotest.(check bool) "migration hint" true (contains msg "Hint:")
+  parse_fails "let x = a\nx"
 
 let test_parse_let_in_lambda_body_error () =
-  match Lexer.tokenize "\\ x -> let y = x in y" |> Parser.parse_program with
-  | _ -> Alcotest.fail "expected parse error (let not valid in lambda body)"
-  | exception Parser.Parse_error _ -> ()
+  parse_fails "\\ x -> let y = x in y"
 
 let test_parse_let_in_positional_arg_error () =
-  match Lexer.tokenize "f(let x = a in x)" |> Parser.parse_program with
-  | _ -> Alcotest.fail "expected parse error (let not valid in positional arg)"
-  | exception Parser.Parse_error _ -> ()
+  parse_fails "f(let x = a in x)"
 
 let test_parse_in_as_term_error () =
-  match Lexer.tokenize "a >>> in" |> Parser.parse_program with
-  | _ -> Alcotest.fail "expected parse error (in as term)"
-  | exception Parser.Parse_error (_, msg) ->
-    Alcotest.(check bool) "reserved keyword hint" true (contains msg "reserved keyword")
+  let msg = parse_error_msg "a >>> in" in
+  Alcotest.(check bool) "mentions expected expression" true (contains msg "expected expression")
+
+(* Error position should use lexbuf token pos, not sedlex cursor.
+   Comment before error token exercises the difference. *)
+let test_parse_error_pos_after_comment () =
+  match parse_ok "a >>> -- oops\nin" with
+  | _ -> Alcotest.fail "expected parse error"
+  | exception Parse_errors.Parse_error (pos, _) ->
+    Alcotest.(check int) "error line" 2 pos.line;
+    Alcotest.(check int) "error col" 1 pos.col
 
 let test_parse_let_ident_starting_with_in () =
   let ast = parse_ok "let x = in_progress in x" in
@@ -752,6 +749,7 @@ let tests =
   ; "error: unclosed paren", `Quick, test_parse_error_unclosed_paren
   ; "error: unclosed group", `Quick, test_parse_error_unclosed_group
   ; "error: missing loop paren", `Quick, test_parse_error_missing_loop_paren
+  ; "error: loop in keeps specific msg", `Quick, test_parse_error_loop_in_keeps_specific_msg
   ; "error: trailing operator", `Quick, test_parse_error_trailing_operator
   ; "plan example 1", `Quick, test_parse_plan_example_1
   ; "plan example 2", `Quick, test_parse_plan_example_2
@@ -771,6 +769,7 @@ let tests =
   ; "multiline loc span", `Quick, test_parse_multiline_loc
   ; "question loc span", `Quick, test_parse_question_loc
   ; "node with args loc span", `Quick, test_parse_node_with_args_loc
+  ; "question app loc span", `Quick, test_parse_question_app_loc
   ; "unicode node loc span", `Quick, test_parse_unicode_node_loc
   ; "type ann no whitespace", `Quick, test_parse_type_ann_no_whitespace
   ; "type ann bare node", `Quick, test_parse_type_ann_bare_node
@@ -816,6 +815,12 @@ let test_parse_lambda_returns_unit () =
   | Ast.Lambda (["x"], { desc = Ast.Unit; _ }) -> ()
   | _ -> Alcotest.fail "expected Lambda([x], Unit)"
 
+let test_parse_group_with_let () =
+  let ast = parse_ok "(let x = a in x)" in
+  match ast.desc with
+  | Ast.Group { desc = Ast.Let ("x", { desc = Ast.Var "a"; _ }, { desc = Ast.Var "x"; _ }); _ } -> ()
+  | _ -> Alcotest.fail "expected Group(Let(x, a, x))"
+
 let edge_case_tests =
   [ "lambda returns unit", `Quick, test_parse_lambda_returns_unit
   ; "lambda unicode param", `Quick, test_parse_lambda_unicode_param
@@ -831,4 +836,6 @@ let edge_case_tests =
   ; "let in positional arg error", `Quick, test_parse_let_in_positional_arg_error
   ; "let ident starting with in", `Quick, test_parse_let_ident_starting_with_in
   ; "in as term error", `Quick, test_parse_in_as_term_error
+  ; "error pos after comment", `Quick, test_parse_error_pos_after_comment
+  ; "group with let", `Quick, test_parse_group_with_let
   ]

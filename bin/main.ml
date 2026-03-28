@@ -90,16 +90,17 @@ let () =
       input, []
   in
   let tl = Compose_dsl.Markdown.translate_line offset_table in
-  match Compose_dsl.Lexer.tokenize source with
+  match Compose_dsl.Parse_errors.parse source with
   | exception Compose_dsl.Lexer.Lex_error (pos, msg) ->
     Printf.eprintf "lex error at %d:%d: %s\n" (tl pos.line) pos.col msg;
     exit 1
-  | tokens ->
-    match Compose_dsl.Parser.parse_program tokens with
-    | exception Compose_dsl.Parser.Parse_error (pos, msg) ->
-      Printf.eprintf "parse error at %d:%d: %s\n" (tl pos.line) pos.col msg;
-      exit 1
-    | ast ->
+  | exception Compose_dsl.Parse_errors.Parse_error (pos, msg) ->
+    Printf.eprintf "parse error at %d:%d: %s\n" (tl pos.line) pos.col msg;
+    exit 1
+  | exception Compose_dsl.Ast.Duplicate_param (pos, msg) ->
+    Printf.eprintf "parse error at %d:%d: %s\n" (tl pos.line) pos.col msg;
+    exit 1
+  | ast ->
       let ast = match Compose_dsl.Reducer.reduce ast with
         | reduced -> reduced
         | exception Compose_dsl.Reducer.Reduce_error (pos, msg) ->

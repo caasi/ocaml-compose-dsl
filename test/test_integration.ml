@@ -4,16 +4,14 @@ open Helpers
 (* Integration: full pipeline parse_program >>> reduce >>> check *)
 let test_integration_let_and_check () =
   let input = "let f = \\ x -> x >>> a in f(b)" in
-  let tokens = Lexer.tokenize input in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok input in
   let reduced = Reducer.reduce ast in
   let result = Checker.check reduced in
   Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
 
 let test_integration_backward_compat () =
   let input = "a >>> b *** c" in
-  let tokens = Lexer.tokenize input in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok input in
   let reduced = Reducer.reduce ast in
   let result = Checker.check reduced in
   Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
@@ -88,8 +86,7 @@ let test_check_app_question_with_alt () =
 
 let test_integration_mixed_args () =
   let input = "let v = some_pipeline in push(remote: origin, v)" in
-  let tokens = Lexer.tokenize input in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok input in
   let reduced = Reducer.reduce ast in
   let result = Checker.check reduced in
   Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)

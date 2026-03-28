@@ -1,3 +1,16 @@
 (library
  (name compose_dsl)
- (public_name ocaml-compose-dsl-lib))
+ (public_name ocaml-compose-dsl-lib)
+ (libraries menhirLib sedlex)
+ (preprocess (pps sedlex.ppx)))
+
+(menhir
+ (modules parser)
+ (flags --table))
+
+(rule
+ (targets parser_messages.ml)
+ (deps parser.messages parser.mly)
+ (action
+  (with-stdout-to %{targets}
+   (run menhir --table --compile-errors %{dep:parser.messages} %{dep:parser.mly}))))

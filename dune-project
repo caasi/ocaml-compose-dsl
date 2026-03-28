@@ -1,4 +1,5 @@
 (lang dune 3.0)
+(using menhir 2.1)
 
 (name ocaml-compose-dsl)
 
@@ -30,4 +31,6 @@
   (ocaml
    (>= 5.1))
   dune
+  menhir
+  sedlex
   (alcotest :with-test)))
