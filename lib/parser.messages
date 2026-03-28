@@ -548,5 +548,5 @@ program: IDENT IN
 ## In state 68, spurious reduction of production program_inner -> seq_expr
 ##
 
-syntax error
+'in' is a reserved keyword and cannot be used as an identifier
 

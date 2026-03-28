@@ -636,7 +636,8 @@ let test_parse_let_in_positional_arg_error () =
   parse_fails "f(let x = a in x)"
 
 let test_parse_in_as_term_error () =
-  parse_fails "a >>> in"
+  let msg = parse_error_msg "a >>> in" in
+  Alcotest.(check bool) "mentions reserved keyword" true (contains msg "reserved keyword")
 
 (* Error position should use lexbuf token pos, not sedlex cursor.
    Comment before error token exercises the difference. *)
