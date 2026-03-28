@@ -28,7 +28,7 @@ Add `()` as a unit value/type, following ML convention:
 - Minimal AST change (one new variant)
 - All downstream modules (reducer, checker, printer) must handle `Unit` as a leaf node
 - `type_ann` remains `{ input : string; output : string }` — `()` is represented as the string `"()"` in type annotations (no sum type change needed, since type annotations are documentation-only in this DSL)
-- `()` follows the same `?` rules as other expressions — not blocked at parser level, checker warns if unmatched
+- `()?` is supported — the `LPAREN` branch in `parse_term` checks for trailing `?` after producing `Unit`, same as `Var` and `StringLit` branches. Checker warns if `?` has no matching `|||`
 
 ## Design
 
@@ -48,18 +48,23 @@ and expr_desc =
 
 ### Parser
 
-Three changes in `parser.ml`:
+Four changes in `parser.ml`:
 
 **1. `parse_term` — `LPAREN` branch adds lookahead:**
 
-When the parser sees `LPAREN`, peek at the next token. If `RPAREN`, produce `Unit`. Otherwise, parse as `Group(program_inner)` as before.
+When the parser sees `LPAREN`, peek at the next token. If `RPAREN`, produce `Unit` (with optional trailing `?`). Otherwise, parse as `Group(program_inner)` as before.
 
 ```
 LPAREN:
   peek next token
-  if RPAREN → advance both, return Unit
+  if RPAREN → advance both, produce Unit expr
+    peek next token
+    if QUESTION → advance, return Question(Unit)
+    else → return Unit
   else → parse_program_inner, expect RPAREN, return Group(inner)
 ```
+
+Edge case: `(())` parses as `Group(Unit)` — the outer `(` enters the `Group` path (since the next token after `LPAREN` is another `LPAREN`, not `RPAREN`), then `parse_program_inner` parses inner `()` as `Unit`.
 
 **2. `parse_call_args` — empty args become `[Positional Unit]`:**
 
@@ -70,7 +75,11 @@ This means:
 - `f(a, b)` → `App(Var "f", [Positional a, Positional b])` (unchanged)
 - `f(a)` → `App(Var "f", [Positional a])` (unchanged)
 
-**3. `parse_type_ann` — accept `()` as type name:**
+**3. `attach_comments_right` — add `Unit` arm:**
+
+`attach_comments_right` pattern-matches on `e.desc` to decide where to attach comments. `Unit` is a leaf node, so it returns `e` unchanged (same as `StringLit`, `Var`).
+
+**4. `parse_type_ann` — accept `()` as type name:**
 
 Both input and output positions in type annotations accept `LPAREN RPAREN` as an alternative to `IDENT`, producing the string `"()"`:
 
@@ -103,17 +112,18 @@ Updated grammar in `README.md`:
 ```ebnf
 term = ident , [ "(" , [ call_args ] , ")" ] , [ "?" ]
      | string , [ "?" ]
-     | "()"                                    (* unit value *)
+     | "(" , ")"  , [ "?" ]                    (* unit value, with optional question *)
      | "loop" , "(" , seq_expr , ")"
-     | "(" , program , ")"
+     | "(" , program , ")"                     (* grouping — disambiguation: LPAREN then
+                                                  peek; if RPAREN → unit, else → group *)
      | lambda
      ;
 
 type_expr   = type_name , "->" , type_name ;
-type_name   = ident | "()" ;
+type_name   = ident | "(" , ")" ;
 ```
 
-Note: `"()"` in `term` must be matched before `"(" , program , ")"` — the parser achieves this via lookahead (peek after `LPAREN`; if `RPAREN`, it's unit).
+The `"(" , ")"` and `"(" , program , ")"` alternatives share the `LPAREN` prefix. The parser disambiguates via one-token lookahead after consuming `LPAREN`: if `RPAREN`, it's unit; otherwise, it's a group. This is equivalent to factoring the grammar as `"(" , ( ")" , [ "?" ] | program , ")" )` but the separated form is more readable in EBNF.
 
 ### Lexer
 
@@ -125,6 +135,8 @@ No lexer changes. `()` is tokenized as `LPAREN RPAREN` — the parser disambigua
 
 Consequence: `let f = \x -> x in f()` becomes valid — `f` receives `Unit` and returns `Unit`. Previously this was an arity error (expected 1 arg, got 0).
 
+`f()` where `f` is a free variable becomes `App(Var "f", [Positional Unit])` and survives reduction — this is the common case (calling external tools with no meaningful input).
+
 ## Test Impact
 
 **Modified tests:**
@@ -135,9 +147,12 @@ Consequence: `let f = \x -> x in f()` becomes valid — `f` receives `Unit` and 
 **New tests:**
 - `test_parse_unit_standalone` — `()` → `Unit`
 - `test_parse_unit_in_seq` — `() >>> a` → `Seq(Unit, Var "a")`
+- `test_parse_unit_nested` — `(())` → `Group(Unit)`
+- `test_parse_unit_question` — `()?` → `Question(Unit)`
 - `test_parse_unit_type_ann_input` — `node :: () -> Output` → `type_ann = { input = "()"; output = "Output" }`
 - `test_parse_unit_type_ann_output` — `node :: Input -> ()` → `type_ann = { input = "Input"; output = "()" }`
 - `test_parse_unit_type_ann_both` — `node :: () -> ()` → `type_ann = { input = "()"; output = "()" }`
+- `test_parse_lambda_returns_unit` — `\x -> ()` → `Lambda(["x"], Unit)`
 - `test_print_unit` — `()` → printer outputs `"Unit"`
 - `test_reduce_unit_passthrough` — `()` survives reduction unchanged
 - `test_check_unit_no_warnings` — `()` produces no checker warnings
@@ -147,12 +162,12 @@ Consequence: `let f = \x -> x in f()` becomes valid — `f` receives `Unit` and 
 | File | Action |
 |------|--------|
 | `lib/ast.ml` | Add `Unit` to `expr_desc` |
-| `lib/parser.ml` | Modify `parse_term`, `parse_call_args`, `parse_type_ann` |
+| `lib/parser.ml` | Modify `parse_term`, `parse_call_args`, `parse_type_ann`, `attach_comments_right` |
 | `lib/reducer.ml` | Add `Unit` arms to 5 functions |
 | `lib/checker.ml` | Add `Unit` arms to 3 functions |
 | `lib/printer.ml` | Add `Unit` arm to `to_string` |
 | `README.md` | Update EBNF grammar |
-| `test/test_parser.ml` | Modify 1 test, add 5 new tests |
+| `test/test_parser.ml` | Modify 1 test, add 8 new tests |
 | `test/test_integration.ml` | Modify 1 test |
 | `test/test_reducer.ml` | Modify 1 test, add 1 new test |
 | `test/test_checker.ml` | Add 1 new test |
