@@ -137,7 +137,7 @@ let test_print_let () =
     (Printer.to_string ast)
 
 let test_print_unit () =
-  let ast = { Ast.loc = { start = { line = 1; col = 1 }; end_ = { line = 1; col = 2 } };
+  let ast = { Ast.loc = { start = { line = 1; col = 1 }; end_ = { line = 1; col = 3 } };
               desc = Ast.Unit; type_ann = None } in
   Alcotest.(check string) "unit" "Unit" (Printer.to_string ast)
 
