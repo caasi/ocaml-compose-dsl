@@ -50,8 +50,8 @@ let test_parse_var_question () =
 
 let test_parse_empty_parens_app () =
   match desc_of "noop()" with
-  | App ({ desc = Var "noop"; _ }, []) -> ()
-  | _ -> Alcotest.fail "expected App(Var noop, [])"
+  | App ({ desc = Var "noop"; _ }, [Positional { desc = Unit; _ }]) -> ()
+  | _ -> Alcotest.fail "expected App(Var noop, [Positional Unit])"
 
 let test_reduce_mixed_args () =
   let ast = reduce_ok "let v = a >>> b in push(remote: origin, v)" in

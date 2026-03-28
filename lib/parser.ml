@@ -83,12 +83,14 @@ let rec parse_call_arg st =
   | _ ->
     Positional (parse_seq_expr st)
 
-and parse_call_args st =
+and parse_call_args ~lparen_start st =
   let args = ref [] in
   let rec go () =
     let t = current st in
     match t.token with
-    | Lexer.RPAREN -> ()
+    | Lexer.RPAREN ->
+      if !args = [] then
+        args := [Positional (mk_expr { start = lparen_start; end_ = t.loc.end_ } Unit)]
     | _ ->
       args := parse_call_arg st :: !args;
       let t2 = current st in
@@ -117,25 +119,28 @@ and attach_comments_right (e : expr) comments =
     | Loop inner -> { e with desc = Loop (attach_comments_right inner comments) }
     | StringLit _ -> e
     | Question inner -> { e with desc = Question (attach_comments_right inner comments) }
-    | Var _ | App _ | Lambda _ | Let _ -> e
+    | Var _ | App _ | Lambda _ | Let _ | Unit -> e
+
+and parse_type_name st =
+  let t = current st in
+  match t.token with
+  | Lexer.IDENT name -> advance st; name
+  | Lexer.LPAREN ->
+    advance st;
+    expect st (fun tok -> tok = Lexer.RPAREN)
+      "expected ')' to form unit type '()'; parenthesized type names are not supported";
+    "()"
+  | _ -> raise (Parse_error (t.loc.start, "expected type name or '()' in type annotation after '::' or '->'"))
 
 and parse_type_ann st =
   let t = current st in
   match t.token with
   | Lexer.DOUBLE_COLON ->
     advance st;
-    let t_in = current st in
-    (match t_in.token with
-     | Lexer.IDENT input ->
-       advance st;
-       expect st (fun tok -> tok = Lexer.ARROW) "expected '->' in type annotation";
-       let t_out = current st in
-       (match t_out.token with
-        | Lexer.IDENT output ->
-          advance st;
-          Some { input; output }
-        | _ -> raise (Parse_error (t_out.loc.start, "expected type name after '->'")))
-     | _ -> raise (Parse_error (t_in.loc.start, "expected type name after '::'")))
+    let input = parse_type_name st in
+    expect st (fun tok -> tok = Lexer.ARROW) "expected '->' in type annotation";
+    let output = parse_type_name st in
+    Some { input; output }
   | _ -> None
 
 and parse_seq_expr st =
@@ -220,8 +225,9 @@ and parse_term st =
     let t_next = current st in
     (match t_next.token with
      | Lexer.LPAREN ->
+       let lparen_start = t_next.loc.start in
        advance st;
-       let args = parse_call_args st in
+       let args = parse_call_args ~lparen_start st in
        expect st (fun tok -> tok = Lexer.RPAREN) "expected ')'";
        let rparen_end = st.last_loc.end_ in
        let _ = eat_comments st in
@@ -251,9 +257,22 @@ and parse_term st =
     mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Loop body)
   | Lexer.LPAREN ->
     advance st;
-    let inner = parse_program_inner st in
-    expect st (fun tok -> tok = Lexer.RPAREN) "expected ')'";
-    mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Group inner)
+    let t_next = current st in
+    (match t_next.token with
+     | Lexer.RPAREN ->
+       advance st;
+       let unit_expr = mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } Unit in
+       let _ = eat_comments st in
+       let t2 = current st in
+       (match t2.token with
+        | Lexer.QUESTION ->
+          advance st;
+          mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Question unit_expr)
+        | _ -> unit_expr)
+     | _ ->
+       let inner = parse_program_inner st in
+       expect st (fun tok -> tok = Lexer.RPAREN) "expected ')'";
+       mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Group inner))
   | Lexer.BACKSLASH ->
     let start = t.loc.start in
     advance st;

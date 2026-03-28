@@ -8,7 +8,7 @@ module StringSet = Set.Make(String)
 let rec free_vars (e : expr) : StringSet.t =
   match e.desc with
   | Var v -> StringSet.singleton v
-  | StringLit _ -> StringSet.empty
+  | StringLit _ | Unit -> StringSet.empty
   | Question inner -> free_vars inner
   | Seq (a, b) | Par (a, b) | Fanout (a, b) | Alt (a, b) ->
     StringSet.union (free_vars a) (free_vars b)
@@ -41,7 +41,7 @@ let rec desugar (e : expr) : expr =
   | Lambda (params, body) -> { e with desc = Lambda (params, desugar body) }
   | App (fn, args) ->
     { e with desc = App (desugar fn, List.map desugar_call_arg args) }
-  | Var _ | StringLit _ -> e
+  | Var _ | StringLit _ | Unit -> e
   | Question inner -> { e with desc = Question (desugar inner) }
 
 and desugar_call_arg = function
@@ -55,7 +55,7 @@ let rec substitute fresh_name (name : string) (replacement : expr) (e : expr) : 
     (match e.type_ann with
      | None -> replacement
      | Some _ -> { replacement with type_ann = e.type_ann })
-  | Var _ | StringLit _ -> e
+  | Var _ | StringLit _ | Unit -> e
   | Question inner -> { e with desc = Question (substitute fresh_name name replacement inner) }
   | Seq (a, b) -> { e with desc = Seq (substitute fresh_name name replacement a, substitute fresh_name name replacement b) }
   | Par (a, b) -> { e with desc = Par (substitute fresh_name name replacement a, substitute fresh_name name replacement b) }
@@ -138,7 +138,7 @@ let rec beta_reduce fresh_name (e : expr) : expr =
   | Loop body -> { e with desc = Loop (beta_reduce fresh_name body) }
   | Group inner -> { e with desc = Group (beta_reduce fresh_name inner) }
   | Lambda _ -> e
-  | Var _ | StringLit _ | Let _ -> e
+  | Var _ | StringLit _ | Let _ | Unit -> e
   | Question inner -> { e with desc = Question (beta_reduce fresh_name inner) }
 
 and beta_reduce_call_arg fresh_name = function
@@ -170,7 +170,7 @@ let rec verify (e : expr) : unit =
     raise (Reduce_error (e.loc.start, "unreduced let binding"))
   | Seq (a, b) | Par (a, b) | Fanout (a, b) | Alt (a, b) -> verify a; verify b
   | Loop body | Group body -> verify body
-  | StringLit _ -> ()
+  | StringLit _ | Unit -> ()
   | Question inner -> verify inner
 
 let reduce (e : expr) : expr =

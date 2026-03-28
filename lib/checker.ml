@@ -11,7 +11,7 @@ let rec normalize (e : expr) : expr =
   | Fanout (a, b) -> { e with desc = Fanout (normalize a, normalize b) }
   | Alt (a, b) -> { e with desc = Alt (normalize a, normalize b) }
   | Loop body -> { e with desc = Loop (normalize body) }
-  | Var _ | StringLit _ -> e
+  | Var _ | StringLit _ | Unit -> e
   | App (fn, args) ->
     { e with desc = App (normalize fn,
         List.map (function
@@ -27,7 +27,7 @@ let check (expr : expr) =
     match e.desc with
     | Question _ -> counter + 1
     | Alt _ -> max 0 (counter - 1)
-    | Var _ | StringLit _ -> counter
+    | Var _ | StringLit _ | Unit -> counter
     | App _ -> counter
     | Seq (a, b) ->
       let counter' = scan_questions counter a in
@@ -52,7 +52,7 @@ let check (expr : expr) =
   let rec go (e : expr) =
     match e.desc with
     | Var _ -> ()
-    | StringLit _ -> ()
+    | StringLit _ | Unit -> ()
     | App (fn, args) ->
       go fn;
       List.iter (function
