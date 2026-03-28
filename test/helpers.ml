@@ -13,14 +13,14 @@ let parse_ok input =
 let desc_of input = (parse_ok input).desc
 
 let parse_fails input =
-  match parse_ok input with
+  match Parse_errors.parse input with
   | _ -> Alcotest.fail "expected parse error"
   | exception Parser.Error -> ()
   | exception Lexer.Lex_error _ -> ()
   | exception Parse_errors.Parse_error _ -> ()
 
 let parse_error_msg input =
-  match parse_ok input with
+  match Parse_errors.parse input with
   | _ -> Alcotest.fail "expected parse error"
   | exception Parse_errors.Parse_error (_, msg) -> msg
   | exception Lexer.Lex_error (_, msg) -> msg
