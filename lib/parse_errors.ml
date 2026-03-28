@@ -27,7 +27,8 @@ let parse input =
       try Parser_messages.message state
       with Not_found -> "syntax error"
     in
-    let pos = Lexer.current_pos st in
+    let p = lexbuf.lex_start_p in
+    let pos = { line = p.pos_lnum; col = p.pos_cnum - p.pos_bol + 1 } in
     raise (Parse_error (pos, String.trim msg))
   in
   try I.loop_handle succeed fail supplier checkpoint

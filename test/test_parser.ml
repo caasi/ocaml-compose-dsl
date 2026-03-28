@@ -638,6 +638,15 @@ let test_parse_let_in_positional_arg_error () =
 let test_parse_in_as_term_error () =
   parse_fails "a >>> in"
 
+(* Error position should use lexbuf token pos, not sedlex cursor.
+   Comment before error token exercises the difference. *)
+let test_parse_error_pos_after_comment () =
+  match parse_ok "a >>> -- oops\nin" with
+  | _ -> Alcotest.fail "expected parse error"
+  | exception Parse_errors.Parse_error (pos, _) ->
+    Alcotest.(check int) "error line" 2 pos.line;
+    Alcotest.(check int) "error col" 1 pos.col
+
 let test_parse_let_ident_starting_with_in () =
   let ast = parse_ok "let x = in_progress in x" in
   Alcotest.(check string) "printed"
@@ -808,5 +817,6 @@ let edge_case_tests =
   ; "let in positional arg error", `Quick, test_parse_let_in_positional_arg_error
   ; "let ident starting with in", `Quick, test_parse_let_ident_starting_with_in
   ; "in as term error", `Quick, test_parse_in_as_term_error
+  ; "error pos after comment", `Quick, test_parse_error_pos_after_comment
   ; "group with let", `Quick, test_parse_group_with_let
   ]
