@@ -30,13 +30,15 @@ No new `expr_desc` variant — `;` is purely syntactic, consumed by the parser.
 
 ### Lexer
 
-Add `SEMICOLON` token. Single-character rule in `main_token`:
+Add `SEMICOLON` token:
 
-```ocaml
-| ';' -> SEMICOLON
-```
+1. Single-character rule in `main_token` / `read_token`:
+   ```ocaml
+   | ';' -> SEMICOLON
+   ```
+2. Add `| SEMICOLON` to the `token` type re-export (lines 4–26 of `lexer.ml` re-export every `Parser.token` constructor explicitly).
 
-Not a reserved keyword. No special handling needed.
+Not a reserved keyword. `;` is already in `special_ascii`, so it's excluded from identifiers.
 
 ### Parser
 
@@ -69,13 +71,25 @@ stmt:
 
 These sets are disjoint.
 
-**Parenthesized expressions:** The `term` rule uses `stmt` (renamed from `program_inner`) for `(expr)`, so `(let x = a in x)` remains valid. Semicolons inside parens are NOT supported — `(a; b)` is a parse error.
+**Parenthesized expressions:** The `term` rule changes from `program_inner` to `stmt`:
+
+```menhir
+(* in term rule *)
+| LPAREN inner=stmt RPAREN ...
+```
+
+This preserves `(let x = a in x)` but does NOT allow semicolons inside parens — `(a; b)` is a parse error, since `term` uses `stmt` (single statement), not `stmts`.
 
 Return type of `Parser.Incremental.program` changes from `expr` to `program` (i.e. `expr list`).
 
 ### Parse_errors
 
-`parse` return type changes to `Ast.program`. The `parser.messages` file must be regenerated after adding `SEMICOLON` to handle new error states (e.g. `; a` at program start, `;;` empty statement, `;` in unexpected positions).
+`parse` return type changes to `Ast.program`. The `parser.messages` file must be regenerated after adding `SEMICOLON` to handle new error states. Workflow:
+
+1. `menhir --list-errors parser.mly > parser.messages.new`
+2. `menhir --compare-errors parser.messages.new --compare-errors parser.messages parser.mly` to find missing states
+3. `menhir --update-errors parser.messages parser.mly > parser.messages.updated` to merge
+4. Add messages for new states (e.g. `; a` at program start, `;;` empty statement, `;` in unexpected positions)
 
 ### Reducer
 
@@ -149,6 +163,13 @@ pipeline  = seq_expr ;
 
 Update the pipeline description to reflect `parse :: String -> Program` (was `String -> Ast`).
 
+## Edge Cases
+
+- **Empty program** (empty string / whitespace-only): remains a parse error — `stmts` requires at least one `stmt`
+- **`;;`** (empty statement): parse error — `SEMICOLON` is not a valid `stmt`-start token
+- **Single statement**: parses as `[expr]` — backwards compatible
+- **Literate mode, single block**: `combine` emits no separator (guarded by `current_line > 1`) — no `;` injected
+
 ## Backwards Compatibility
 
 - Single-statement programs behave identically (a one-element list)
@@ -160,7 +181,7 @@ Update the pipeline description to reflect `parse :: String -> Program` (was `St
 | Module | Change |
 |--------|--------|
 | `ast.ml` | Add `type program = expr list` |
-| `lexer.ml` | Add `SEMICOLON` token |
+| `lexer.ml` | Add `SEMICOLON` token + re-export |
 | `parser.mly` | Return `program`; add `stmts`, `stmt` rules |
 | `parse_errors.ml` | Return type → `program`; regenerate messages |
 | `reducer.ml` | Add `reduce_program` |
