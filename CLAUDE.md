@@ -30,11 +30,13 @@ Two opam packages defined in `dune-project` (opam files are auto-generated via `
 Library modules form a pipeline themselves:
 
 ```arrow
-let parse = Parse_errors :: String -> Program in -- Menhir incremental API; drives Lexer internally
-let reduce = Reducer :: Program -> Program in -- desugar let, beta reduce lambda
-let check = Checker :: Program -> Result in
-let md = Markdown :: Markdown -> String in   -- literate mode: extract arrow blocks
-md >>> parse >>> reduce >>> check
+Parse_errors :: String -> Program;   -- Menhir incremental API; drives Lexer internally
+Reducer :: Program -> Program;       -- desugar let, beta reduce lambda
+Checker :: Program -> Result;        -- structural validation and warnings
+Markdown :: Markdown -> String;      -- literate mode: extract arrow blocks
+
+Parse_errors >>> Reducer >>> Checker;            -- standard mode
+Markdown >>> Parse_errors >>> Reducer >>> Checker -- literate mode
 ```
 
 - `Ast` — ADT for DSL expressions: Var (variable reference, bound or free), StringLit (string literal as expression), Unit (`()`), Seq (`>>>`), Par (`***`), Fanout (`&&&`), Alt (`|||`), Loop, Group, Question (`?`), Lambda (`\x -> body`), App (unified application with `call_arg list` — mixed named/positional), Let (`let x = expr in body`). Lambda and Let are reduced away by the Reducer. Free Var and App with free Var callee survive reduction. Values: String, Ident, Number (with optional unit suffix, e.g. `100mg`), List. Question takes an `expr` directly (parser allows Var, StringLit, App, or Unit). Expressions carry optional `type_ann` (`:: type_name -> type_name` where `type_name` is an ident or `()`) for documentation.
@@ -61,11 +63,10 @@ dune exec ocaml-compose-dsl -- --literate README.md
 Every code change should follow this workflow:
 
 ```arrow
-let verify = verify_ebnf :: Code -> Spec in   -- check README.md EBNF still matches parser/lexer
-let test =
-  update_tests :: Spec -> Test             -- update or add tests under test/ (e.g., test_lexer.ml, test_parser.ml)
-  >>> dune_test :: Test -> Pass in             -- run dune test, confirm all pass
-implement :: Code -> Code >>> verify >>> test
+implement :: Code -> Code
+  >>> verify_ebnf :: Code -> Spec    -- check README.md EBNF still matches parser/lexer
+  >>> update_tests :: Spec -> Test   -- update or add tests under test/
+  >>> dune_test :: Test -> ()        -- run dune test, confirm all pass
 ```
 
 The EBNF in `README.md` is the language spec. If parser behavior and EBNF diverge, either fix the parser or update the EBNF.
@@ -92,7 +93,7 @@ bump(file: "dune-project")
   >>> docs
   >>> build -- dune build to regenerate opam files
   >>> test  -- dune test to confirm nothing broke
-  >>> commit
+  >>> commit :: () -> ()
 ```
 
 ### Releasing
