@@ -25,6 +25,7 @@ lambda  = "\" , ident , { "," , ident } , "->" , seq_expr ;
 pipeline = seq_expr ;
 
 seq_expr = alt_expr , ">>>" , seq_expr              (* sequential — infixr 1 *)
+         | lambda
          | alt_expr ;
 alt_expr = par_expr , "|||" , alt_expr              (* branch — infixr 2 *)
          | par_expr ;
@@ -44,7 +45,6 @@ term     = ident , [ "(" , [ call_args ] , ")" ] , [ "?" ]
          | "loop" , "(" , seq_expr , ")"            (* feedback loop *)
          | "(" , program , ")"                     (* grouping — disambiguation: LPAREN then
                                                       peek; if RPAREN → unit, else → group *)
-         | lambda
          ;
 
 call_args = call_arg , { "," , call_arg } ;
