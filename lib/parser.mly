@@ -17,7 +17,7 @@ let end_pos_of (p : Lexing.position) : Ast.pos =
 %token SEQ PAR FANOUT ALT ARROW DOUBLE_COLON
 %token LET IN LOOP
 %token LPAREN RPAREN LBRACKET RBRACKET
-%token COMMA COLON EQUALS BACKSLASH QUESTION
+%token COMMA COLON EQUALS BACKSLASH QUESTION SEMICOLON
 %token EOF
 
 %start <Ast.expr> program

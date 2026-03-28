@@ -4,6 +4,7 @@ open Ast
 type token = Parser.token =
   | STRING of string
   | SEQ
+  | SEMICOLON
   | RPAREN
   | RBRACKET
   | QUESTION
@@ -167,6 +168,7 @@ and read_token st =
   | '=' -> let s = current_pos st in (Parser.EQUALS, s, end_pos st)
   | '?' -> let s = current_pos st in (Parser.QUESTION, s, end_pos st)
   | '\\' -> let s = current_pos st in (Parser.BACKSLASH, s, end_pos st)
+  | ';' -> let s = current_pos st in (Parser.SEMICOLON, s, end_pos st)
   (* String literal *)
   | '"', Star (Compl ('"' | '\n')), '"' ->
     let sp = current_pos st in

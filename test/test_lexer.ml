@@ -445,6 +445,15 @@ let test_lex_in_after_ident () =
   | [{ token = Lexer.IDENT "x"; _ }; { token = Lexer.IN; _ }; { token = Lexer.EOF; _ }] -> ()
   | _ -> Alcotest.fail "expected IDENT x, IN, EOF"
 
+let test_lex_semicolon () =
+  let tokens = Lexer.tokenize "a; b" in
+  match tokens with
+  | [ { token = IDENT "a"; _ }
+    ; { token = SEMICOLON; _ }
+    ; { token = IDENT "b"; _ }
+    ; { token = EOF; _ } ] -> ()
+  | _ -> Alcotest.fail "expected [IDENT a; SEMICOLON; IDENT b; EOF]"
+
 let tests =
   [ "ident with digits", `Quick, test_lex_ident_with_digits
   ; "ident with hyphen", `Quick, test_lex_ident_with_hyphen
@@ -507,4 +516,5 @@ let tests =
   ; "in inside ident", `Quick, test_lex_in_inside_ident
   ; "in as prefix of ident", `Quick, test_lex_in_as_prefix_of_ident
   ; "in after ident", `Quick, test_lex_in_after_ident
+  ; "semicolon", `Quick, test_lex_semicolon
   ]
