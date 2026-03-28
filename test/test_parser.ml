@@ -220,9 +220,9 @@ let test_parse_unicode_unit_value () =
 
 (* error cases *)
 let test_parse_error_unclosed_paren () =
-  match parse_ok "a(" with
-  | _ -> Alcotest.fail "expected parse error"
-  | exception Parser.Error -> ()
+  let msg = parse_error_msg "a(" in
+  if not (contains msg ")") then
+    Alcotest.fail ("expected error mentioning ')': " ^ msg)
 
 let test_parse_error_unclosed_group () =
   parse_fails "(a >>> b"
@@ -436,14 +436,12 @@ let test_parse_type_ann_loc_no_ann () =
   Alcotest.(check int) "end col" 5 ast.loc.end_.col
 
 let test_parse_type_ann_incomplete_error () =
-  (match parse_ok "node :: A" with
-   | _ -> Alcotest.fail "expected parse error"
-   | exception Parser.Error -> ())
+  let msg = parse_error_msg "node :: A" in
+  Alcotest.(check bool) "error mentions ->" true (contains msg "->")
 
 let test_parse_type_ann_missing_output_error () =
-  (match parse_ok "node :: A ->" with
-   | _ -> Alcotest.fail "expected parse error"
-   | exception Parser.Error -> ())
+  let msg = parse_error_msg "node :: A ->" in
+  Alcotest.(check bool) "error mentions ->" true (contains msg "->")
 
 (* === String lit parse tests === *)
 
@@ -593,21 +591,16 @@ let test_parse_let_unicode_name () =
 
 (* Missing 'in' after let binding *)
 let test_parse_let_error_no_body () =
-  match parse_ok "let f = a" with
-  | _ -> Alcotest.fail "expected parse error (no 'in' after let)"
-  | exception Parser.Error -> ()
+  let msg = parse_error_msg "let f = a" in
+  Alcotest.(check bool) "mentions 'in'" true (contains msg "in")
 
 (* Lambda with zero params — should be parse error *)
 let test_parse_lambda_no_params () =
-  match parse_ok "\\ -> a" with
-  | _ -> Alcotest.fail "expected parse error"
-  | exception Parser.Error -> ()
+  parse_fails "\\ -> a"
 
 (* let keyword can no longer be used as a node name *)
 let test_parse_let_keyword_not_node () =
-  match parse_ok "let >>> a" with
-  | _ -> Alcotest.fail "expected parse error (let is now a keyword)"
-  | exception Parser.Error -> ()
+  parse_fails "let >>> a"
 
 (* Comments inside lambda body *)
 let test_parse_lambda_with_comment () =
@@ -625,31 +618,22 @@ let test_parse_lambda_duplicate_params () =
 
 (* Trailing comma in args — should be parse error *)
 let test_parse_trailing_comma_args () =
-  match parse_ok "f(a,)" with
-  | _ -> Alcotest.fail "expected parse error (trailing comma)"
-  | exception Parser.Error -> ()
+  let msg = parse_error_msg "f(a,)" in
+  Alcotest.(check bool) "mentions trailing comma" true (contains msg "trailing comma")
 
 (* === Let-in edge case tests === *)
 
 let test_parse_let_old_syntax_error () =
-  match parse_ok "let x = a\nx" with
-  | _ -> Alcotest.fail "expected parse error (old syntax)"
-  | exception Parser.Error -> ()
+  parse_fails "let x = a\nx"
 
 let test_parse_let_in_lambda_body_error () =
-  match parse_ok "\\ x -> let y = x in y" with
-  | _ -> Alcotest.fail "expected parse error (let not valid in lambda body)"
-  | exception Parser.Error -> ()
+  parse_fails "\\ x -> let y = x in y"
 
 let test_parse_let_in_positional_arg_error () =
-  match parse_ok "f(let x = a in x)" with
-  | _ -> Alcotest.fail "expected parse error (let not valid in positional arg)"
-  | exception Parser.Error -> ()
+  parse_fails "f(let x = a in x)"
 
 let test_parse_in_as_term_error () =
-  match parse_ok "a >>> in" with
-  | _ -> Alcotest.fail "expected parse error (in as term)"
-  | exception Parser.Error -> ()
+  parse_fails "a >>> in"
 
 let test_parse_let_ident_starting_with_in () =
   let ast = parse_ok "let x = in_progress in x" in

@@ -1,0 +1,552 @@
+program: SEQ
+##
+## Ends in an error in state: 0.
+##
+## program' -> . program [ # ]
+##
+## The known suffix of the stack is as follows:
+##
+##
+
+expected identifier, string, '(', 'loop', or '\' (lambda)
+
+program: STRING STRING
+##
+## Ends in an error in state: 1.
+##
+## term -> STRING . QUESTION [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> STRING . [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## STRING
+##
+
+syntax error
+
+program: LPAREN SEQ
+##
+## Ends in an error in state: 3.
+##
+## term -> LPAREN . RPAREN QUESTION [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> LPAREN . RPAREN [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> LPAREN . program_inner RPAREN [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN
+##
+
+syntax error
+
+program: LPAREN RPAREN STRING
+##
+## Ends in an error in state: 4.
+##
+## term -> LPAREN RPAREN . QUESTION [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> LPAREN RPAREN . [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN RPAREN
+##
+
+syntax error
+
+program: LOOP STRING
+##
+## Ends in an error in state: 6.
+##
+## term -> LOOP . LPAREN seq_expr RPAREN [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## LOOP
+##
+
+expected '(' after 'loop'
+
+program: LOOP LPAREN SEQ
+##
+## Ends in an error in state: 7.
+##
+## term -> LOOP LPAREN . seq_expr RPAREN [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## LOOP LPAREN
+##
+
+syntax error
+
+program: IDENT STRING
+##
+## Ends in an error in state: 8.
+##
+## term -> IDENT . LPAREN call_args_or_unit RPAREN QUESTION [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> IDENT . LPAREN call_args_or_unit RPAREN [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> IDENT . QUESTION [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> IDENT . [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## IDENT
+##
+
+syntax error
+
+program: IDENT LPAREN SEQ
+##
+## Ends in an error in state: 10.
+##
+## term -> IDENT LPAREN . call_args_or_unit RPAREN QUESTION [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> IDENT LPAREN . call_args_or_unit RPAREN [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## IDENT LPAREN
+##
+
+expected argument or ')' after '('
+
+program: IDENT LPAREN IN STRING
+##
+## Ends in an error in state: 11.
+##
+## call_arg -> IN . COLON value [ RPAREN COMMA ]
+##
+## The known suffix of the stack is as follows:
+## IN
+##
+
+syntax error
+
+program: IDENT LPAREN IN COLON SEQ
+##
+## Ends in an error in state: 12.
+##
+## call_arg -> IN COLON . value [ RPAREN COMMA ]
+##
+## The known suffix of the stack is as follows:
+## IN COLON
+##
+
+syntax error
+
+program: IDENT LPAREN IDENT COLON LBRACKET SEQ
+##
+## Ends in an error in state: 15.
+##
+## value -> LBRACKET . loption(separated_nonempty_list(COMMA,value)) RBRACKET [ RPAREN RBRACKET COMMA ]
+##
+## The known suffix of the stack is as follows:
+## LBRACKET
+##
+
+syntax error
+
+program: IDENT LPAREN IDENT COLON LBRACKET IDENT STRING
+##
+## Ends in an error in state: 17.
+##
+## separated_nonempty_list(COMMA,value) -> value . [ RBRACKET ]
+## separated_nonempty_list(COMMA,value) -> value . COMMA separated_nonempty_list(COMMA,value) [ RBRACKET ]
+##
+## The known suffix of the stack is as follows:
+## value
+##
+
+syntax error
+
+program: IDENT LPAREN IDENT COLON LBRACKET IDENT COMMA SEQ
+##
+## Ends in an error in state: 18.
+##
+## separated_nonempty_list(COMMA,value) -> value COMMA . separated_nonempty_list(COMMA,value) [ RBRACKET ]
+##
+## The known suffix of the stack is as follows:
+## value COMMA
+##
+
+syntax error
+
+program: IDENT LPAREN IDENT STRING
+##
+## Ends in an error in state: 24.
+##
+## call_arg -> IDENT . COLON value [ RPAREN COMMA ]
+## term -> IDENT . LPAREN call_args_or_unit RPAREN QUESTION [ SEQ RPAREN PAR FANOUT DOUBLE_COLON COMMA ALT ]
+## term -> IDENT . LPAREN call_args_or_unit RPAREN [ SEQ RPAREN PAR FANOUT DOUBLE_COLON COMMA ALT ]
+## term -> IDENT . QUESTION [ SEQ RPAREN PAR FANOUT DOUBLE_COLON COMMA ALT ]
+## term -> IDENT . [ SEQ RPAREN PAR FANOUT DOUBLE_COLON COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## IDENT
+##
+
+syntax error
+
+program: IDENT LPAREN IDENT COLON SEQ
+##
+## Ends in an error in state: 25.
+##
+## call_arg -> IDENT COLON . value [ RPAREN COMMA ]
+##
+## The known suffix of the stack is as follows:
+## IDENT COLON
+##
+
+syntax error
+
+program: BACKSLASH STRING
+##
+## Ends in an error in state: 27.
+##
+## seq_expr -> BACKSLASH . lambda_params ARROW seq_expr [ RPAREN IN EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## BACKSLASH
+##
+
+expected parameter name after '\'
+
+program: BACKSLASH IDENT STRING
+##
+## Ends in an error in state: 28.
+##
+## lambda_params -> IDENT . COMMA lambda_params [ ARROW ]
+## lambda_params -> IDENT . [ ARROW ]
+##
+## The known suffix of the stack is as follows:
+## IDENT
+##
+
+expected ',' or '->' after lambda parameter
+
+program: BACKSLASH IDENT COMMA STRING
+##
+## Ends in an error in state: 29.
+##
+## lambda_params -> IDENT COMMA . lambda_params [ ARROW ]
+##
+## The known suffix of the stack is as follows:
+## IDENT COMMA
+##
+
+expected parameter name after ','
+
+program: BACKSLASH IDENT ARROW SEQ
+##
+## Ends in an error in state: 32.
+##
+## seq_expr -> BACKSLASH lambda_params ARROW . seq_expr [ RPAREN IN EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## BACKSLASH lambda_params ARROW
+##
+
+syntax error
+
+program: IDENT DOUBLE_COLON IDENT ARROW IDENT STRING
+##
+## Ends in an error in state: 33.
+##
+## par_expr -> typed_term . PAR par_expr [ SEQ RPAREN IN EOF COMMA ALT ]
+## par_expr -> typed_term . FANOUT par_expr [ SEQ RPAREN IN EOF COMMA ALT ]
+## par_expr -> typed_term . [ SEQ RPAREN IN EOF COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## typed_term
+##
+
+syntax error
+
+program: IDENT PAR SEQ
+##
+## Ends in an error in state: 34.
+##
+## par_expr -> typed_term PAR . par_expr [ SEQ RPAREN IN EOF COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## typed_term PAR
+##
+
+syntax error
+
+program: IDENT QUESTION STRING
+##
+## Ends in an error in state: 35.
+##
+## typed_term -> term . DOUBLE_COLON type_name ARROW type_name [ SEQ RPAREN PAR IN FANOUT EOF COMMA ALT ]
+## typed_term -> term . [ SEQ RPAREN PAR IN FANOUT EOF COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## term
+##
+
+syntax error
+
+program: IDENT DOUBLE_COLON STRING
+##
+## Ends in an error in state: 36.
+##
+## typed_term -> term DOUBLE_COLON . type_name ARROW type_name [ SEQ RPAREN PAR IN FANOUT EOF COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## term DOUBLE_COLON
+##
+
+expected type name or '()' after '::'
+
+program: IDENT DOUBLE_COLON LPAREN STRING
+##
+## Ends in an error in state: 37.
+##
+## type_name -> LPAREN . RPAREN [ SEQ RPAREN PAR IN FANOUT EOF COMMA ARROW ALT ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN
+##
+
+expected ')' to form unit type '()'; parenthesized type names are not supported
+
+program: IDENT DOUBLE_COLON IDENT STRING
+##
+## Ends in an error in state: 40.
+##
+## typed_term -> term DOUBLE_COLON type_name . ARROW type_name [ SEQ RPAREN PAR IN FANOUT EOF COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## term DOUBLE_COLON type_name
+##
+
+expected '->' in type annotation
+
+program: IDENT DOUBLE_COLON IDENT ARROW STRING
+##
+## Ends in an error in state: 41.
+##
+## typed_term -> term DOUBLE_COLON type_name ARROW . type_name [ SEQ RPAREN PAR IN FANOUT EOF COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## term DOUBLE_COLON type_name ARROW
+##
+
+expected type name or '()' after '->'
+
+program: IDENT FANOUT SEQ
+##
+## Ends in an error in state: 44.
+##
+## par_expr -> typed_term FANOUT . par_expr [ SEQ RPAREN IN EOF COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## typed_term FANOUT
+##
+
+syntax error
+
+program: IDENT ALT SEQ
+##
+## Ends in an error in state: 48.
+##
+## alt_expr -> par_expr ALT . alt_expr [ SEQ RPAREN IN EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## par_expr ALT
+##
+
+syntax error
+
+program: IDENT SEQ SEQ
+##
+## Ends in an error in state: 51.
+##
+## seq_expr -> alt_expr SEQ . seq_expr [ RPAREN IN EOF COMMA ]
+##
+## The known suffix of the stack is as follows:
+## alt_expr SEQ
+##
+
+syntax error
+
+program: IDENT LPAREN RPAREN STRING
+##
+## Ends in an error in state: 55.
+##
+## term -> IDENT LPAREN call_args_or_unit RPAREN . QUESTION [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> IDENT LPAREN call_args_or_unit RPAREN . [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## IDENT LPAREN call_args_or_unit RPAREN
+##
+
+syntax error
+
+program: IDENT LPAREN STRING IN
+##
+## Ends in an error in state: 58.
+##
+## call_args -> call_arg . COMMA call_args [ RPAREN ]
+## call_args -> call_arg . [ RPAREN ]
+##
+## The known suffix of the stack is as follows:
+## call_arg
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 1, spurious reduction of production term -> STRING
+## In state 35, spurious reduction of production typed_term -> term
+## In state 33, spurious reduction of production par_expr -> typed_term
+## In state 47, spurious reduction of production alt_expr -> par_expr
+## In state 50, spurious reduction of production seq_expr -> alt_expr
+## In state 53, spurious reduction of production call_arg -> seq_expr
+##
+
+expected ',' or ')'
+
+program: IDENT LPAREN IDENT COMMA SEQ
+##
+## Ends in an error in state: 59.
+##
+## call_args -> call_arg COMMA . call_args [ RPAREN ]
+##
+## The known suffix of the stack is as follows:
+## call_arg COMMA
+##
+
+unexpected trailing comma in argument list
+
+program: LOOP LPAREN IDENT IN
+##
+## Ends in an error in state: 61.
+##
+## term -> LOOP LPAREN seq_expr . RPAREN [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## LOOP LPAREN seq_expr
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 8, spurious reduction of production term -> IDENT
+## In state 35, spurious reduction of production typed_term -> term
+## In state 33, spurious reduction of production par_expr -> typed_term
+## In state 47, spurious reduction of production alt_expr -> par_expr
+## In state 50, spurious reduction of production seq_expr -> alt_expr
+##
+
+expected ')' to close 'loop'
+
+program: LET STRING
+##
+## Ends in an error in state: 63.
+##
+## program_inner -> LET . IDENT EQUALS seq_expr IN program_inner [ RPAREN EOF ]
+##
+## The known suffix of the stack is as follows:
+## LET
+##
+
+expected identifier after 'let'
+
+program: LET IDENT STRING
+##
+## Ends in an error in state: 64.
+##
+## program_inner -> LET IDENT . EQUALS seq_expr IN program_inner [ RPAREN EOF ]
+##
+## The known suffix of the stack is as follows:
+## LET IDENT
+##
+
+expected '=' after let binding name
+
+program: LET IDENT EQUALS SEQ
+##
+## Ends in an error in state: 65.
+##
+## program_inner -> LET IDENT EQUALS . seq_expr IN program_inner [ RPAREN EOF ]
+##
+## The known suffix of the stack is as follows:
+## LET IDENT EQUALS
+##
+
+syntax error
+
+program: LET IDENT EQUALS IDENT EOF
+##
+## Ends in an error in state: 66.
+##
+## program_inner -> LET IDENT EQUALS seq_expr . IN program_inner [ RPAREN EOF ]
+##
+## The known suffix of the stack is as follows:
+## LET IDENT EQUALS seq_expr
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 8, spurious reduction of production term -> IDENT
+## In state 35, spurious reduction of production typed_term -> term
+## In state 33, spurious reduction of production par_expr -> typed_term
+## In state 47, spurious reduction of production alt_expr -> par_expr
+## In state 50, spurious reduction of production seq_expr -> alt_expr
+##
+
+expected 'in' after let binding value. Hint: use 'let x = value in body' syntax
+
+program: LET IDENT EQUALS IDENT IN SEQ
+##
+## Ends in an error in state: 67.
+##
+## program_inner -> LET IDENT EQUALS seq_expr IN . program_inner [ RPAREN EOF ]
+##
+## The known suffix of the stack is as follows:
+## LET IDENT EQUALS seq_expr IN
+##
+
+syntax error
+
+program: LPAREN IDENT IN
+##
+## Ends in an error in state: 70.
+##
+## term -> LPAREN program_inner . RPAREN [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN program_inner
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 8, spurious reduction of production term -> IDENT
+## In state 35, spurious reduction of production typed_term -> term
+## In state 33, spurious reduction of production par_expr -> typed_term
+## In state 47, spurious reduction of production alt_expr -> par_expr
+## In state 50, spurious reduction of production seq_expr -> alt_expr
+## In state 68, spurious reduction of production program_inner -> seq_expr
+##
+
+expected ')'
+
+program: IDENT IN
+##
+## Ends in an error in state: 72.
+##
+## program -> program_inner . EOF [ # ]
+##
+## The known suffix of the stack is as follows:
+## program_inner
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 8, spurious reduction of production term -> IDENT
+## In state 35, spurious reduction of production typed_term -> term
+## In state 33, spurious reduction of production par_expr -> typed_term
+## In state 47, spurious reduction of production alt_expr -> par_expr
+## In state 50, spurious reduction of production seq_expr -> alt_expr
+## In state 68, spurious reduction of production program_inner -> seq_expr
+##
+
+syntax error
+
