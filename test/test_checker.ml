@@ -128,6 +128,20 @@ let test_check_unit_no_warnings () =
   let result = Checker.check (parse_ok "()") in
   Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
 
+let test_check_program_merges_warnings () =
+  let prog = Helpers.parse_program_ok "a?; b?" in
+  let reduced = Reducer.reduce_program prog in
+  let result = Checker.check_program reduced in
+  Alcotest.(check int) "two warnings (one per stmt)" 2
+    (List.length result.Checker.warnings)
+
+let test_check_program_no_warnings () =
+  let prog = Helpers.parse_program_ok "a >>> b; c >>> d" in
+  let reduced = Reducer.reduce_program prog in
+  let result = Checker.check_program reduced in
+  Alcotest.(check int) "no warnings" 0
+    (List.length result.Checker.warnings)
+
 let tests =
   [ "loop plain no error", `Quick, test_check_loop_plain_no_error
   ; "loop with unicode nodes", `Quick, test_check_loop_unicode_no_error
@@ -152,4 +166,6 @@ let tests =
   ; "string lit no error", `Quick, test_check_string_lit_no_error
   ; "string lit question with alt", `Quick, test_check_string_lit_question_with_alt
   ; "unit no warnings", `Quick, test_check_unit_no_warnings
+  ; "program merges warnings", `Quick, test_check_program_merges_warnings
+  ; "program no warnings", `Quick, test_check_program_no_warnings
   ]

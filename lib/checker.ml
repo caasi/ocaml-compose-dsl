@@ -102,3 +102,7 @@ let check (expr : expr) =
   check_question_balance expr;
   go expr;
   { warnings = List.rev !warnings }
+
+let check_program (prog : Ast.program) : result =
+  let warnings = List.concat_map (fun e -> (check e).warnings) prog in
+  { warnings }
