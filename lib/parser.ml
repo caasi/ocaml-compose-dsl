@@ -127,7 +127,8 @@ and parse_type_name st =
   | Lexer.IDENT name -> advance st; name
   | Lexer.LPAREN ->
     advance st;
-    expect st (fun tok -> tok = Lexer.RPAREN) "expected ')' in unit type '()'";
+    expect st (fun tok -> tok = Lexer.RPAREN)
+      "expected ')' to form unit type '()'; parenthesized type names are not supported";
     "()"
   | _ -> raise (Parse_error (t.loc.start, "expected type name or '()' in type annotation after '::' or '->'"))
 
