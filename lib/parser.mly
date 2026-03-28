@@ -39,13 +39,13 @@ seq_expr:
   | lhs=alt_expr SEQ rhs=seq_expr   { mk_expr $loc (Seq (lhs, rhs)) }
   | BACKSLASH params=lambda_params ARROW body=seq_expr
     { let seen = Hashtbl.create 4 in
-      List.iter (fun p ->
+      List.iter (fun (pos, p) ->
         if Hashtbl.mem seen p then
-          raise (Ast.Duplicate_param (end_pos_of $startpos,
+          raise (Ast.Duplicate_param (end_pos_of pos,
             Printf.sprintf "duplicate parameter '%s' in lambda" p));
         Hashtbl.replace seen p ()
       ) params;
-      mk_expr $loc (Lambda (params, body)) }
+      mk_expr $loc (Lambda (List.map snd params, body)) }
   | e=alt_expr                       { e }
 ;
 
@@ -104,8 +104,8 @@ call_args_or_unit:
 ;
 
 lambda_params:
-  | p=IDENT COMMA rest=lambda_params  { p :: rest }
-  | p=IDENT                           { [p] }
+  | p=IDENT COMMA rest=lambda_params  { ($startpos(p), p) :: rest }
+  | p=IDENT                           { [($startpos(p), p)] }
 ;
 
 call_args:
