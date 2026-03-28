@@ -18,6 +18,7 @@ let parse_fails input =
   | _ -> Alcotest.fail "expected parse error"
   | exception Parser.Error -> ()
   | exception Lexer.Lex_error _ -> ()
+  | exception Ast.Duplicate_param _ -> ()
 
 let check_ok input =
   let ast = parse_ok input in

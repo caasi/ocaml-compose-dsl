@@ -128,7 +128,13 @@ let finalize_keyword s =
 
 (* --- Main token function (pull-based for Menhir) --- *)
 
-let rec token st = read_token st
+(* token skips comments (for Menhir pull-based parser).
+   read_token returns all tokens including COMMENT (for batch tokenize). *)
+let rec token st =
+  let (tok, _, _) as result = read_token st in
+  match tok with
+  | Parser.COMMENT _ -> token st
+  | _ -> result
 
 and read_token st =
   let buf = st.buf in
@@ -218,7 +224,7 @@ let tokenize input =
   let st = create_state buf in
   let tokens = ref [] in
   let rec go () =
-    let (tok, sp, ep) = token st in
+    let (tok, sp, ep) = read_token st in
     tokens := { token = tok; loc = { start = sp; end_ = ep } } :: !tokens;
     match tok with
     | Parser.EOF -> ()

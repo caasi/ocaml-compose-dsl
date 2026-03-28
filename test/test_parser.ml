@@ -620,7 +620,8 @@ let test_parse_lambda_with_comment () =
 let test_parse_lambda_duplicate_params () =
   match parse_ok "\\ x, x -> x" with
   | _ -> Alcotest.fail "expected parse error (duplicate param)"
-  | exception Parser.Error -> ()
+  | exception Ast.Duplicate_param (_, msg) ->
+    Alcotest.(check bool) "mentions duplicate" true (contains msg "duplicate")
 
 (* Trailing comma in args — should be parse error *)
 let test_parse_trailing_comma_args () =

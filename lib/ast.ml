@@ -30,3 +30,5 @@ and expr_desc =
 and call_arg =
   | Named of arg                    (** key: value — static configuration *)
   | Positional of expr              (** pipeline expression *)
+
+exception Duplicate_param of pos * string
