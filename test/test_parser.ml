@@ -784,6 +784,12 @@ let test_parse_lambda_returns_unit () =
   | Ast.Lambda (["x"], { desc = Ast.Unit; _ }) -> ()
   | _ -> Alcotest.fail "expected Lambda([x], Unit)"
 
+let test_parse_group_with_let () =
+  let ast = parse_ok "(let x = a in x)" in
+  match ast.desc with
+  | Ast.Group { desc = Ast.Let ("x", { desc = Ast.Var "a"; _ }, { desc = Ast.Var "x"; _ }); _ } -> ()
+  | _ -> Alcotest.fail "expected Group(Let(x, a, x))"
+
 let edge_case_tests =
   [ "lambda returns unit", `Quick, test_parse_lambda_returns_unit
   ; "lambda unicode param", `Quick, test_parse_lambda_unicode_param
@@ -799,4 +805,5 @@ let edge_case_tests =
   ; "let in positional arg error", `Quick, test_parse_let_in_positional_arg_error
   ; "let ident starting with in", `Quick, test_parse_let_ident_starting_with_in
   ; "in as term error", `Quick, test_parse_in_as_term_error
+  ; "group with let", `Quick, test_parse_group_with_let
   ]
