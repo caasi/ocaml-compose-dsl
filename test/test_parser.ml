@@ -232,6 +232,11 @@ let test_parse_error_missing_loop_paren () =
   let msg = parse_error_msg "loop a" in
   Alcotest.(check bool) "mentions '('" true (contains msg "'('")
 
+(* reserved keyword hint must not override specific state messages *)
+let test_parse_error_loop_in_keeps_specific_msg () =
+  let msg = parse_error_msg "loop in" in
+  Alcotest.(check bool) "mentions '(' not 'reserved keyword'" true (contains msg "'('")
+
 let test_parse_error_trailing_operator () =
   let msg = parse_error_msg "a >>>" in
   Alcotest.(check bool) "mentions expression" true (contains msg "expected expression")
@@ -640,7 +645,7 @@ let test_parse_let_in_positional_arg_error () =
 
 let test_parse_in_as_term_error () =
   let msg = parse_error_msg "a >>> in" in
-  Alcotest.(check bool) "mentions reserved keyword" true (contains msg "reserved keyword")
+  Alcotest.(check bool) "mentions expected expression" true (contains msg "expected expression")
 
 (* Error position should use lexbuf token pos, not sedlex cursor.
    Comment before error token exercises the difference. *)
@@ -736,6 +741,7 @@ let tests =
   ; "error: unclosed paren", `Quick, test_parse_error_unclosed_paren
   ; "error: unclosed group", `Quick, test_parse_error_unclosed_group
   ; "error: missing loop paren", `Quick, test_parse_error_missing_loop_paren
+  ; "error: loop in keeps specific msg", `Quick, test_parse_error_loop_in_keeps_specific_msg
   ; "error: trailing operator", `Quick, test_parse_error_trailing_operator
   ; "plan example 1", `Quick, test_parse_plan_example_1
   ; "plan example 2", `Quick, test_parse_plan_example_2

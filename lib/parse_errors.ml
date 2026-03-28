@@ -35,10 +35,13 @@ let parse input =
       try Parser_messages.message state
       with Not_found -> "syntax error"
     in
+    let trimmed = String.trim base_msg in
+    let is_generic = not (try let _ = Parser_messages.message state in true
+                          with Not_found -> false) in
     let msg =
       match reserved_keyword_hint !last_token with
-      | Some hint -> hint
-      | None -> String.trim base_msg
+      | Some hint when is_generic -> hint
+      | _ -> trimmed
     in
     let p = lexbuf.lex_start_p in
     let pos = { line = p.pos_lnum; col = p.pos_cnum - p.pos_bol + 1 } in
