@@ -183,3 +183,6 @@ let reduce (e : expr) : expr =
   let e = beta_reduce fresh_name e in
   verify e;
   e
+
+let reduce_program (prog : Ast.program) : Ast.program =
+  List.map reduce prog
