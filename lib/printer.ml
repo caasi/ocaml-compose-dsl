@@ -17,6 +17,7 @@ let call_arg_to_string to_s = function
 
 let rec to_string (e : expr) =
   let base = match e.desc with
+    | Unit -> "Unit"
     | Var name -> Printf.sprintf "Var(%S)" name
     | StringLit s -> Printf.sprintf "StringLit(%S)" s
     | Seq (a, b) -> Printf.sprintf "Seq(%s, %s)" (to_string a) (to_string b)

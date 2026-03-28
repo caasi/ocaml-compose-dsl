@@ -136,6 +136,11 @@ let test_print_let () =
     {|Let("f", Var("a"), Var("f"))|}
     (Printer.to_string ast)
 
+let test_print_unit () =
+  let ast = { Ast.loc = { start = { line = 1; col = 1 }; end_ = { line = 1; col = 2 } };
+              desc = Ast.Unit; type_ann = None } in
+  Alcotest.(check string) "unit" "Unit" (Printer.to_string ast)
+
 let tests =
   [ "simple node", `Quick, test_print_simple_node
   ; "node with args", `Quick, test_print_node_with_args
@@ -158,4 +163,5 @@ let tests =
   ; "var", `Quick, test_print_var
   ; "app", `Quick, test_print_app
   ; "let", `Quick, test_print_let
+  ; "unit", `Quick, test_print_unit
   ]

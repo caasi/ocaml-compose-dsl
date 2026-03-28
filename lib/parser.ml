@@ -117,7 +117,7 @@ and attach_comments_right (e : expr) comments =
     | Loop inner -> { e with desc = Loop (attach_comments_right inner comments) }
     | StringLit _ -> e
     | Question inner -> { e with desc = Question (attach_comments_right inner comments) }
-    | Var _ | App _ | Lambda _ | Let _ -> e
+    | Var _ | App _ | Lambda _ | Let _ | Unit -> e
 
 and parse_type_ann st =
   let t = current st in

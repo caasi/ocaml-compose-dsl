@@ -13,6 +13,7 @@ type type_ann = { input : string; output : string }
 
 type expr = { loc : loc; desc : expr_desc; type_ann : type_ann option }
 and expr_desc =
+  | Unit                             (** () — unit value *)
   | Var of string                   (** variable reference, bound or free *)
   | StringLit of string             (** string literal as expression *)
   | Seq of expr * expr              (** [>>>] *)
