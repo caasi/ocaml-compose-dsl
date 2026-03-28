@@ -163,12 +163,44 @@ pipeline  = seq_expr ;
 
 Update the pipeline description to reflect `parse :: String -> Program` (was `String -> Ast`).
 
+## Amendment: Tolerant Semicolons (2026-03-29)
+
+**Problem:** The original grammar (`stmts = stmt { ";" stmt } [";"]`) rejects consecutive semicolons (`a;;b`) and leading semicolons (`;a`). This causes a practical issue in literate mode: `Markdown.combine` inserts `";\n"` between extracted arrow blocks, so an empty arrow block (empty fenced code block) produces a leading `;` that triggers a parse error. More broadly, a strict separator grammar is unnecessarily fragile — users shouldn't have to worry about accidental double semicolons.
+
+**Alternatives considered:**
+
+1. **`Noop` AST node** — add a new `expr_desc` variant for empty statements, so `";"` parses as `[Noop; Noop]` (separator semantics) or `[Noop]` (terminator semantics). Rejected because: (a) separator semantics makes `";"` produce two nodes, which is unintuitive; (b) terminator semantics would require `a` alone to be invalid (missing terminator) unless we make the terminator optional, which brings us back to the same grammar complexity; (c) every downstream pass (Reducer, Checker, Printer) must handle the new variant; (d) `Noop` nodes have no semantic value — they represent the absence of a statement, not a meaningful operation.
+
+2. **Filter empty blocks in `Markdown.combine`** — skip empty/whitespace-only blocks before joining with `";\n"`. Rejected because it only fixes the literate-mode symptom, not the underlying grammar rigidity. Users writing Arrow files directly would still hit `a;;b` errors.
+
+3. **Lexer-level semicolon collapsing** — collapse consecutive `SEMICOLON` tokens into one in the lexer. Rejected because it loses source fidelity (position information) and moves a grammatical concern into the wrong layer.
+
+**Chosen approach: parser-level tolerant grammar.** Replace `stmts` with two mutually recursive rules that consume any number of semicolons between, before, and after statements:
+
+```menhir
+semi_sep_stmts:
+  | /* empty */                { [] }
+  | SEMICOLON semi_sep_stmts   { $2 }
+  | stmt semi_tail             { $1 :: $2 }
+
+semi_tail:
+  | /* empty */                { [] }
+  | SEMICOLON semi_sep_stmts   { $2 }
+```
+
+**LALR(1) conflict-free:** In `semi_sep_stmts`, the lookahead token uniquely determines the production — `SEMICOLON` shifts, stmt-start tokens shift into `stmt`, everything else (e.g. `EOF`) reduces to empty. No ambiguity.
+
+**Semantics:** Extra semicolons are silently consumed by the parser. No new AST node is needed. `a;;;;;;b` produces `[a; b]`. `;;;` and empty input produce `[]` (empty program). `(a; b)` remains a parse error — parenthesized groups use `stmt`, not `semi_sep_stmts`.
+
 ## Edge Cases
 
-- **Empty program** (empty string / whitespace-only): remains a parse error — `stmts` requires at least one `stmt`
-- **`;;`** (empty statement): parse error — `SEMICOLON` is not a valid `stmt`-start token
+- **Empty program** (empty string / whitespace-only): valid, produces `[]`
+- **`;;`** (consecutive semicolons): valid, produces `[]` — semicolons are silently consumed
+- **`;a`** (leading semicolon): valid, produces `[a]`
+- **`a;;;;;;b`** (redundant semicolons): valid, produces `[a; b]`
 - **Single statement**: parses as `[expr]` — backwards compatible
 - **Literate mode, single block**: `combine` emits no separator (guarded by `current_line > 1`) — no `;` injected
+- **Literate mode, empty block**: empty block produces empty content, `";\n"` separator is consumed as redundant semicolons — no parse error
 
 ## Backwards Compatibility
 

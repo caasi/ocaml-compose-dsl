@@ -847,3 +847,90 @@ Expected: All tests pass.
 git add README.md CLAUDE.md
 git commit --message "docs: update EBNF and rewrite CLAUDE.md arrow blocks for semicolon separator"
 ```
+
+---
+
+### Task 12: Parser — Tolerant semicolons (amendment 2026-03-29)
+
+**Motivation:** Copilot review on PR #32 identified that `Markdown.combine` inserting `";\n"` between blocks causes a parse error when an extracted arrow block is empty. More broadly, the strict separator grammar is unnecessarily fragile — `a;;b` and `;a` fail even though the intent is clear. See spec amendment "Tolerant Semicolons" for design rationale and alternatives considered.
+
+**Files:**
+- Modify: `lib/parser.mly` (replace `stmts` with `semi_sep_stmts` + `semi_tail`)
+- Modify: `lib/parser.messages` (regenerate for new parser states)
+- Modify: `test/test_parser.ml` (update error tests, add tolerant semicolon tests)
+- Modify: `test/test_markdown.ml` (add empty arrow block regression test)
+- Modify: `bin/main.ml` (handle empty program `[]`)
+- Modify: `README.md` (update EBNF)
+
+- [ ] **Step 1: Update tests (TDD)**
+
+Change existing error tests that are now valid:
+- `test_parse_empty_statement_error` (`;a`) → expect `[a]`
+- `test_parse_double_semicolon_error` (`a;; b`) → expect `[a; b]`
+- `test_parse_empty_input_error` (`""`) → expect `[]`
+- `test_parse_whitespace_only_error` (`"   "`) → expect `[]`
+
+Add new tests:
+- `test_parse_consecutive_semicolons`: `a;;;;;;b` → `[a; b]`
+- `test_parse_leading_semicolons`: `;;;a` → `[a]`
+- `test_parse_only_semicolons`: `;;;` → `[]`
+- `test_parse_semicolons_between_stmts`: `a; ; ; b` → `[a; b]`
+
+Add regression test in `test_markdown.ml`:
+- `test_md_combine_empty_block`: empty arrow block + non-empty block → parses OK
+
+Run: `dune test`
+Expected: Tests fail (parser not yet updated).
+
+- [ ] **Step 2: Update parser grammar**
+
+Replace `stmts` in `parser.mly`:
+
+```menhir
+semi_sep_stmts:
+  | /* empty */                           { [] }
+  | SEMICOLON semi_sep_stmts              { $2 }
+  | s=stmt rest=semi_tail                 { s :: rest }
+;
+
+semi_tail:
+  | /* empty */                           { [] }
+  | SEMICOLON rest=semi_sep_stmts         { rest }
+;
+```
+
+Update `program` rule to use `semi_sep_stmts`.
+
+- [ ] **Step 3: Regenerate parser.messages**
+
+```bash
+menhir --list-errors lib/parser.mly > /tmp/parser.messages.new
+menhir --merge-errors /tmp/parser.messages.new --merge-errors lib/parser.messages lib/parser.mly > /tmp/parser.messages.merged
+cp /tmp/parser.messages.merged lib/parser.messages
+```
+
+Add error messages for any new states.
+
+- [ ] **Step 4: Handle empty program in CLI**
+
+Update `bin/main.ml` to handle `[]` (empty program) gracefully — either print nothing or print a placeholder.
+
+- [ ] **Step 5: Update EBNF in README.md**
+
+```ebnf
+program   = { ";" } , [ stmt , { ";" , { ";" } , stmt } , { ";" } ] ;
+```
+
+Or equivalently in prose: a program is zero or more statements separated by one or more semicolons, with optional leading and trailing semicolons.
+
+- [ ] **Step 6: Run full test suite**
+
+Run: `dune test`
+Expected: All tests pass.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add lib/parser.mly lib/parser.messages test/test_parser.ml test/test_markdown.ml bin/main.ml README.md
+git commit --message "feat: allow consecutive and leading semicolons in program grammar"
+```
