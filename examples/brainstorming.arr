@@ -1,11 +1,10 @@
--- explore_context : () → (SourceCode, (History, Docs))
--- summarize       : (SourceCode, (History, Docs)) → Context
--- ask_questions   : Context → Requirements
--- propose         : Requirements → Design
+-- brainstorming.arr — structured exploration before implementation
 
-(read_files(glob: "lib/**/*.ml") *** git_log(n: "20") *** read_docs(path: "CLAUDE.md"))
-  >>> summarize
-  >>> ask_questions(style: one_at_a_time)
-  >>> propose(count: "3")
-  >>> present_design
-  >>> write_spec
+(read_files(glob: "lib/**/*.ml")
+  *** git_log(n: "20")
+  *** read_docs(path: "CLAUDE.md")) :: () -> Sources
+  >>> summarize :: Sources -> Context
+  >>> ask_questions(style: one_at_a_time) :: Context -> Requirements
+  >>> propose(count: "3") :: Requirements -> Design
+  >>> present_design :: Design -> Feedback
+  >>> write_spec :: Feedback -> ()

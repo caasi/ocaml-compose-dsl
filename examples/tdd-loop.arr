@@ -1,12 +1,9 @@
--- write_test : Feature → (Code, TestSuite)
--- implement  : (Code, ErrorContext) → (Code, ErrorContext)
--- run_tests  : Code → Either PassResult FailResult
--- evaluate   : Either PassResult FailResult → (Result, ErrorContext)
+-- tdd-loop.arr — test-driven development cycle
 
-write_test(for: feature)
+write_test(for: feature) :: Feature -> Code
   >>> loop(
-    implement
-      >>> run_tests
-      >>> evaluate(criteria: all_pass)
+    implement :: Code -> Code
+      >>> run_tests :: Code -> TestResult
+      >>> evaluate(criteria: all_pass) :: TestResult -> Code
   )
-  >>> commit
+  >>> commit :: Code -> ()

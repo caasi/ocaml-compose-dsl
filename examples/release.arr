@@ -1,10 +1,6 @@
--- lint      : Code → LintReport
--- test      : Code → TestReport
--- gate      : (LintReport, TestReport) → (Code, Code)
--- build_*   : Code → Binary
--- upload    : (Binary, Binary) → Release
+-- release.arr — CI/CD release pipeline
 
-(lint &&& test)
-  >>> gate(require: [pass, pass])
-  >>> (build_linux(profile: static) *** build_macos(profile: release))
-  >>> upload_release(tag: "v0.1.0")
+(lint &&& test) :: Code -> Reports
+  >>> gate(require: [pass, pass]) :: Reports -> Code
+  >>> (build_linux(profile: static) *** build_macos(profile: release)) :: Code -> Binaries
+  >>> upload_release(tag: "v0.1.0") :: Binaries -> ()
