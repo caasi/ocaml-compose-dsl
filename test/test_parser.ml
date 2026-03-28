@@ -844,19 +844,24 @@ let test_parse_let_in_statement () =
    | _ -> Alcotest.fail "expected [Let; Var(b)]")
 
 let test_parse_semicolon_in_parens_error () =
-  parse_fails "(a; b)"
+  let msg = parse_error_msg "(a; b)" in
+  assert (Helpers.contains msg ")")
 
 let test_parse_empty_statement_error () =
-  parse_fails ";a"
+  let msg = parse_error_msg ";a" in
+  assert (Helpers.contains msg "expected")
 
 let test_parse_double_semicolon_error () =
-  parse_fails "a;; b"
+  let msg = parse_error_msg "a;; b" in
+  assert (Helpers.contains msg "expected")
 
 let test_parse_empty_input_error () =
-  parse_fails ""
+  let msg = parse_error_msg "" in
+  assert (Helpers.contains msg "expected")
 
 let test_parse_whitespace_only_error () =
-  parse_fails "   "
+  let msg = parse_error_msg "   " in
+  assert (Helpers.contains msg "expected")
 
 let test_parse_stmt_with_type_ann () =
   let prog = parse_program_ok "a :: A -> B; c :: C -> D" in
