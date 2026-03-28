@@ -31,4 +31,6 @@ and call_arg =
   | Named of arg                    (** key: value — static configuration *)
   | Positional of expr              (** pipeline expression *)
 
+type program = expr list
+
 exception Duplicate_param of pos * string
