@@ -10,6 +10,18 @@ program: SEQ
 
 expected identifier, string, '(', 'loop', or '\' (lambda)
 
+program: SEMICOLON SEQ
+##
+## Ends in an error in state: 3.
+##
+## semi_sep_stmts -> SEMICOLON . semi_sep_stmts [ EOF ]
+##
+## The known suffix of the stack is as follows:
+## SEMICOLON
+##
+
+expected identifier, string, '(', 'loop', or '\' (lambda)
+
 program: STRING STRING
 ##
 ## Ends in an error in state: 1.

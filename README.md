@@ -13,7 +13,7 @@ The DSL uses Arrow combinators because they sit at the sweet spot between shell 
 ## Grammar (EBNF)
 
 ```ebnf
-program     = stmt , { ";" , stmt } , [ ";" ] ;
+program     = { ";" } , [ stmt , { ";" , { ";" } , stmt } , { ";" } ] ;
 
 stmt        = let_expr | pipeline ;
 

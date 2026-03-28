@@ -847,21 +847,46 @@ let test_parse_semicolon_in_parens_error () =
   let msg = parse_error_msg "(a; b)" in
   assert (Helpers.contains msg ")")
 
-let test_parse_empty_statement_error () =
-  let msg = parse_error_msg ";a" in
-  assert (Helpers.contains msg "expected")
+let test_parse_leading_semicolon () =
+  let prog = parse_program_ok ";a" in
+  Alcotest.(check int) "one statement" 1 (List.length prog);
+  (match prog with
+   | [{ desc = Ast.Var "a"; _ }] -> ()
+   | _ -> Alcotest.fail "expected [Var(a)]")
 
-let test_parse_double_semicolon_error () =
-  let msg = parse_error_msg "a;; b" in
-  assert (Helpers.contains msg "expected")
+let test_parse_double_semicolon () =
+  let prog = parse_program_ok "a;; b" in
+  Alcotest.(check int) "two statements" 2 (List.length prog);
+  (match prog with
+   | [{ desc = Ast.Var "a"; _ }; { desc = Ast.Var "b"; _ }] -> ()
+   | _ -> Alcotest.fail "expected [Var(a); Var(b)]")
 
-let test_parse_empty_input_error () =
-  let msg = parse_error_msg "" in
-  assert (Helpers.contains msg "expected")
+let test_parse_empty_input () =
+  let prog = parse_program_ok "" in
+  Alcotest.(check int) "empty program" 0 (List.length prog)
 
-let test_parse_whitespace_only_error () =
-  let msg = parse_error_msg "   " in
-  assert (Helpers.contains msg "expected")
+let test_parse_whitespace_only () =
+  let prog = parse_program_ok "   " in
+  Alcotest.(check int) "empty program" 0 (List.length prog)
+
+let test_parse_consecutive_semicolons () =
+  let prog = parse_program_ok "a;;;;;;b" in
+  Alcotest.(check int) "two statements" 2 (List.length prog);
+  (match prog with
+   | [{ desc = Ast.Var "a"; _ }; { desc = Ast.Var "b"; _ }] -> ()
+   | _ -> Alcotest.fail "expected [Var(a); Var(b)]")
+
+let test_parse_leading_semicolons () =
+  let prog = parse_program_ok ";;;a" in
+  Alcotest.(check int) "one statement" 1 (List.length prog)
+
+let test_parse_only_semicolons () =
+  let prog = parse_program_ok ";;;" in
+  Alcotest.(check int) "empty program" 0 (List.length prog)
+
+let test_parse_semicolons_between_stmts () =
+  let prog = parse_program_ok "a; ; ; b" in
+  Alcotest.(check int) "two statements" 2 (List.length prog)
 
 let test_parse_stmt_with_type_ann () =
   let prog = parse_program_ok "a :: A -> B; c :: C -> D" in
@@ -889,9 +914,13 @@ let edge_case_tests =
   ; "single statement program", `Quick, test_parse_single_statement
   ; "let in statement", `Quick, test_parse_let_in_statement
   ; "semicolon in parens error", `Quick, test_parse_semicolon_in_parens_error
-  ; "empty statement error", `Quick, test_parse_empty_statement_error
-  ; "double semicolon error", `Quick, test_parse_double_semicolon_error
-  ; "empty input error", `Quick, test_parse_empty_input_error
-  ; "whitespace only error", `Quick, test_parse_whitespace_only_error
+  ; "leading semicolon", `Quick, test_parse_leading_semicolon
+  ; "double semicolon", `Quick, test_parse_double_semicolon
+  ; "empty input", `Quick, test_parse_empty_input
+  ; "whitespace only", `Quick, test_parse_whitespace_only
+  ; "consecutive semicolons", `Quick, test_parse_consecutive_semicolons
+  ; "leading semicolons", `Quick, test_parse_leading_semicolons
+  ; "only semicolons", `Quick, test_parse_only_semicolons
+  ; "semicolons between stmts", `Quick, test_parse_semicolons_between_stmts
   ; "stmt with type ann", `Quick, test_parse_stmt_with_type_ann
   ]

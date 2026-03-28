@@ -138,6 +138,15 @@ let test_md_combine_single_no_semicolon () =
   let source, _table = Markdown.combine blocks in
   assert (not (Helpers.contains source ";"))
 
+let test_md_combine_empty_block () =
+  let blocks = [
+    { Markdown.content = ""; markdown_start = 5 };
+    { Markdown.content = "a >>> b\n"; markdown_start = 15 };
+  ] in
+  let source, _table = Markdown.combine blocks in
+  let prog = Helpers.parse_program_ok source in
+  Alcotest.(check int) "one statement" 1 (List.length prog)
+
 let tests =
   [ "single block", `Quick, test_md_extract_single_block
   ; "multiple blocks", `Quick, test_md_extract_multiple_blocks
@@ -160,6 +169,7 @@ let tests =
   ; "translate empty", `Quick, test_md_translate_empty
   ; "combine semicolon separator", `Quick, test_md_combine_semicolon_separator
   ; "combine single no semicolon", `Quick, test_md_combine_single_no_semicolon
+  ; "combine empty block", `Quick, test_md_combine_empty_block
   ]
 
 let test_md_literate_end_to_end () =

@@ -25,13 +25,18 @@ let end_pos_of (p : Lexing.position) : Ast.pos =
 %%
 
 program:
-  | s=stmts EOF { s }
+  | s=semi_sep_stmts EOF { s }
 ;
 
-stmts:
-  | s=stmt { [s] }
-  | s=stmt SEMICOLON rest=stmts { s :: rest }
-  | s=stmt SEMICOLON { [s] }
+semi_sep_stmts:
+  | /* empty */                           { [] }
+  | SEMICOLON rest=semi_sep_stmts         { rest }
+  | s=stmt rest=semi_tail                 { s :: rest }
+;
+
+semi_tail:
+  | /* empty */                           { [] }
+  | SEMICOLON rest=semi_sep_stmts         { rest }
 ;
 
 stmt:

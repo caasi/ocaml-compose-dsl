@@ -112,5 +112,6 @@ let () =
         (fun (w : Compose_dsl.Checker.warning) ->
           Printf.eprintf "warning at %d:%d: %s\n" (tl w.loc.start.line) w.loc.start.col w.message)
         result.warnings;
-      print_endline (Compose_dsl.Printer.program_to_string prog);
+      let output = Compose_dsl.Printer.program_to_string prog in
+      if output <> "" then print_endline output;
       exit 0
