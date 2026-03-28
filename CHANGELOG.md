@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-03-29
+
+### Changed
+- **BREAKING:** Replaced hand-written recursive descent parser with Menhir LALR(1) grammar (`parser.mly`) and sedlex PPX-based lexer
+- **BREAKING:** Parser entry point changed from `Parser.parse_program` to `Parse_errors.parse` (Menhir incremental API with custom error messages)
+- Empty call args `f()` now produce `[Positional Unit]` instead of an empty arg list (zero-arg application eliminated)
+- Test suite split from monolith `test_compose_dsl.ml` into per-module files (`test_lexer.ml`, `test_parser.ml`, etc.)
+
+### Added
+- Unit value `()` as a first-class expression with optional `?` suffix
+- `()` accepted as type name in type annotations (e.g., `:: () -> Result`)
+- Semicolon `;` statement separator — programs can contain multiple independent statements
+- Tolerant semicolons: leading, trailing, and consecutive semicolons are accepted
+- `Parse_errors` module — Menhir incremental API driver with custom error messages (`parser.messages`)
+- Literate mode multi-block integration test
+
+### Fixed
+- `f(x)?` inner `App` location now includes closing paren
+- Reserved keyword hint only applied when no specific state message exists
+- Duplicate lambda param error reported at the param's position
+- `Markdown.combine` stale comment corrected
+
 ## [0.9.0] - 2026-03-28
 
 ### Changed
