@@ -6,6 +6,8 @@
 
 **Architecture:** The pipeline shape (String → Lexer → Parser → AST → Reducer → Checker) is preserved. The lexer becomes a sedlex PPX file; the parser becomes a `.mly` grammar file. Token types move from `Lexer` module to Menhir-generated `Parser` module. The lexer shifts from batch (produces `token list`) to pull-based (parser calls lexer on demand). Menhir entry point is `Parser.program` (generated from `%start program`). The `--table` backend is used for `.messages` error reporting support.
 
+**Prerequisite changes (already on branch):** The `feat/unit-value` branch added `Unit` as a first-class AST variant. Key semantics the migration must preserve: `()` parses as `Unit` (not `Group`), `()?` as `Question(Unit)`, empty call args `f()` produce `[Positional Unit]` (not `[]`), and `()` is accepted in type annotations (`:: () -> Foo`). All downstream modules (reducer, checker, printer) already handle `Unit`.
+
 **Tech Stack:** OCaml 5.1, Menhir (parser generator, `--table` backend), sedlex (PPX lexer generator), dune 3.0
 
 **Spec:** `docs/superpowers/specs/2026-03-28-menhir-sedlex-migration-design.md`
@@ -26,7 +28,7 @@
 | `test/helpers.ml` | Modify | Update `parse_ok`, `parse_fails`, `reduce_ok` to new API |
 | `test/test_lexer.ml` | Modify | Update token references (`Lexer.X` → `Parser.X` if needed) |
 | `test/test_parser.ml` | Modify | Update ~17 direct `Lexer.tokenize |> Parser.parse_program` calls, error exception types |
-| `test/test_integration.ml` | Modify | Update 4 direct `Lexer.tokenize` + `Parser.parse_program` call sites |
+| `test/test_integration.ml` | Modify | Update direct `Lexer.tokenize` + `Parser.parse_program` call sites |
 
 ---
 
@@ -59,11 +61,12 @@ let parse input =
 - `test_parse_in_as_term_error` (asserts `reserved keyword`)
 - `test_parse_type_ann_incomplete_error` (asserts `->`)
 - `test_parse_type_ann_missing_output_error` (asserts `->`)
+- parenthesized type name error (e.g. `:: (Foo) -> Bar` — parser rejects with "parenthesized type names are not supported"; no dedicated test yet but should be added)
 - `test_parse_lambda_duplicate_params` (asserts `duplicate` — this one stays via semantic action, not `.messages`)
 
 **Direct `Lexer.tokenize |> Parser.parse_program` calls in tests** (must all be updated):
-- `test/helpers.ml`: `parse_ok` (line 3-5), `reduce_ok` (line 43-46)
-- `test/test_parser.ml`: lines 478, 491, 504, 517, 529, 537, 544, 600, 608, 614, 621, 634, 641, 649, 655, 661, 665
+- `test/helpers.ml`: `parse_ok` (lines 4-5), `reduce_ok` (lines 44-45)
+- `test/test_parser.ml`: lines 608, 615, 621, 634, 641, 649, 655, 660, 665
 - `test/test_integration.ml`: lines 7-8, 15-16, 91-92
 
 ---
@@ -145,6 +148,8 @@ git commit -m "build: add menhir and sedlex dependencies"
 - Delete: `lib/parser.ml`
 
 Create a `.mly` with ALL token declarations and a minimal grammar. This ensures the `Parser` module defines all token constructors that the sedlex lexer (Task 3) will reference.
+
+**Note:** The `Unit` variant already exists in `lib/ast.ml`. The grammar skeleton below only needs `Var` for a minimal build; the full grammar (Task 4) adds `Unit`, `call_args_or_unit`, and `type_name` productions.
 
 - [ ] **Step 1: Remove old `lib/parser.ml`**
 
@@ -474,7 +479,9 @@ exception Duplicate_param of Ast.pos * string
 
 **Complete production list** (from spec, all fixes applied):
 - `program` / `program_inner` split (avoids EOF in groups)
-- `loption(call_args)` for empty arg lists (`noop()`)
+- `call_args_or_unit` for empty arg lists (`f()` → `[Positional Unit]`, not `[]`)
+- `type_name` non-terminal accepts `IDENT` or `LPAREN RPAREN` for unit type in annotations
+- `LPAREN RPAREN` in `term` produces `Unit` (with optional `QUESTION`)
 - Inlined `arg_key` into `call_arg` (avoids reduce/reduce conflict)
 - `($loc(name))` properly parenthesized
 
@@ -532,7 +539,7 @@ let reduce_fails input =
 
 - [ ] **Step 4: Update direct calls in `test/test_parser.ml`**
 
-~17 tests bypass `parse_ok` and call `Lexer.tokenize |> Parser.parse_program` directly. These are mostly error-case tests. Update each one:
+~9 tests bypass `parse_ok` and call `Lexer.tokenize |> Parser.parse_program` directly. These are mostly error-case tests. Update each one:
 
 **Pattern:** Replace:
 ```ocaml
@@ -562,7 +569,7 @@ match parse_ok "input" with
 
 - [ ] **Step 5: Update `test/test_integration.ml`**
 
-Update 4 call sites (lines 7-8, 15-16, 91-92 and any others using `Lexer.tokenize` + `Parser.parse_program`) to use `parse_ok` instead.
+Update 3 call sites (lines 7-8, 15-16, 91-92) using `Lexer.tokenize` + `Parser.parse_program` to use `parse_ok` instead.
 
 - [ ] **Step 6: Run all tests**
 
@@ -574,6 +581,7 @@ Iterate on failures. Expected categories:
 - **Location mismatches**: Menhir `$loc` computes positions via `Lexing.position`. Ensure the sedlex adapter populates `lexbuf.lex_start_p` / `lex_curr_p` correctly so `$loc` produces the right values.
 - **Comment tests**: Should pass — comments are skipped by the lexer, and existing tests only assert on AST structure, not comment content.
 - **`let` in lambda body / positional arg**: `\x -> let y = x in y` should still be a parse error because lambda body is `seq_expr` which doesn't include `let`. `f(let x = a in x)` should fail because positional `call_arg` goes to `seq_expr`. But `f((let x = a in x))` should succeed because the parens trigger `program_inner`. Verify these edge cases.
+- **Unit value**: `()` must parse as `Unit` (not `Group`), `()?` as `Question(Unit)`. Empty call args `f()` must produce `[Positional Unit]`. Type annotations `:: () -> Foo` must work. The `LPAREN RPAREN` in `term` must be matched before the `LPAREN program_inner RPAREN` production.
 
 - [ ] **Step 7: Verify all tests pass**
 
@@ -703,8 +711,9 @@ Edit `lib/parser.messages` to add messages for key error states:
 | In `term` position, unexpected token | `expected identifier, string, '(', 'loop', or '\' (lambda)` |
 | After `LPAREN program_inner` expecting `)` | `expected ')'` |
 | After `LOOP LPAREN seq_expr` expecting `)` | `expected ')' to close 'loop'` |
-| After `DOUBLE_COLON IDENT` expecting `ARROW` | `expected '->' in type annotation` |
-| After `DOUBLE_COLON IDENT ARROW` expecting `IDENT` | `expected type name after '->'` |
+| After `DOUBLE_COLON type_name` expecting `ARROW` | `expected '->' in type annotation` |
+| After `DOUBLE_COLON type_name ARROW` expecting `type_name` | `expected type name or '()' after '->'` |
+| After `DOUBLE_COLON LPAREN` expecting `RPAREN` (not unit) | `expected ')' to form unit type '()'; parenthesized type names are not supported` |
 
 - [ ] **Step 3: Wire `.messages` into build**
 
@@ -759,7 +768,7 @@ Add tests from the spec to cover migration edge cases.
 
 - [ ] **Step 1: Verify `noop()` test exists and passes**
 
-Already exists: `test_parse_node_empty_parens` at `test/test_parser.ml:16-19`.
+Already exists: `test_parse_node_empty_parens` at `test/test_parser.ml`. Now asserts `App(Var "noop", [Positional Unit])` (not empty list).
 
 ```bash
 dune exec test/main.exe -- test Parser 2
@@ -844,9 +853,10 @@ Manual check:
 | `par_expr` | `par_expr` |
 | `typed_term` | `typed_term` |
 | `type_expr` | (inlined into `typed_term`) |
-| `term` | `term` |
+| `type_name` | `type_name` (accepts `IDENT` or `LPAREN RPAREN`) |
+| `term` | `term` (includes `LPAREN RPAREN` for Unit and `LPAREN RPAREN QUESTION`) |
 | `lambda` | (inlined into `term`) |
-| `call_args` | `call_args` |
+| `call_args` | `call_args_or_unit` (empty → `[Positional Unit]`) + `call_args` |
 | `call_arg` | `call_arg` |
 | `arg_key` | (inlined into `call_arg`) |
 | `value` | `value` |
@@ -857,13 +867,16 @@ Manual check:
 ```bash
 echo 'a >>> b' | dune exec ocaml-compose-dsl
 echo 'noop()' | dune exec ocaml-compose-dsl
+echo '()' | dune exec ocaml-compose-dsl
+echo '()?' | dune exec ocaml-compose-dsl
+echo 'f() :: () -> Foo' | dune exec ocaml-compose-dsl
 echo '(let x = a in x)' | dune exec ocaml-compose-dsl
 echo 'let f = \x -> x >>> a in f(b)' | dune exec ocaml-compose-dsl
 dune exec ocaml-compose-dsl -- --literate CLAUDE.md
 dune exec ocaml-compose-dsl -- --literate README.md
 ```
 
-Expected: valid AST output for all.
+Expected: valid AST output for all. `()` should produce `Unit`, not `Group`.
 
 - [ ] **Step 5: Commit any remaining changes**
 

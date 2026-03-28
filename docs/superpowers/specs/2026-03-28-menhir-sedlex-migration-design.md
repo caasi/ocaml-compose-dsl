@@ -14,8 +14,8 @@ Replace hand-written lexer and parser with declarative equivalents (sedlex + Men
 ## Constraints
 
 - Error message quality must not regress from current hand-written parser
-- AST (`lib/ast.ml`) and all downstream modules (reducer, checker, printer, markdown) remain unchanged
-- Existing test suite (1293 lines across parser + lexer tests) serves as regression tests
+- AST (`lib/ast.ml`) has been extended with `Unit` variant; downstream modules (reducer, checker, printer, markdown) already handle it
+- Existing test suite (1949 lines across parser, lexer, reducer, checker, printer, and integration tests) serves as regression tests
 - One or two well-maintained dependencies acceptable; gratuitous deps are not
 
 ## Design
@@ -37,8 +37,8 @@ The current architecture uses a two-phase model: lexer produces a complete `toke
 | Before | After | Notes |
 |--------|-------|-------|
 | `lib/lexer.ml` (hand-written, 213 lines) | `lib/lexer.ml` (sedlex PPX) | Declarative rules via `[%sedlex buf]` |
-| `lib/parser.ml` (hand-written, 298 lines) | `lib/parser.mly` (Menhir grammar) | Grammar file ≈ EBNF; Menhir generates `parser.ml` |
-| `lib/ast.ml` | `lib/ast.ml` (unchanged) | — |
+| `lib/parser.ml` (hand-written, 317 lines) | `lib/parser.mly` (Menhir grammar) | Grammar file ≈ EBNF; Menhir generates `parser.ml` |
+| `lib/ast.ml` | `lib/ast.ml` (unchanged for migration) | Already has `Unit` variant from `feat/unit-value` |
 | `lib/compose_dsl.ml` | `lib/compose_dsl.ml` (moderate) | Adapt to Menhir pull-based API; public interface changes |
 | `bin/main.ml` | `bin/main.ml` (moderate) | Adapt error handling exception types |
 | `lib/dune` | `lib/dune` | Add menhir/sedlex deps, `(menhir ...)` stanza |
@@ -130,15 +130,20 @@ par_expr:
 ;
 
 typed_term:
-  | e=term DOUBLE_COLON input=IDENT ARROW output=IDENT
+  | e=term DOUBLE_COLON input=type_name ARROW output=type_name
     { { e with type_ann = Some { input; output }; loc = $loc } }
   | e=term  { e }
 ;
 
+type_name:
+  | name=IDENT                      { name }
+  | LPAREN RPAREN                   { "()" }
+;
+
 term:
-  | name=IDENT LPAREN args=loption(call_args) RPAREN QUESTION
+  | name=IDENT LPAREN args=call_args_or_unit RPAREN QUESTION
     { mk_expr $loc (Question (mk_expr $loc (App (mk_expr ($loc(name)) (Var name), args)))) }
-  | name=IDENT LPAREN args=loption(call_args) RPAREN
+  | name=IDENT LPAREN args=call_args_or_unit RPAREN
     { mk_expr $loc (App (mk_expr ($loc(name)) (Var name), args)) }
   | name=IDENT QUESTION
     { mk_expr $loc (Question (mk_expr ($loc(name)) (Var name))) }
@@ -148,12 +153,23 @@ term:
     { mk_expr $loc (Question (mk_expr ($loc(s)) (StringLit s))) }
   | s=STRING
     { mk_expr ($loc(s)) (StringLit s) }
+  | LPAREN RPAREN QUESTION
+    { mk_expr $loc (Question (mk_expr $loc Unit)) }
+  | LPAREN RPAREN
+    { mk_expr $loc Unit }
   | LOOP LPAREN body=seq_expr RPAREN
     { mk_expr $loc (Loop body) }
   | LPAREN inner=program_inner RPAREN
     { mk_expr $loc (Group inner) }
   | BACKSLASH params=lambda_params ARROW body=seq_expr
     { mk_expr $loc (Lambda (params, body)) }
+;
+
+(* Empty call args produce [Positional Unit], not [].
+   Zero-arg application is eliminated; f() = f(()) *)
+call_args_or_unit:
+  | args=call_args                  { args }
+  |                                 { [Positional (mk_expr $loc Unit)] }
 ;
 
 lambda_params:
@@ -188,7 +204,7 @@ Design points:
 
 - **Right-associativity**: All infix operators use right-recursion (`rhs=seq_expr`), matching the EBNF's `infixr` semantics.
 - **`program` vs `program_inner`**: `program` consumes EOF and is the entry point. `program_inner` is used inside grouped expressions `(...)` where `)` terminates instead of EOF.
-- **`loption(call_args)`**: Handles empty argument lists like `noop()`. `loption` returns `[]` when `call_args` doesn't match.
+- **`call_args_or_unit`**: Replaces `loption(call_args)`. Empty argument lists like `noop()` produce `[Positional Unit]`, not `[]`. Zero-arg application is eliminated from the AST.
 - **`$loc` and `$loc(x)`**: Menhir's built-in location tracking. `$loc(name)` gives the location of just the `name` binding. Parenthesized as `($loc(name))` in OCaml expressions to avoid parsing ambiguity.
 - **`separated_list`**: Menhir built-in, replaces hand-written loop for value lists.
 - **Inlined `arg_key`**: The `arg_key` non-terminal is inlined into `call_arg` to avoid a reduce/reduce conflict. After seeing `IDENT`, the parser would otherwise need to choose between reducing it as `arg_key` or as `term -> Var` before seeing `COLON`. Inlining exposes the `COLON` lookahead directly.
@@ -232,7 +248,8 @@ let migrate = sedlex_lexer >>> menhir_parser >>> integrate in
 - **`Lexer.located` adaptation**: The current tests assert on `Lexer.located` records (`{ token; loc }`). The `tokenize_all` helper must produce equivalent records. Either preserve the `located` type in the new lexer module or define a test-local equivalent.
 - **Error message tests**: Adapted one by one per the Error Message Strategy table above. Messages that change (e.g., `let ... in` hint losing the binding name) are updated in tests with a comment noting the regression.
 - **New: group-with-let test**: Verify `(let x = a in x)` parses correctly, exercising `program_inner` inside parens (validates the `program`/`program_inner` split).
-- **New: empty args test**: Verify `noop()` parses to `App(Var "noop", [])`.
+- **New: empty args test**: Verify `noop()` parses to `App(Var "noop", [Positional Unit])` (not `[]` — zero-arg application is eliminated).
+- **New: Unit expression tests**: `()` parses to `Unit`, `()?` parses to `Question(Unit)`, `f() :: () -> ()` uses unit type annotations. These tests already exist from the `feat/unit-value` branch.
 - **New: EBNF conformance check** (optional): CI script verifying `.mly` production names match README EBNF production names.
 
 ### Build System Changes
@@ -265,9 +282,9 @@ let migrate = sedlex_lexer >>> menhir_parser >>> integrate in
 
 ### What Does NOT Change
 
-- `lib/ast.ml` — AST definition
-- `lib/reducer.ml` — desugaring and beta reduction
-- `lib/checker.ml` — structural validation
-- `lib/printer.ml` — AST pretty-printing
+- `lib/ast.ml` — AST definition (already has `Unit` variant)
+- `lib/reducer.ml` — desugaring and beta reduction (already handles `Unit`)
+- `lib/checker.ml` — structural validation (already handles `Unit`)
+- `lib/printer.ml` — AST pretty-printing (already handles `Unit`)
 - `lib/markdown.ml` — literate mode support
-- `test/test_reducer.ml`, `test/test_checker.ml`, `test/test_printer.ml`, `test/test_markdown.ml`, `test/test_integration.ml`
+- `test/test_reducer.ml`, `test/test_checker.ml`, `test/test_printer.ml`, `test/test_markdown.ml`
