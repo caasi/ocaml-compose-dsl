@@ -30,12 +30,11 @@ Two opam packages defined in `dune-project` (opam files are auto-generated via `
 Library modules form a pipeline themselves:
 
 ```arrow
-let lex = Lexer :: String -> Token in       -- sedlex PPX, pull-based for Menhir
-let parse = Parse_errors :: Token -> Ast in -- Menhir incremental API with custom errors
-let reduce = Reducer :: Ast -> Ast in       -- desugar let, beta reduce lambda
+let parse = Parse_errors :: String -> Ast in -- Menhir incremental API; drives Lexer internally
+let reduce = Reducer :: Ast -> Ast in        -- desugar let, beta reduce lambda
 let check = Checker :: Ast -> Result in
-let md = Markdown :: Markdown -> String in  -- literate mode: extract arrow blocks
-let pipeline = md >>> lex >>> parse >>> reduce >>> check in
+let md = Markdown :: Markdown -> String in   -- literate mode: extract arrow blocks
+let pipeline = md >>> parse >>> reduce >>> check in
 ```
 
 - `Ast` — ADT for DSL expressions: Var (variable reference, bound or free), StringLit (string literal as expression), Unit (`()`), Seq (`>>>`), Par (`***`), Fanout (`&&&`), Alt (`|||`), Loop, Group, Question (`?`), Lambda (`\x -> body`), App (unified application with `call_arg list` — mixed named/positional), Let (`let x = expr in body`). Lambda and Let are reduced away by the Reducer. Free Var and App with free Var callee survive reduction. Values: String, Ident, Number (with optional unit suffix, e.g. `100mg`), List. Question takes an `expr` directly (parser allows Var, StringLit, App, or Unit). Expressions carry optional `type_ann` (`:: type_name -> type_name` where `type_name` is an ident or `()`) for documentation.
