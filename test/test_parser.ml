@@ -353,6 +353,14 @@ let test_parse_node_with_args_loc () =
   Alcotest.(check int) "start col" 1 ast.loc.start.col;
   Alcotest.(check int) "end col" 8 ast.loc.end_.col
 
+(* inner App loc in f(x)? should include the closing paren, matching f(x) *)
+let test_parse_question_app_loc () =
+  let ast = parse_ok "f(x)?" in
+  match ast.desc with
+  | Ast.Question inner ->
+    Alcotest.(check int) "inner App end col" 5 inner.loc.end_.col
+  | _ -> Alcotest.fail "expected Question(App(...))"
+
 let test_parse_unicode_node_loc () =
   let ast = parse_ok "翻譯" in
   Alcotest.(check int) "start col" 1 ast.loc.start.col;
@@ -761,6 +769,7 @@ let tests =
   ; "multiline loc span", `Quick, test_parse_multiline_loc
   ; "question loc span", `Quick, test_parse_question_loc
   ; "node with args loc span", `Quick, test_parse_node_with_args_loc
+  ; "question app loc span", `Quick, test_parse_question_app_loc
   ; "unicode node loc span", `Quick, test_parse_unicode_node_loc
   ; "type ann no whitespace", `Quick, test_parse_type_ann_no_whitespace
   ; "type ann bare node", `Quick, test_parse_type_ann_bare_node

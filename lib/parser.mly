@@ -75,7 +75,7 @@ type_name:
 
 term:
   | name=IDENT LPAREN args=call_args_or_unit RPAREN QUESTION
-    { mk_expr $loc (Question (mk_expr ($startpos, $endpos(args)) (App (mk_expr ($loc(name)) (Var name), args)))) }
+    { mk_expr $loc (Question (mk_expr ($startpos(name), $endpos($4)) (App (mk_expr ($loc(name)) (Var name), args)))) }
   | name=IDENT LPAREN args=call_args_or_unit RPAREN
     { mk_expr $loc (App (mk_expr ($loc(name)) (Var name), args)) }
   | name=IDENT QUESTION
