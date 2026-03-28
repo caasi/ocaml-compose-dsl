@@ -124,6 +124,10 @@ let test_check_string_lit_question_with_alt () =
   let warnings = check_ok_with_warnings {|"is valid"? >>> (yes ||| no)|} in
   Alcotest.(check int) "no warnings" 0 (List.length warnings)
 
+let test_check_unit_no_warnings () =
+  let result = Checker.check (parse_ok "()") in
+  Alcotest.(check int) "no warnings" 0 (List.length result.Checker.warnings)
+
 let tests =
   [ "loop plain no error", `Quick, test_check_loop_plain_no_error
   ; "loop with unicode nodes", `Quick, test_check_loop_unicode_no_error
@@ -147,4 +151,5 @@ let tests =
   ; "question warning loc", `Quick, test_check_question_warning_loc
   ; "string lit no error", `Quick, test_check_string_lit_no_error
   ; "string lit question with alt", `Quick, test_check_string_lit_question_with_alt
+  ; "unit no warnings", `Quick, test_check_unit_no_warnings
   ]

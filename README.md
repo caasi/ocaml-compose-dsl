@@ -33,14 +33,17 @@ par_expr    = typed_term , ( "***" | "&&&" ) , par_expr (* parallel / fanout —
 
 typed_term  = term , [ "::" , type_expr ] ;
 
-type_expr   = ident , "->" , ident ;
+type_expr   = type_name , "->" , type_name ;
+type_name   = ident | "(" , ")" ;
 
 term     = ident , [ "(" , [ call_args ] , ")" ] , [ "?" ]
                                                     (* ident with optional args and question *)
          | string , [ "?" ]                        (* string literal, optionally question;
                                                       AST represents both as Question(expr) *)
+         | "(" , ")" , [ "?" ]                     (* unit value, with optional question *)
          | "loop" , "(" , seq_expr , ")"            (* feedback loop *)
-         | "(" , program , ")"                     (* grouping — accepts let_expr *)
+         | "(" , program , ")"                     (* grouping — disambiguation: LPAREN then
+                                                      peek; if RPAREN → unit, else → group *)
          | lambda
          ;
 
