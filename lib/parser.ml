@@ -84,11 +84,14 @@ let rec parse_call_arg st =
     Positional (parse_seq_expr st)
 
 and parse_call_args st =
+  let t_start = current st in
   let args = ref [] in
   let rec go () =
     let t = current st in
     match t.token with
-    | Lexer.RPAREN -> ()
+    | Lexer.RPAREN ->
+      if !args = [] then
+        args := [Positional (mk_expr { start = t_start.loc.start; end_ = t.loc.start } Unit)]
     | _ ->
       args := parse_call_arg st :: !args;
       let t2 = current st in

@@ -115,18 +115,24 @@ let test_reduce_positional_on_undefined () =
     {|App(Var("f"), [Positional(Var("a")), Positional(Var("b"))])|}
     (Printer.to_string ast)
 
-(* Empty application f() — now parses OK, but arity error at reduce *)
+(* Empty application f() — now applies Unit, so identity returns Unit *)
 let test_reduce_empty_application_arity () =
-  match reduce_ok "let f = \\ x -> x in f()" with
-  | _ -> Alcotest.fail "expected reduce error (arity mismatch)"
-  | exception Reducer.Reduce_error (_, msg) ->
-    Alcotest.(check bool) "mentions arity" true (contains msg "arity")
+  let ast = reduce_ok "let f = \\ x -> x in f()" in
+  match ast.desc with
+  | Ast.Unit -> ()
+  | _ -> Alcotest.fail "expected Unit (identity applied to unit)"
 
 let test_reduce_capture_avoiding () =
   let ast = reduce_ok "let apply = \\ f, x -> f(x) in let id = \\ x -> x in apply(id, a)" in
   Alcotest.(check string) "printed"
     {|Var("a")|}
     (Printer.to_string ast)
+
+let test_reduce_unit_passthrough () =
+  let ast = reduce_ok "()" in
+  match ast.desc with
+  | Ast.Unit -> ()
+  | _ -> Alcotest.fail "expected Unit to survive reduction"
 
 let tests =
   [ "no lambda passthrough", `Quick, test_reduce_no_lambda
@@ -149,4 +155,5 @@ let tests =
   ; "positional on undefined survives", `Quick, test_reduce_positional_on_undefined
   ; "capture avoiding substitution", `Quick, test_reduce_capture_avoiding
   ; "empty application arity", `Quick, test_reduce_empty_application_arity
+  ; "unit passthrough", `Quick, test_reduce_unit_passthrough
   ]

@@ -15,8 +15,8 @@ let test_parse_node_no_parens () =
 
 let test_parse_node_empty_parens () =
   match desc_of "noop()" with
-  | Ast.App ({ desc = Ast.Var "noop"; _ }, []) -> ()
-  | _ -> Alcotest.fail "expected App(Var noop, [])"
+  | Ast.App ({ desc = Ast.Var "noop"; _ }, [Positional { desc = Ast.Unit; _ }]) -> ()
+  | _ -> Alcotest.fail "expected App(Var noop, [Positional Unit])"
 
 (* args = arg , { "," , arg } *)
 let test_parse_multiple_args () =
