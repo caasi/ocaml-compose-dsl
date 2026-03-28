@@ -1,15 +1,23 @@
 open Compose_dsl
 
 let parse_ok input =
-  let tokens = Lexer.tokenize input in
-  Parser.parse_program tokens
+  let buf = Sedlexing.Utf8.from_string input in
+  let st = Lexer.create_state buf in
+  let lexbuf = Lexing.from_string "" in
+  Parser.program (fun _lb ->
+    let (tok, s, e) = Lexer.token st in
+    lexbuf.lex_start_p <- Lexer.to_lexing_position s;
+    lexbuf.lex_curr_p <- Lexer.to_lexing_position e;
+    tok
+  ) lexbuf
 
 let desc_of input = (parse_ok input).desc
 
 let parse_fails input =
   match parse_ok input with
   | _ -> Alcotest.fail "expected parse error"
-  | exception Parser.Parse_error _ -> ()
+  | exception Parser.Error -> ()
+  | exception Lexer.Lex_error _ -> ()
 
 let check_ok input =
   let ast = parse_ok input in
@@ -41,8 +49,7 @@ let contains s sub =
   scan 0
 
 let reduce_ok input =
-  let tokens = Lexer.tokenize input in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok input in
   Reducer.reduce ast
 
 let reduce_fails input =

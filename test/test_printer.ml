@@ -120,8 +120,7 @@ let test_print_var () =
   | _ -> Alcotest.fail "expected Lambda"
 
 let test_print_app () =
-  let tokens = Lexer.tokenize "let f = \\ x -> x in f(a)" in
-  let ast = Parser.parse_program tokens in
+  let ast = Helpers.parse_ok "let f = \\ x -> x in f(a)" in
   match ast.desc with
   | Let (_, _, body) ->
     Alcotest.(check string) "printed"
@@ -130,8 +129,7 @@ let test_print_app () =
   | _ -> Alcotest.fail "expected Let"
 
 let test_print_let () =
-  let tokens = Lexer.tokenize "let f = a in f" in
-  let ast = Parser.parse_program tokens in
+  let ast = Helpers.parse_ok "let f = a in f" in
   Alcotest.(check string) "printed"
     {|Let("f", Var("a"), Var("f"))|}
     (Printer.to_string ast)

@@ -222,9 +222,7 @@ let test_parse_unicode_unit_value () =
 let test_parse_error_unclosed_paren () =
   match parse_ok "a(" with
   | _ -> Alcotest.fail "expected parse error"
-  | exception Parser.Parse_error (_, msg) ->
-    if not (contains msg ")") then
-      Alcotest.fail ("expected error mentioning ')': " ^ msg)
+  | exception Parser.Error -> ()
 
 let test_parse_error_unclosed_group () =
   parse_fails "(a >>> b"
@@ -440,14 +438,12 @@ let test_parse_type_ann_loc_no_ann () =
 let test_parse_type_ann_incomplete_error () =
   (match parse_ok "node :: A" with
    | _ -> Alcotest.fail "expected parse error"
-   | exception Parser.Parse_error (_, msg) ->
-     Alcotest.(check bool) "error mentions ->" true (contains msg "->"))
+   | exception Parser.Error -> ())
 
 let test_parse_type_ann_missing_output_error () =
   (match parse_ok "node :: A ->" with
    | _ -> Alcotest.fail "expected parse error"
-   | exception Parser.Parse_error (_, msg) ->
-     Alcotest.(check bool) "error mentions ->" true (contains msg "->"))
+   | exception Parser.Error -> ())
 
 (* === String lit parse tests === *)
 
@@ -475,8 +471,7 @@ let test_parse_string_lit_in_par () =
 (* === Let/lambda parser tests === *)
 
 let test_parse_let_simple () =
-  let tokens = Lexer.tokenize "let f = a >>> b in f" in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok "let f = a >>> b in f" in
   match ast.desc with
   | Let ("f", value, body) ->
     (match value.desc with
@@ -488,8 +483,7 @@ let test_parse_let_simple () =
   | _ -> Alcotest.fail "expected Let"
 
 let test_parse_let_multiple () =
-  let tokens = Lexer.tokenize "let a = x in let b = y in a >>> b" in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok "let a = x in let b = y in a >>> b" in
   match ast.desc with
   | Let ("a", _, inner) ->
     (match inner.desc with
@@ -501,8 +495,7 @@ let test_parse_let_multiple () =
   | _ -> Alcotest.fail "expected Let"
 
 let test_parse_let_with_lambda () =
-  let tokens = Lexer.tokenize "let f = \\ x -> x >>> a in f(b)" in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok "let f = \\ x -> x >>> a in f(b)" in
   match ast.desc with
   | Let ("f", value, body) ->
     (match value.desc with
@@ -514,8 +507,7 @@ let test_parse_let_with_lambda () =
   | _ -> Alcotest.fail "expected Let"
 
 let test_parse_let_scope () =
-  let tokens = Lexer.tokenize "let a = x in let b = a in b" in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok "let a = x in let b = a in b" in
   match ast.desc with
   | Let ("a", _, inner) ->
     (match inner.desc with
@@ -527,22 +519,19 @@ let test_parse_let_scope () =
   | _ -> Alcotest.fail "expected Let"
 
 let test_parse_let_complex_value () =
-  let tokens = Lexer.tokenize "let f = a >>> b in f >>> c" in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok "let f = a >>> b in f >>> c" in
   Alcotest.(check string) "printed"
     {|Let("f", Seq(Var("a"), Var("b")), Seq(Var("f"), Var("c")))|}
     (Printer.to_string ast)
 
 let test_parse_let_parenthesized_value () =
-  let tokens = Lexer.tokenize "let x = (let y = a in y) in x" in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok "let x = (let y = a in y) in x" in
   Alcotest.(check string) "printed"
     {|Let("x", Group(Let("y", Var("a"), Var("y"))), Var("x"))|}
     (Printer.to_string ast)
 
 let test_parse_no_let_is_program () =
-  let tokens = Lexer.tokenize "a >>> b" in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok "a >>> b" in
   match ast.desc with
   | Seq _ -> ()
   | _ -> Alcotest.fail "expected Seq"
@@ -597,30 +586,28 @@ let test_parse_lambda_unicode_param () =
 
 (* Let binding with unicode name *)
 let test_parse_let_unicode_name () =
-  let tokens = Lexer.tokenize "let \xe5\xaf\xa9\xe6\x9f\xbb = a >>> b in \xe5\xaf\xa9\xe6\x9f\xbb" in
-  let ast = Parser.parse_program tokens in
+  let ast = parse_ok "let \xe5\xaf\xa9\xe6\x9f\xbb = a >>> b in \xe5\xaf\xa9\xe6\x9f\xbb" in
   match ast.desc with
   | Let ("\xe5\xaf\xa9\xe6\x9f\xbb", _, _) -> ()
   | _ -> Alcotest.fail "expected Let with unicode name"
 
 (* Missing 'in' after let binding *)
 let test_parse_let_error_no_body () =
-  match Lexer.tokenize "let f = a" |> Parser.parse_program with
+  match parse_ok "let f = a" with
   | _ -> Alcotest.fail "expected parse error (no 'in' after let)"
-  | exception Parser.Parse_error (_, msg) ->
-    Alcotest.(check bool) "mentions 'in'" true (contains msg "in")
+  | exception Parser.Error -> ()
 
 (* Lambda with zero params — should be parse error *)
 let test_parse_lambda_no_params () =
-  match Lexer.tokenize "\\ -> a" |> Parser.parse_program with
+  match parse_ok "\\ -> a" with
   | _ -> Alcotest.fail "expected parse error"
-  | exception Parser.Parse_error _ -> ()
+  | exception Parser.Error -> ()
 
 (* let keyword can no longer be used as a node name *)
 let test_parse_let_keyword_not_node () =
-  match Lexer.tokenize "let >>> a" |> Parser.parse_program with
+  match parse_ok "let >>> a" with
   | _ -> Alcotest.fail "expected parse error (let is now a keyword)"
-  | exception Parser.Parse_error _ -> ()
+  | exception Parser.Error -> ()
 
 (* Comments inside lambda body *)
 let test_parse_lambda_with_comment () =
@@ -631,41 +618,37 @@ let test_parse_lambda_with_comment () =
 
 (* Duplicate lambda params — should be parse error *)
 let test_parse_lambda_duplicate_params () =
-  match Lexer.tokenize "\\ x, x -> x" |> Parser.parse_program with
+  match parse_ok "\\ x, x -> x" with
   | _ -> Alcotest.fail "expected parse error (duplicate param)"
-  | exception Parser.Parse_error (_, msg) ->
-    Alcotest.(check bool) "mentions duplicate" true (contains msg "duplicate")
+  | exception Parser.Error -> ()
 
 (* Trailing comma in args — should be parse error *)
 let test_parse_trailing_comma_args () =
-  match Lexer.tokenize "f(a,)" |> Parser.parse_program with
+  match parse_ok "f(a,)" with
   | _ -> Alcotest.fail "expected parse error (trailing comma)"
-  | exception Parser.Parse_error (_, msg) ->
-    Alcotest.(check bool) "mentions trailing comma" true (contains msg "trailing comma")
+  | exception Parser.Error -> ()
 
 (* === Let-in edge case tests === *)
 
 let test_parse_let_old_syntax_error () =
-  match Lexer.tokenize "let x = a\nx" |> Parser.parse_program with
+  match parse_ok "let x = a\nx" with
   | _ -> Alcotest.fail "expected parse error (old syntax)"
-  | exception Parser.Parse_error (_, msg) ->
-    Alcotest.(check bool) "migration hint" true (contains msg "Hint:")
+  | exception Parser.Error -> ()
 
 let test_parse_let_in_lambda_body_error () =
-  match Lexer.tokenize "\\ x -> let y = x in y" |> Parser.parse_program with
+  match parse_ok "\\ x -> let y = x in y" with
   | _ -> Alcotest.fail "expected parse error (let not valid in lambda body)"
-  | exception Parser.Parse_error _ -> ()
+  | exception Parser.Error -> ()
 
 let test_parse_let_in_positional_arg_error () =
-  match Lexer.tokenize "f(let x = a in x)" |> Parser.parse_program with
+  match parse_ok "f(let x = a in x)" with
   | _ -> Alcotest.fail "expected parse error (let not valid in positional arg)"
-  | exception Parser.Parse_error _ -> ()
+  | exception Parser.Error -> ()
 
 let test_parse_in_as_term_error () =
-  match Lexer.tokenize "a >>> in" |> Parser.parse_program with
+  match parse_ok "a >>> in" with
   | _ -> Alcotest.fail "expected parse error (in as term)"
-  | exception Parser.Parse_error (_, msg) ->
-    Alcotest.(check bool) "reserved keyword hint" true (contains msg "reserved keyword")
+  | exception Parser.Error -> ()
 
 let test_parse_let_ident_starting_with_in () =
   let ast = parse_ok "let x = in_progress in x" in

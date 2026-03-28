@@ -90,16 +90,26 @@ let () =
       input, []
   in
   let tl = Compose_dsl.Markdown.translate_line offset_table in
-  match Compose_dsl.Lexer.tokenize source with
+  let parse () =
+    Compose_dsl.Lexer.validate_utf8 source;
+    let buf = Sedlexing.Utf8.from_string source in
+    let st = Compose_dsl.Lexer.create_state buf in
+    let lexbuf = Lexing.from_string "" in
+    Compose_dsl.Parser.program (fun _lb ->
+      let (tok, s, e) = Compose_dsl.Lexer.token st in
+      lexbuf.lex_start_p <- Compose_dsl.Lexer.to_lexing_position s;
+      lexbuf.lex_curr_p <- Compose_dsl.Lexer.to_lexing_position e;
+      tok
+    ) lexbuf
+  in
+  match parse () with
   | exception Compose_dsl.Lexer.Lex_error (pos, msg) ->
     Printf.eprintf "lex error at %d:%d: %s\n" (tl pos.line) pos.col msg;
     exit 1
-  | tokens ->
-    match Compose_dsl.Parser.parse_program tokens with
-    | exception Compose_dsl.Parser.Parse_error (pos, msg) ->
-      Printf.eprintf "parse error at %d:%d: %s\n" (tl pos.line) pos.col msg;
-      exit 1
-    | ast ->
+  | exception Compose_dsl.Parser.Error ->
+    Printf.eprintf "parse error: syntax error\n";
+    exit 1
+  | ast ->
       let ast = match Compose_dsl.Reducer.reduce ast with
         | reduced -> reduced
         | exception Compose_dsl.Reducer.Reduce_error (pos, msg) ->
