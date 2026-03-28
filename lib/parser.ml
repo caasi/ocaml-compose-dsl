@@ -251,9 +251,22 @@ and parse_term st =
     mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Loop body)
   | Lexer.LPAREN ->
     advance st;
-    let inner = parse_program_inner st in
-    expect st (fun tok -> tok = Lexer.RPAREN) "expected ')'";
-    mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Group inner)
+    let t_next = current st in
+    (match t_next.token with
+     | Lexer.RPAREN ->
+       advance st;
+       let unit_expr = mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } Unit in
+       let _ = eat_comments st in
+       let t2 = current st in
+       (match t2.token with
+        | Lexer.QUESTION ->
+          advance st;
+          mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Question unit_expr)
+        | _ -> unit_expr)
+     | _ ->
+       let inner = parse_program_inner st in
+       expect st (fun tok -> tok = Lexer.RPAREN) "expected ')'";
+       mk_expr { start = t.loc.start; end_ = st.last_loc.end_ } (Group inner))
   | Lexer.BACKSLASH ->
     let start = t.loc.start in
     advance st;

@@ -673,6 +673,26 @@ let test_parse_let_ident_starting_with_in () =
     {|Let("x", Var("in_progress"), Var("x"))|}
     (Printer.to_string ast)
 
+let test_parse_unit_standalone () =
+  match desc_of "()" with
+  | Ast.Unit -> ()
+  | _ -> Alcotest.fail "expected Unit"
+
+let test_parse_unit_in_seq () =
+  match desc_of "() >>> a" with
+  | Ast.Seq ({ desc = Ast.Unit; _ }, { desc = Ast.Var "a"; _ }) -> ()
+  | _ -> Alcotest.fail "expected Seq(Unit, Var a)"
+
+let test_parse_unit_nested () =
+  match desc_of "(())" with
+  | Ast.Group { desc = Ast.Unit; _ } -> ()
+  | _ -> Alcotest.fail "expected Group(Unit)"
+
+let test_parse_unit_question () =
+  match desc_of "()?" with
+  | Ast.Question { desc = Ast.Unit; _ } -> ()
+  | _ -> Alcotest.fail "expected Question(Unit)"
+
 let tests =
   [ "node with args", `Quick, test_parse_node_with_args
   ; "node no parens", `Quick, test_parse_node_no_parens
@@ -764,10 +784,20 @@ let tests =
   ; "string lit as positional arg", `Quick, test_parse_string_lit_as_positional_arg
   ; "string lit alone", `Quick, test_parse_string_lit_alone
   ; "string lit in par", `Quick, test_parse_string_lit_in_par
+  ; "unit standalone", `Quick, test_parse_unit_standalone
+  ; "unit in seq", `Quick, test_parse_unit_in_seq
+  ; "unit nested", `Quick, test_parse_unit_nested
+  ; "unit question", `Quick, test_parse_unit_question
   ]
 
+let test_parse_lambda_returns_unit () =
+  match desc_of "\\ x -> ()" with
+  | Ast.Lambda (["x"], { desc = Ast.Unit; _ }) -> ()
+  | _ -> Alcotest.fail "expected Lambda([x], Unit)"
+
 let edge_case_tests =
-  [ "lambda unicode param", `Quick, test_parse_lambda_unicode_param
+  [ "lambda returns unit", `Quick, test_parse_lambda_returns_unit
+  ; "lambda unicode param", `Quick, test_parse_lambda_unicode_param
   ; "let unicode name", `Quick, test_parse_let_unicode_name
   ; "let error no body", `Quick, test_parse_let_error_no_body
   ; "lambda no params error", `Quick, test_parse_lambda_no_params
