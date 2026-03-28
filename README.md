@@ -48,6 +48,9 @@ term     = ident , [ "(" , [ call_args ] , ")" ] , [ "?" ]
          ;
 
 call_args = call_arg , { "," , call_arg } ;
+                                                    (* empty call_args in f() produces
+                                                       [Positional Unit], not an empty list;
+                                                       zero-arg application is eliminated *)
 call_arg  = arg_key , ":" , value                   (* Named — per-arg disambiguation via key ":" *)
           | seq_expr                                (* Positional — any expression *)
           ;
