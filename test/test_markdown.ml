@@ -182,7 +182,19 @@ let test_md_literate_error_line_translation () =
     Alcotest.(check int) "error at markdown line 4" 4 translated
   | _ -> Alcotest.fail "expected lex error"
 
+let test_md_literate_multi_block () =
+  let input = "# Doc\n\n```arrow\na >>> b\n```\n\nText\n\n```arrow\nc >>> d\n```\n" in
+  let blocks = Markdown.extract input in
+  Alcotest.(check int) "two blocks" 2 (List.length blocks);
+  let source, _table = Markdown.combine blocks in
+  let prog = Helpers.parse_program_ok source in
+  Alcotest.(check int) "two statements" 2 (List.length prog);
+  let reduced = Reducer.reduce_program prog in
+  let _result = Checker.check_program reduced in
+  ()
+
 let integration_tests =
   [ "literate end-to-end", `Quick, test_md_literate_end_to_end
   ; "error line translation", `Quick, test_md_literate_error_line_translation
+  ; "literate multi block", `Quick, test_md_literate_multi_block
   ]
