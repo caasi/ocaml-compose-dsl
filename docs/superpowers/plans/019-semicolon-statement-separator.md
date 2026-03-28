@@ -34,7 +34,7 @@ Expected: SUCCESS (type alias, no consumers yet)
 
 ```bash
 git add lib/ast.ml
-git commit -m "feat: add program type alias to AST"
+git commit --message "feat: add program type alias to AST"
 ```
 
 ---
@@ -69,7 +69,7 @@ Add to the `tests` list at the end:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `dune test 2>&1 | head -20`
+Run: `dune test 2>&1 | head --lines=20`
 Expected: Compilation error — `SEMICOLON` is not a known token constructor.
 
 - [ ] **Step 3: Add SEMICOLON to token re-export**
@@ -110,7 +110,7 @@ Expected: All tests pass, including the new `semicolon` test.
 
 ```bash
 git add lib/lexer.ml lib/parser.mly test/test_lexer.ml
-git commit -m "feat: add SEMICOLON token to lexer and parser"
+git commit --message "feat: add SEMICOLON token to lexer and parser"
 ```
 
 ---
@@ -213,7 +213,7 @@ Update `desc_of` (line 6) — no change needed, it calls `parse_ok` which still 
 
 - [ ] **Step 3: Run tests to verify they fail**
 
-Run: `dune test 2>&1 | head -20`
+Run: `dune test 2>&1 | head --lines=20`
 Expected: Compilation error — `parse_program_ok` is defined but `Parse_errors.parse` still returns `Ast.expr`, not `Ast.program`. The type mismatch will prevent compilation.
 
 - [ ] **Step 4: Update parser grammar**
@@ -315,7 +315,7 @@ Expected: All tests pass, including the new semicolon tests and all existing tes
 
 ```bash
 git add lib/parser.mly lib/parser.messages lib/parse_errors.ml test/helpers.ml test/test_parser.ml
-git commit -m "feat: add semicolon statement separator to parser"
+git commit --message "feat: add semicolon statement separator to parser"
 ```
 
 ---
@@ -354,7 +354,7 @@ Add to the `tests` list:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `dune test 2>&1 | head -10`
+Run: `dune test 2>&1 | head --lines=10`
 Expected: Compilation error — `Reducer.reduce_program` does not exist.
 
 - [ ] **Step 3: Implement `reduce_program`**
@@ -375,7 +375,7 @@ Expected: All tests pass.
 
 ```bash
 git add lib/reducer.ml test/test_reducer.ml
-git commit -m "feat: add reduce_program for multi-statement programs"
+git commit --message "feat: add reduce_program for multi-statement programs"
 ```
 
 ---
@@ -415,7 +415,7 @@ Add to the `tests` list:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `dune test 2>&1 | head -10`
+Run: `dune test 2>&1 | head --lines=10`
 Expected: Compilation error — `Checker.check_program` does not exist.
 
 - [ ] **Step 3: Implement `check_program`**
@@ -437,7 +437,7 @@ Expected: All tests pass.
 
 ```bash
 git add lib/checker.ml test/test_checker.ml
-git commit -m "feat: add check_program for multi-statement programs"
+git commit --message "feat: add check_program for multi-statement programs"
 ```
 
 ---
@@ -475,7 +475,7 @@ Add to the `tests` list:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `dune test 2>&1 | head -10`
+Run: `dune test 2>&1 | head --lines=10`
 Expected: Compilation error — `Printer.program_to_string` does not exist.
 
 - [ ] **Step 3: Implement `program_to_string`**
@@ -496,7 +496,7 @@ Expected: All tests pass.
 
 ```bash
 git add lib/printer.ml test/test_printer.ml
-git commit -m "feat: add program_to_string for multi-statement programs"
+git commit --message "feat: add program_to_string for multi-statement programs"
 ```
 
 ---
@@ -585,7 +585,7 @@ Expected: All tests pass.
 
 ```bash
 git add lib/markdown.ml test/test_markdown.ml
-git commit -m "feat: use semicolon separator in Markdown.combine"
+git commit --message "feat: use semicolon separator in Markdown.combine"
 ```
 
 ---
@@ -688,7 +688,7 @@ Expected: All tests pass.
 
 ```bash
 git add bin/main.ml test/test_integration.ml
-git commit -m "feat: wire up program-level functions in CLI"
+git commit --message "feat: wire up program-level functions in CLI"
 ```
 
 ---
@@ -731,7 +731,7 @@ Expected: PASS — combine now inserts `;\n` between blocks, parser handles `;`.
 
 ```bash
 git add test/test_markdown.ml
-git commit -m "test: add literate mode multi-block integration test"
+git commit --message "test: add literate mode multi-block integration test"
 ```
 
 ---
@@ -845,5 +845,5 @@ Expected: All tests pass.
 
 ```bash
 git add README.md CLAUDE.md
-git commit -m "docs: update EBNF and rewrite CLAUDE.md arrow blocks for semicolon separator"
+git commit --message "docs: update EBNF and rewrite CLAUDE.md arrow blocks for semicolon separator"
 ```
