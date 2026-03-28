@@ -260,10 +260,6 @@ dune build
 dune test
 ```
 
-## Known Limitations
-
-- The recursive descent parser is not tail-recursive. Extremely long pipelines (thousands of chained operators) could overflow the stack. In practice this is unlikely for human-authored workflows.
-
 ## License
 
 MIT
