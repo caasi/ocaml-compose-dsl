@@ -39,3 +39,6 @@ let rec to_string (e : expr) =
   match e.type_ann with
   | None -> base
   | Some { input; output } -> Printf.sprintf "TypeAnn(%s, %S, %S)" base input output
+
+let program_to_string (prog : Ast.program) : string =
+  String.concat ";\n" (List.map to_string prog)

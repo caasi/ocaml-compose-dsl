@@ -101,11 +101,11 @@ let combine blocks =
           then b.content
           else b.content ^ "\n"
         in
-        if current_line > 1 then Buffer.add_char buf '\n';
+        if current_line > 1 then Buffer.add_string buf ";\n";
         Buffer.add_string buf content;
         let entry = (current_line, b.markdown_start) in
         let lines_in_block = count_lines content in
-        (* +1 accounts for the separator '\n' emitted before the next block *)
+        (* +1 accounts for the separator ";\n" emitted before the next block *)
         let next_line = current_line + lines_in_block + (if rest <> [] then 1 else 0) in
         build rest next_line (entry :: acc)
     in

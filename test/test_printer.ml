@@ -139,6 +139,18 @@ let test_print_unit () =
               desc = Ast.Unit; type_ann = None } in
   Alcotest.(check string) "unit" "Unit" (Printer.to_string ast)
 
+let test_print_program_multi () =
+  let prog = Helpers.parse_program_ok "a >>> b; c >>> d" in
+  let s = Printer.program_to_string prog in
+  Alcotest.(check string) "two statements"
+    "Seq(Var(\"a\"), Var(\"b\"));\nSeq(Var(\"c\"), Var(\"d\"))" s
+
+let test_print_program_single () =
+  let prog = Helpers.parse_program_ok "a >>> b" in
+  let s = Printer.program_to_string prog in
+  Alcotest.(check string) "single statement"
+    "Seq(Var(\"a\"), Var(\"b\"))" s
+
 let tests =
   [ "simple node", `Quick, test_print_simple_node
   ; "node with args", `Quick, test_print_node_with_args
@@ -162,4 +174,6 @@ let tests =
   ; "app", `Quick, test_print_app
   ; "let", `Quick, test_print_let
   ; "unit", `Quick, test_print_unit
+  ; "program multi", `Quick, test_print_program_multi
+  ; "program single", `Quick, test_print_program_single
   ]

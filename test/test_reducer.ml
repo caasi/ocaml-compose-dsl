@@ -134,6 +134,19 @@ let test_reduce_unit_passthrough () =
   | Ast.Unit -> ()
   | _ -> Alcotest.fail "expected Unit to survive reduction"
 
+let test_reduce_program_independent_scopes () =
+  let prog = Helpers.parse_program_ok "let x = a in x; let x = b in x" in
+  let reduced = Reducer.reduce_program prog in
+  Alcotest.(check int) "two statements" 2 (List.length reduced);
+  (match reduced with
+   | [{ desc = Ast.Var "a"; _ }; { desc = Ast.Var "b"; _ }] -> ()
+   | _ -> Alcotest.fail "expected [Var(a); Var(b)] — independent scopes")
+
+let test_reduce_program_single () =
+  let prog = Helpers.parse_program_ok "a >>> b" in
+  let reduced = Reducer.reduce_program prog in
+  Alcotest.(check int) "one statement" 1 (List.length reduced)
+
 let tests =
   [ "no lambda passthrough", `Quick, test_reduce_no_lambda
   ; "let simple", `Quick, test_reduce_let_simple
@@ -156,4 +169,6 @@ let tests =
   ; "capture avoiding substitution", `Quick, test_reduce_capture_avoiding
   ; "empty call applies unit", `Quick, test_reduce_empty_call_applies_unit
   ; "unit passthrough", `Quick, test_reduce_unit_passthrough
+  ; "program independent scopes", `Quick, test_reduce_program_independent_scopes
+  ; "program single", `Quick, test_reduce_program_single
   ]

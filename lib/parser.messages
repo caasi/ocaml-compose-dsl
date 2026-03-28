@@ -10,12 +10,24 @@ program: SEQ
 
 expected identifier, string, '(', 'loop', or '\' (lambda)
 
+program: SEMICOLON SEQ
+##
+## Ends in an error in state: 3.
+##
+## semi_sep_stmts -> SEMICOLON . semi_sep_stmts [ EOF ]
+##
+## The known suffix of the stack is as follows:
+## SEMICOLON
+##
+
+expected identifier, string, '(', 'loop', or '\' (lambda)
+
 program: STRING STRING
 ##
 ## Ends in an error in state: 1.
 ##
-## term -> STRING . QUESTION [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
-## term -> STRING . [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> STRING . QUESTION [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> STRING . [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## STRING
@@ -27,9 +39,9 @@ program: LPAREN SEQ
 ##
 ## Ends in an error in state: 3.
 ##
-## term -> LPAREN . RPAREN QUESTION [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
-## term -> LPAREN . RPAREN [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
-## term -> LPAREN . program_inner RPAREN [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> LPAREN . RPAREN QUESTION [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> LPAREN . RPAREN [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> LPAREN . stmt RPAREN [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## LPAREN
@@ -41,8 +53,8 @@ program: LPAREN RPAREN STRING
 ##
 ## Ends in an error in state: 4.
 ##
-## term -> LPAREN RPAREN . QUESTION [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
-## term -> LPAREN RPAREN . [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> LPAREN RPAREN . QUESTION [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> LPAREN RPAREN . [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## LPAREN RPAREN
@@ -54,7 +66,7 @@ program: LOOP STRING
 ##
 ## Ends in an error in state: 6.
 ##
-## term -> LOOP . LPAREN seq_expr RPAREN [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> LOOP . LPAREN seq_expr RPAREN [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## LOOP
@@ -66,7 +78,7 @@ program: LOOP LPAREN SEQ
 ##
 ## Ends in an error in state: 7.
 ##
-## term -> LOOP LPAREN . seq_expr RPAREN [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> LOOP LPAREN . seq_expr RPAREN [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## LOOP LPAREN
@@ -78,10 +90,10 @@ program: IDENT STRING
 ##
 ## Ends in an error in state: 8.
 ##
-## term -> IDENT . LPAREN call_args_or_unit RPAREN QUESTION [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
-## term -> IDENT . LPAREN call_args_or_unit RPAREN [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
-## term -> IDENT . QUESTION [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
-## term -> IDENT . [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> IDENT . LPAREN call_args_or_unit RPAREN QUESTION [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> IDENT . LPAREN call_args_or_unit RPAREN [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> IDENT . QUESTION [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> IDENT . [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## IDENT
@@ -93,8 +105,8 @@ program: IDENT LPAREN SEQ
 ##
 ## Ends in an error in state: 10.
 ##
-## term -> IDENT LPAREN . call_args_or_unit RPAREN QUESTION [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
-## term -> IDENT LPAREN . call_args_or_unit RPAREN [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> IDENT LPAREN . call_args_or_unit RPAREN QUESTION [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> IDENT LPAREN . call_args_or_unit RPAREN [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## IDENT LPAREN
@@ -195,7 +207,7 @@ program: BACKSLASH STRING
 ##
 ## Ends in an error in state: 27.
 ##
-## seq_expr -> BACKSLASH . lambda_params ARROW seq_expr [ RPAREN IN EOF COMMA ]
+## seq_expr -> BACKSLASH . lambda_params ARROW seq_expr [ SEMICOLON RPAREN IN EOF COMMA ]
 ##
 ## The known suffix of the stack is as follows:
 ## BACKSLASH
@@ -232,7 +244,7 @@ program: BACKSLASH IDENT ARROW SEQ
 ##
 ## Ends in an error in state: 32.
 ##
-## seq_expr -> BACKSLASH lambda_params ARROW . seq_expr [ RPAREN IN EOF COMMA ]
+## seq_expr -> BACKSLASH lambda_params ARROW . seq_expr [ SEMICOLON RPAREN IN EOF COMMA ]
 ##
 ## The known suffix of the stack is as follows:
 ## BACKSLASH lambda_params ARROW
@@ -244,9 +256,9 @@ program: IDENT DOUBLE_COLON IDENT ARROW IDENT STRING
 ##
 ## Ends in an error in state: 33.
 ##
-## par_expr -> typed_term . PAR par_expr [ SEQ RPAREN IN EOF COMMA ALT ]
-## par_expr -> typed_term . FANOUT par_expr [ SEQ RPAREN IN EOF COMMA ALT ]
-## par_expr -> typed_term . [ SEQ RPAREN IN EOF COMMA ALT ]
+## par_expr -> typed_term . PAR par_expr [ SEQ SEMICOLON RPAREN IN EOF COMMA ALT ]
+## par_expr -> typed_term . FANOUT par_expr [ SEQ SEMICOLON RPAREN IN EOF COMMA ALT ]
+## par_expr -> typed_term . [ SEQ SEMICOLON RPAREN IN EOF COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## typed_term
@@ -258,7 +270,7 @@ program: IDENT PAR SEQ
 ##
 ## Ends in an error in state: 34.
 ##
-## par_expr -> typed_term PAR . par_expr [ SEQ RPAREN IN EOF COMMA ALT ]
+## par_expr -> typed_term PAR . par_expr [ SEQ SEMICOLON RPAREN IN EOF COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## typed_term PAR
@@ -270,8 +282,8 @@ program: IDENT QUESTION STRING
 ##
 ## Ends in an error in state: 35.
 ##
-## typed_term -> term . DOUBLE_COLON type_name ARROW type_name [ SEQ RPAREN PAR IN FANOUT EOF COMMA ALT ]
-## typed_term -> term . [ SEQ RPAREN PAR IN FANOUT EOF COMMA ALT ]
+## typed_term -> term . DOUBLE_COLON type_name ARROW type_name [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF COMMA ALT ]
+## typed_term -> term . [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## term
@@ -283,7 +295,7 @@ program: IDENT DOUBLE_COLON STRING
 ##
 ## Ends in an error in state: 36.
 ##
-## typed_term -> term DOUBLE_COLON . type_name ARROW type_name [ SEQ RPAREN PAR IN FANOUT EOF COMMA ALT ]
+## typed_term -> term DOUBLE_COLON . type_name ARROW type_name [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## term DOUBLE_COLON
@@ -295,7 +307,7 @@ program: IDENT DOUBLE_COLON LPAREN STRING
 ##
 ## Ends in an error in state: 37.
 ##
-## type_name -> LPAREN . RPAREN [ SEQ RPAREN PAR IN FANOUT EOF COMMA ARROW ALT ]
+## type_name -> LPAREN . RPAREN [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF COMMA ARROW ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## LPAREN
@@ -307,7 +319,7 @@ program: IDENT DOUBLE_COLON IDENT STRING
 ##
 ## Ends in an error in state: 40.
 ##
-## typed_term -> term DOUBLE_COLON type_name . ARROW type_name [ SEQ RPAREN PAR IN FANOUT EOF COMMA ALT ]
+## typed_term -> term DOUBLE_COLON type_name . ARROW type_name [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## term DOUBLE_COLON type_name
@@ -319,7 +331,7 @@ program: IDENT DOUBLE_COLON IDENT ARROW STRING
 ##
 ## Ends in an error in state: 41.
 ##
-## typed_term -> term DOUBLE_COLON type_name ARROW . type_name [ SEQ RPAREN PAR IN FANOUT EOF COMMA ALT ]
+## typed_term -> term DOUBLE_COLON type_name ARROW . type_name [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## term DOUBLE_COLON type_name ARROW
@@ -331,7 +343,7 @@ program: IDENT FANOUT SEQ
 ##
 ## Ends in an error in state: 44.
 ##
-## par_expr -> typed_term FANOUT . par_expr [ SEQ RPAREN IN EOF COMMA ALT ]
+## par_expr -> typed_term FANOUT . par_expr [ SEQ SEMICOLON RPAREN IN EOF COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## typed_term FANOUT
@@ -343,7 +355,7 @@ program: IDENT ALT SEQ
 ##
 ## Ends in an error in state: 48.
 ##
-## alt_expr -> par_expr ALT . alt_expr [ SEQ RPAREN IN EOF COMMA ]
+## alt_expr -> par_expr ALT . alt_expr [ SEQ SEMICOLON RPAREN IN EOF COMMA ]
 ##
 ## The known suffix of the stack is as follows:
 ## par_expr ALT
@@ -355,7 +367,7 @@ program: IDENT SEQ SEQ
 ##
 ## Ends in an error in state: 51.
 ##
-## seq_expr -> alt_expr SEQ . seq_expr [ RPAREN IN EOF COMMA ]
+## seq_expr -> alt_expr SEQ . seq_expr [ SEMICOLON RPAREN IN EOF COMMA ]
 ##
 ## The known suffix of the stack is as follows:
 ## alt_expr SEQ
@@ -367,8 +379,8 @@ program: IDENT LPAREN RPAREN STRING
 ##
 ## Ends in an error in state: 55.
 ##
-## term -> IDENT LPAREN call_args_or_unit RPAREN . QUESTION [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
-## term -> IDENT LPAREN call_args_or_unit RPAREN . [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> IDENT LPAREN call_args_or_unit RPAREN . QUESTION [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> IDENT LPAREN call_args_or_unit RPAREN . [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## IDENT LPAREN call_args_or_unit RPAREN
@@ -376,7 +388,7 @@ program: IDENT LPAREN RPAREN STRING
 
 unexpected token after function call
 
-program: IDENT LPAREN STRING IN
+program: IDENT LPAREN STRING SEMICOLON
 ##
 ## Ends in an error in state: 58.
 ##
@@ -412,11 +424,11 @@ program: IDENT LPAREN IDENT COMMA SEQ
 
 unexpected trailing comma in argument list
 
-program: LOOP LPAREN IDENT IN
+program: LOOP LPAREN IDENT SEMICOLON
 ##
 ## Ends in an error in state: 61.
 ##
-## term -> LOOP LPAREN seq_expr . RPAREN [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> LOOP LPAREN seq_expr . RPAREN [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
 ## LOOP LPAREN seq_expr
@@ -438,7 +450,7 @@ program: LET STRING
 ##
 ## Ends in an error in state: 63.
 ##
-## program_inner -> LET . IDENT EQUALS seq_expr IN program_inner [ RPAREN EOF ]
+## stmt -> LET . IDENT EQUALS seq_expr IN stmt [ SEMICOLON RPAREN EOF ]
 ##
 ## The known suffix of the stack is as follows:
 ## LET
@@ -450,7 +462,7 @@ program: LET IDENT STRING
 ##
 ## Ends in an error in state: 64.
 ##
-## program_inner -> LET IDENT . EQUALS seq_expr IN program_inner [ RPAREN EOF ]
+## stmt -> LET IDENT . EQUALS seq_expr IN stmt [ SEMICOLON RPAREN EOF ]
 ##
 ## The known suffix of the stack is as follows:
 ## LET IDENT
@@ -462,7 +474,7 @@ program: LET IDENT EQUALS SEQ
 ##
 ## Ends in an error in state: 65.
 ##
-## program_inner -> LET IDENT EQUALS . seq_expr IN program_inner [ RPAREN EOF ]
+## stmt -> LET IDENT EQUALS . seq_expr IN stmt [ SEMICOLON RPAREN EOF ]
 ##
 ## The known suffix of the stack is as follows:
 ## LET IDENT EQUALS
@@ -470,11 +482,11 @@ program: LET IDENT EQUALS SEQ
 
 expected expression after '=' in let binding
 
-program: LET IDENT EQUALS IDENT EOF
+program: LET IDENT EQUALS IDENT SEMICOLON
 ##
 ## Ends in an error in state: 66.
 ##
-## program_inner -> LET IDENT EQUALS seq_expr . IN program_inner [ RPAREN EOF ]
+## stmt -> LET IDENT EQUALS seq_expr . IN stmt [ SEMICOLON RPAREN EOF ]
 ##
 ## The known suffix of the stack is as follows:
 ## LET IDENT EQUALS seq_expr
@@ -496,7 +508,7 @@ program: LET IDENT EQUALS IDENT IN SEQ
 ##
 ## Ends in an error in state: 67.
 ##
-## program_inner -> LET IDENT EQUALS seq_expr IN . program_inner [ RPAREN EOF ]
+## stmt -> LET IDENT EQUALS seq_expr IN . stmt [ SEMICOLON RPAREN EOF ]
 ##
 ## The known suffix of the stack is as follows:
 ## LET IDENT EQUALS seq_expr IN
@@ -504,14 +516,14 @@ program: LET IDENT EQUALS IDENT IN SEQ
 
 expected expression after 'in' in let binding
 
-program: LPAREN IDENT IN
+program: LPAREN IDENT SEMICOLON
 ##
 ## Ends in an error in state: 70.
 ##
-## term -> LPAREN program_inner . RPAREN [ SEQ RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
+## term -> LPAREN stmt . RPAREN [ SEQ SEMICOLON RPAREN PAR IN FANOUT EOF DOUBLE_COLON COMMA ALT ]
 ##
 ## The known suffix of the stack is as follows:
-## LPAREN program_inner
+## LPAREN stmt
 ##
 ## WARNING: This example involves spurious reductions.
 ## This implies that, although the LR(1) items shown above provide an
@@ -522,19 +534,21 @@ program: LPAREN IDENT IN
 ## In state 33, spurious reduction of production par_expr -> typed_term
 ## In state 47, spurious reduction of production alt_expr -> par_expr
 ## In state 50, spurious reduction of production seq_expr -> alt_expr
-## In state 68, spurious reduction of production program_inner -> seq_expr
+## In state 69, spurious reduction of production stmt -> seq_expr
 ##
 
 expected ')'
 
 program: IDENT IN
 ##
-## Ends in an error in state: 72.
+## Ends in an error in state: 74.
 ##
-## program -> program_inner . EOF [ # ]
+## stmts -> stmt . [ EOF ]
+## stmts -> stmt . SEMICOLON stmts [ EOF ]
+## stmts -> stmt . SEMICOLON [ EOF ]
 ##
 ## The known suffix of the stack is as follows:
-## program_inner
+## stmt
 ##
 ## WARNING: This example involves spurious reductions.
 ## This implies that, although the LR(1) items shown above provide an
@@ -545,7 +559,20 @@ program: IDENT IN
 ## In state 33, spurious reduction of production par_expr -> typed_term
 ## In state 47, spurious reduction of production alt_expr -> par_expr
 ## In state 50, spurious reduction of production seq_expr -> alt_expr
-## In state 68, spurious reduction of production program_inner -> seq_expr
+## In state 69, spurious reduction of production stmt -> seq_expr
 ##
 
 'in' is a reserved keyword and cannot be used as an identifier
+
+program: IDENT SEMICOLON SEQ
+##
+## Ends in an error in state: 75.
+##
+## stmts -> stmt SEMICOLON . stmts [ EOF ]
+## stmts -> stmt SEMICOLON . [ EOF ]
+##
+## The known suffix of the stack is as follows:
+## stmt SEMICOLON
+##
+
+expected identifier, string, '(', 'loop', or '\' (lambda)

@@ -100,17 +100,18 @@ let () =
   | exception Compose_dsl.Ast.Duplicate_param (pos, msg) ->
     Printf.eprintf "parse error at %d:%d: %s\n" (tl pos.line) pos.col msg;
     exit 1
-  | ast ->
-      let ast = match Compose_dsl.Reducer.reduce ast with
+  | prog ->
+      let prog = match Compose_dsl.Reducer.reduce_program prog with
         | reduced -> reduced
         | exception Compose_dsl.Reducer.Reduce_error (pos, msg) ->
           Printf.eprintf "reduce error at %d:%d: %s\n" (tl pos.line) pos.col msg;
           exit 1
       in
-      let result = Compose_dsl.Checker.check ast in
+      let result = Compose_dsl.Checker.check_program prog in
       List.iter
         (fun (w : Compose_dsl.Checker.warning) ->
           Printf.eprintf "warning at %d:%d: %s\n" (tl w.loc.start.line) w.loc.start.col w.message)
         result.warnings;
-      print_endline (Compose_dsl.Printer.to_string ast);
+      let output = Compose_dsl.Printer.program_to_string prog in
+      if output <> "" then print_endline output;
       exit 0

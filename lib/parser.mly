@@ -17,19 +17,30 @@ let end_pos_of (p : Lexing.position) : Ast.pos =
 %token SEQ PAR FANOUT ALT ARROW DOUBLE_COLON
 %token LET IN LOOP
 %token LPAREN RPAREN LBRACKET RBRACKET
-%token COMMA COLON EQUALS BACKSLASH QUESTION
+%token COMMA COLON EQUALS BACKSLASH QUESTION SEMICOLON
 %token EOF
 
-%start <Ast.expr> program
+%start <Ast.program> program
 
 %%
 
 program:
-  | e=program_inner EOF  { e }
+  | s=semi_sep_stmts EOF { s }
 ;
 
-program_inner:
-  | LET name=IDENT EQUALS value=seq_expr IN rest=program_inner
+semi_sep_stmts:
+  | /* empty */                           { [] }
+  | SEMICOLON rest=semi_sep_stmts         { rest }
+  | s=stmt rest=semi_tail                 { s :: rest }
+;
+
+semi_tail:
+  | /* empty */                           { [] }
+  | SEMICOLON rest=semi_sep_stmts         { rest }
+;
+
+stmt:
+  | LET name=IDENT EQUALS value=seq_expr IN rest=stmt
     { mk_expr $loc (Let (name, value, rest)) }
   | e=seq_expr
     { e }
@@ -92,7 +103,7 @@ term:
     { mk_expr $loc Unit }
   | LOOP LPAREN body=seq_expr RPAREN
     { mk_expr $loc (Loop body) }
-  | LPAREN inner=program_inner RPAREN
+  | LPAREN inner=stmt RPAREN
     { mk_expr $loc (Group inner) }
 ;
 

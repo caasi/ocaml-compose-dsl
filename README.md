@@ -13,13 +13,15 @@ The DSL uses Arrow combinators because they sit at the sweet spot between shell 
 ## Grammar (EBNF)
 
 ```ebnf
-program     = let_expr | pipeline ;
+program     = { ";" } , [ stmt , { ";" , { ";" } , stmt } , { ";" } ] ;
 
-let_expr    = "let" , ident , "=" , seq_expr , "in" , program ;
+stmt        = let_expr | pipeline ;
+
+let_expr    = "let" , ident , "=" , seq_expr , "in" , stmt ;
 
 lambda  = "\" , ident , { "," , ident } , "->" , seq_expr ;
-                                                    (* body is seq_expr, not program;
-                                                       let_expr is only valid at program level
+                                                    (* body is seq_expr, not stmt;
+                                                       let_expr is only valid at stmt level
                                                        or inside grouping parens *)
 
 pipeline = seq_expr ;
@@ -43,8 +45,8 @@ term     = ident , [ "(" , [ call_args ] , ")" ] , [ "?" ]
                                                       AST represents both as Question(expr) *)
          | "(" , ")" , [ "?" ]                     (* unit value, with optional question *)
          | "loop" , "(" , seq_expr , ")"            (* feedback loop *)
-         | "(" , program , ")"                     (* grouping — disambiguation: LPAREN then
-                                                      peek; if RPAREN → unit, else → group *)
+         | "(" , stmt , ")"                        (* grouping — allows let bindings
+                                                      but not semicolons inside parens *)
          ;
 
 call_args = call_arg , { "," , call_arg } ;

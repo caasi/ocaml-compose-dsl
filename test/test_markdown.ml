@@ -94,7 +94,7 @@ let test_md_combine_multiple () =
     ; { Markdown.content = "c >>> d\ne >>> f\n"; markdown_start = 30 }
     ] in
   let source, table = Markdown.combine blocks in
-  Alcotest.(check string) "source" "a >>> b\n\nc >>> d\ne >>> f\n" source;
+  Alcotest.(check string) "source" "a >>> b\n;\nc >>> d\ne >>> f\n" source;
   Alcotest.(check int) "table length" 2 (List.length table);
   let (cs1, ms1) = List.nth table 0 in
   let (cs2, ms2) = List.nth table 1 in
@@ -123,6 +123,30 @@ let test_md_translate_multiple () =
 let test_md_translate_empty () =
   Alcotest.(check int) "passthrough" 42 (Markdown.translate_line [] 42)
 
+let test_md_combine_semicolon_separator () =
+  let blocks = [
+    { Markdown.content = "a >>> b\n"; markdown_start = 5 };
+    { Markdown.content = "c >>> d\n"; markdown_start = 15 };
+  ] in
+  let source, _table = Markdown.combine blocks in
+  Alcotest.(check string) "source" "a >>> b\n;\nc >>> d\n" source
+
+let test_md_combine_single_no_semicolon () =
+  let blocks = [
+    { Markdown.content = "a >>> b\n"; markdown_start = 5 };
+  ] in
+  let source, _table = Markdown.combine blocks in
+  assert (not (Helpers.contains source ";"))
+
+let test_md_combine_empty_block () =
+  let blocks = [
+    { Markdown.content = ""; markdown_start = 5 };
+    { Markdown.content = "a >>> b\n"; markdown_start = 15 };
+  ] in
+  let source, _table = Markdown.combine blocks in
+  let prog = Helpers.parse_program_ok source in
+  Alcotest.(check int) "one statement" 1 (List.length prog)
+
 let tests =
   [ "single block", `Quick, test_md_extract_single_block
   ; "multiple blocks", `Quick, test_md_extract_multiple_blocks
@@ -143,6 +167,9 @@ let tests =
   ; "translate single", `Quick, test_md_translate_single
   ; "translate multiple", `Quick, test_md_translate_multiple
   ; "translate empty", `Quick, test_md_translate_empty
+  ; "combine semicolon separator", `Quick, test_md_combine_semicolon_separator
+  ; "combine single no semicolon", `Quick, test_md_combine_single_no_semicolon
+  ; "combine empty block", `Quick, test_md_combine_empty_block
   ]
 
 let test_md_literate_end_to_end () =
@@ -163,7 +190,19 @@ let test_md_literate_error_line_translation () =
     Alcotest.(check int) "error at markdown line 4" 4 translated
   | _ -> Alcotest.fail "expected lex error"
 
+let test_md_literate_multi_block () =
+  let input = "# Doc\n\n```arrow\na >>> b\n```\n\nText\n\n```arrow\nc >>> d\n```\n" in
+  let blocks = Markdown.extract input in
+  Alcotest.(check int) "two blocks" 2 (List.length blocks);
+  let source, _table = Markdown.combine blocks in
+  let prog = Helpers.parse_program_ok source in
+  Alcotest.(check int) "two statements" 2 (List.length prog);
+  let reduced = Reducer.reduce_program prog in
+  let _result = Checker.check_program reduced in
+  ()
+
 let integration_tests =
   [ "literate end-to-end", `Quick, test_md_literate_end_to_end
   ; "error line translation", `Quick, test_md_literate_error_line_translation
+  ; "literate multi block", `Quick, test_md_literate_multi_block
   ]
