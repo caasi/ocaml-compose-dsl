@@ -22,7 +22,7 @@ and expr_desc =
   | Alt of expr * expr              (** [|||] *)
   | Loop of expr
   | Group of expr
-  | Question of expr                (** [?] — parser allows on Var, StringLit, App *)
+  | Question of expr                (** [?] — parser allows on Var, StringLit, App, Unit *)
   | Lambda of string list * expr    (** [\x, y -> body] *)
   | App of expr * call_arg list     (** unified application, mixed named/positional *)
   | Let of string * expr * expr     (** [let x = expr] followed by rest of program *)
