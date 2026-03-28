@@ -115,8 +115,8 @@ let test_reduce_positional_on_undefined () =
     {|App(Var("f"), [Positional(Var("a")), Positional(Var("b"))])|}
     (Printer.to_string ast)
 
-(* Empty application f() — now applies Unit, so identity returns Unit *)
-let test_reduce_empty_application_arity () =
+(* Empty application f() — applies Unit, so identity returns Unit *)
+let test_reduce_empty_call_applies_unit () =
   let ast = reduce_ok "let f = \\ x -> x in f()" in
   match ast.desc with
   | Ast.Unit -> ()
@@ -154,6 +154,6 @@ let tests =
   ; "lambda complex args", `Quick, test_reduce_lambda_complex_args
   ; "positional on undefined survives", `Quick, test_reduce_positional_on_undefined
   ; "capture avoiding substitution", `Quick, test_reduce_capture_avoiding
-  ; "empty application arity", `Quick, test_reduce_empty_application_arity
+  ; "empty call applies unit", `Quick, test_reduce_empty_call_applies_unit
   ; "unit passthrough", `Quick, test_reduce_unit_passthrough
   ]
