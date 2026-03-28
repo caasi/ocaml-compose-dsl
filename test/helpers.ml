@@ -1,7 +1,14 @@
 open Compose_dsl
 
-let parse_ok input =
+let parse_program_ok input =
   Parse_errors.parse input
+
+let parse_ok input =
+  match Parse_errors.parse input with
+  | [e] -> e
+  | prog ->
+    Alcotest.fail
+      (Printf.sprintf "expected single statement, got %d" (List.length prog))
 
 let desc_of input = (parse_ok input).desc
 

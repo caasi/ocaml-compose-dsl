@@ -821,6 +821,47 @@ let test_parse_group_with_let () =
   | Ast.Group { desc = Ast.Let ("x", { desc = Ast.Var "a"; _ }, { desc = Ast.Var "x"; _ }); _ } -> ()
   | _ -> Alcotest.fail "expected Group(Let(x, a, x))"
 
+let test_parse_two_statements () =
+  let prog = parse_program_ok "a >>> b; c >>> d" in
+  Alcotest.(check int) "two statements" 2 (List.length prog);
+  (match prog with
+   | [{ desc = Ast.Seq _; _ }; { desc = Ast.Seq _; _ }] -> ()
+   | _ -> Alcotest.fail "expected [Seq; Seq]")
+
+let test_parse_trailing_semicolon () =
+  let prog = parse_program_ok "a >>> b;" in
+  Alcotest.(check int) "one statement" 1 (List.length prog)
+
+let test_parse_single_statement () =
+  let prog = parse_program_ok "a >>> b" in
+  Alcotest.(check int) "one statement" 1 (List.length prog)
+
+let test_parse_let_in_statement () =
+  let prog = parse_program_ok "let x = a in x; b" in
+  Alcotest.(check int) "two statements" 2 (List.length prog);
+  (match prog with
+   | [{ desc = Ast.Let _; _ }; { desc = Ast.Var "b"; _ }] -> ()
+   | _ -> Alcotest.fail "expected [Let; Var(b)]")
+
+let test_parse_semicolon_in_parens_error () =
+  parse_fails "(a; b)"
+
+let test_parse_empty_statement_error () =
+  parse_fails ";a"
+
+let test_parse_double_semicolon_error () =
+  parse_fails "a;; b"
+
+let test_parse_empty_input_error () =
+  parse_fails ""
+
+let test_parse_whitespace_only_error () =
+  parse_fails "   "
+
+let test_parse_stmt_with_type_ann () =
+  let prog = parse_program_ok "a :: A -> B; c :: C -> D" in
+  Alcotest.(check int) "two statements" 2 (List.length prog)
+
 let edge_case_tests =
   [ "lambda returns unit", `Quick, test_parse_lambda_returns_unit
   ; "lambda unicode param", `Quick, test_parse_lambda_unicode_param
@@ -838,4 +879,14 @@ let edge_case_tests =
   ; "in as term error", `Quick, test_parse_in_as_term_error
   ; "error pos after comment", `Quick, test_parse_error_pos_after_comment
   ; "group with let", `Quick, test_parse_group_with_let
+  ; "two statements", `Quick, test_parse_two_statements
+  ; "trailing semicolon", `Quick, test_parse_trailing_semicolon
+  ; "single statement program", `Quick, test_parse_single_statement
+  ; "let in statement", `Quick, test_parse_let_in_statement
+  ; "semicolon in parens error", `Quick, test_parse_semicolon_in_parens_error
+  ; "empty statement error", `Quick, test_parse_empty_statement_error
+  ; "double semicolon error", `Quick, test_parse_double_semicolon_error
+  ; "empty input error", `Quick, test_parse_empty_input_error
+  ; "whitespace only error", `Quick, test_parse_whitespace_only_error
+  ; "stmt with type ann", `Quick, test_parse_stmt_with_type_ann
   ]

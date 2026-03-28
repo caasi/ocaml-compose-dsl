@@ -20,16 +20,22 @@ let end_pos_of (p : Lexing.position) : Ast.pos =
 %token COMMA COLON EQUALS BACKSLASH QUESTION SEMICOLON
 %token EOF
 
-%start <Ast.expr> program
+%start <Ast.program> program
 
 %%
 
 program:
-  | e=program_inner EOF  { e }
+  | s=stmts EOF { s }
 ;
 
-program_inner:
-  | LET name=IDENT EQUALS value=seq_expr IN rest=program_inner
+stmts:
+  | s=stmt { [s] }
+  | s=stmt SEMICOLON rest=stmts { s :: rest }
+  | s=stmt SEMICOLON { [s] }
+;
+
+stmt:
+  | LET name=IDENT EQUALS value=seq_expr IN rest=stmt
     { mk_expr $loc (Let (name, value, rest)) }
   | e=seq_expr
     { e }
@@ -92,7 +98,7 @@ term:
     { mk_expr $loc Unit }
   | LOOP LPAREN body=seq_expr RPAREN
     { mk_expr $loc (Loop body) }
-  | LPAREN inner=program_inner RPAREN
+  | LPAREN inner=stmt RPAREN
     { mk_expr $loc (Group inner) }
 ;
 
