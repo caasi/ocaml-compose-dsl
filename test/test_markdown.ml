@@ -94,7 +94,7 @@ let test_md_combine_multiple () =
     ; { Markdown.content = "c >>> d\ne >>> f\n"; markdown_start = 30 }
     ] in
   let source, table = Markdown.combine blocks in
-  Alcotest.(check string) "source" "a >>> b\n\nc >>> d\ne >>> f\n" source;
+  Alcotest.(check string) "source" "a >>> b\n;\nc >>> d\ne >>> f\n" source;
   Alcotest.(check int) "table length" 2 (List.length table);
   let (cs1, ms1) = List.nth table 0 in
   let (cs2, ms2) = List.nth table 1 in
@@ -123,6 +123,23 @@ let test_md_translate_multiple () =
 let test_md_translate_empty () =
   Alcotest.(check int) "passthrough" 42 (Markdown.translate_line [] 42)
 
+let test_md_combine_semicolon_separator () =
+  let blocks = [
+    { Markdown.content = "a >>> b\n"; markdown_start = 5 };
+    { Markdown.content = "c >>> d\n"; markdown_start = 15 };
+  ] in
+  let source, _table = Markdown.combine blocks in
+  assert (Helpers.contains source ";");
+  assert (Helpers.contains source "a >>> b");
+  assert (Helpers.contains source "c >>> d")
+
+let test_md_combine_single_no_semicolon () =
+  let blocks = [
+    { Markdown.content = "a >>> b\n"; markdown_start = 5 };
+  ] in
+  let source, _table = Markdown.combine blocks in
+  assert (not (Helpers.contains source ";"))
+
 let tests =
   [ "single block", `Quick, test_md_extract_single_block
   ; "multiple blocks", `Quick, test_md_extract_multiple_blocks
@@ -143,6 +160,8 @@ let tests =
   ; "translate single", `Quick, test_md_translate_single
   ; "translate multiple", `Quick, test_md_translate_multiple
   ; "translate empty", `Quick, test_md_translate_empty
+  ; "combine semicolon separator", `Quick, test_md_combine_semicolon_separator
+  ; "combine single no semicolon", `Quick, test_md_combine_single_no_semicolon
   ]
 
 let test_md_literate_end_to_end () =

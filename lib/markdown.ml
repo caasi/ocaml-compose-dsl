@@ -101,7 +101,7 @@ let combine blocks =
           then b.content
           else b.content ^ "\n"
         in
-        if current_line > 1 then Buffer.add_char buf '\n';
+        if current_line > 1 then Buffer.add_string buf ";\n";
         Buffer.add_string buf content;
         let entry = (current_line, b.markdown_start) in
         let lines_in_block = count_lines content in
