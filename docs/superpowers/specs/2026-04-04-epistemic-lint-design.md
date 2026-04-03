@@ -104,17 +104,16 @@ let check_epistemic (e : expr) : warning list =
   List.rev !warnings
 ```
 
-Integrate into `check_program` alongside the existing per-statement `check` call:
+Integrate into the `check` function by appending epistemic warnings to its return value:
 
 ```ocaml
-let check_program (prog : Ast.program) : result =
-  let warnings =
-    List.concat_map (fun e ->
-      (check e).warnings @ check_epistemic e
-    ) prog
-  in
-  { warnings }
+(* At the end of `check`, change the return from: *)
+  { warnings = List.rev !warnings }
+(* To: *)
+  { warnings = List.rev !warnings @ check_epistemic expr }
 ```
+
+This ensures both `check` (single-statement path) and `check_program` (which calls `check` per statement) emit epistemic warnings. No change to `check_program` needed.
 
 ### Warning Location
 
