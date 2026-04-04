@@ -166,6 +166,26 @@ let test_check_all_epistemic_no_warning () =
   let warnings = check_ok_with_warnings {|gather >>> branch >>> leaf >>> merge >>> check|} in
   Alcotest.(check int) "no warnings" 0 (List.length warnings)
 
+let test_check_leaf_with_check () =
+  let warnings = check_ok_with_warnings {|leaf >>> check? >>> (pass ||| fix)|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_leaf_without_check () =
+  let warnings = check_ok_with_warnings {|leaf(goal: "diagnose") >>> done|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings);
+  Alcotest.(check bool) "warning message" true
+    (has_warning_containing "leaf" warnings);
+  Alcotest.(check bool) "mentions check" true
+    (has_warning_containing "check" warnings)
+
+let test_check_check_alone () =
+  let warnings = check_ok_with_warnings {|check? >>> (ok ||| retry)|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_gather_leaf_check () =
+  let warnings = check_ok_with_warnings {|gather >>> leaf >>> check|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
 let tests =
   [ "loop plain no error", `Quick, test_check_loop_plain_no_error
   ; "loop with unicode nodes", `Quick, test_check_loop_unicode_no_error
@@ -197,4 +217,8 @@ let tests =
   ; "branch without merge", `Quick, test_check_branch_without_merge
   ; "merge without branch", `Quick, test_check_merge_without_branch
   ; "all epistemic no warning", `Quick, test_check_all_epistemic_no_warning
+  ; "leaf with check", `Quick, test_check_leaf_with_check
+  ; "leaf without check", `Quick, test_check_leaf_without_check
+  ; "check alone", `Quick, test_check_check_alone
+  ; "gather leaf check", `Quick, test_check_gather_leaf_check
   ]
