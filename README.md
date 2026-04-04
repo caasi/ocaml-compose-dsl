@@ -204,7 +204,7 @@ Identifiers and unit suffixes accept any non-ASCII UTF-8 codepoint, so the DSL w
 
 ## Epistemic Conventions
 
-Five identifier names are recognized by the checker as **epistemic operators** —
+Five identifier names serve as **epistemic operators** —
 cognitive role markers for human-LLM shared reasoning scaffolds. They are ordinary
 identifiers (not reserved words) with conventional meaning, inspired by
 [λ-RLM](https://github.com/lambda-calculus-LLM/lambda-RLM)'s approach of
@@ -219,7 +219,7 @@ control flow structural and verifiable.
 | `leaf` | High-cost reasoning zone — bounded sub-problem | `leaf >>> check?` |
 | `check` | Verifiable validation step — not just "checked" | `check? >>> (pass \|\|\| fix)` |
 
-The checker emits warnings when structural conventions are violated:
+The checker currently lints two of these conventions:
 
 - `branch` without `merge` in the same statement
 - `leaf` without `check` in the same statement (suggestion)
