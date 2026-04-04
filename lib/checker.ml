@@ -3,6 +3,49 @@ open Ast
 type warning = { loc : loc; message : string }
 type result = { warnings : warning list }
 
+let epistemic_pairs = [("branch", "merge")]
+let epistemic_suggestions = [("leaf", "check")]
+
+let rec collect_ident_names (e : expr) : string list =
+  match e.desc with
+  | Var name -> [name]
+  | App (callee, args) ->
+    collect_ident_names callee
+    @ List.concat_map (fun arg ->
+        match arg with
+        | Positional e -> collect_ident_names e
+        | Named _ -> []) args
+  | Seq (a, b) | Par (a, b) | Fanout (a, b) | Alt (a, b) ->
+    collect_ident_names a @ collect_ident_names b
+  | Loop body | Question body -> collect_ident_names body
+  | Unit | StringLit _ -> []
+  | Lambda _ | Let _ | Group _ -> []
+
+let check_epistemic (e : expr) : warning list =
+  let names = collect_ident_names e in
+  let has name = List.mem name names in
+  let warnings = ref [] in
+  List.iter (fun (a, b) ->
+    if has a && not (has b) then
+      warnings :=
+        { loc = e.loc;
+          message =
+            Printf.sprintf "'%s' without matching '%s' in the same statement" a b
+        }
+        :: !warnings)
+    epistemic_pairs;
+  List.iter (fun (a, b) ->
+    if has a && not (has b) then
+      warnings :=
+        { loc = e.loc;
+          message =
+            Printf.sprintf
+              "'%s' without '%s' \u{2014} consider adding verification" a b
+        }
+        :: !warnings)
+    epistemic_suggestions;
+  List.rev !warnings
+
 let rec normalize (e : expr) : expr =
   match e.desc with
   | Group inner -> normalize inner
@@ -101,7 +144,7 @@ let check (expr : expr) =
   in
   check_question_balance expr;
   go expr;
-  { warnings = List.rev !warnings }
+  { warnings = List.rev !warnings @ check_epistemic expr }
 
 let check_program (prog : Ast.program) : result =
   let warnings = List.concat_map (fun e -> (check e).warnings) prog in
