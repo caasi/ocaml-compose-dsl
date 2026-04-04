@@ -17,9 +17,9 @@ let rec collect_ident_names (e : expr) : string list =
         | Named _ -> []) args
   | Seq (a, b) | Par (a, b) | Fanout (a, b) | Alt (a, b) ->
     collect_ident_names a @ collect_ident_names b
-  | Loop body | Question body -> collect_ident_names body
+  | Loop body | Question body | Group body -> collect_ident_names body
   | Unit | StringLit _ -> []
-  | Lambda _ | Let _ | Group _ -> []
+  | Lambda _ | Let _ -> []
 
 let check_epistemic (e : expr) : warning list =
   let names = collect_ident_names e in
