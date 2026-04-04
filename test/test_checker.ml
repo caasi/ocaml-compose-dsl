@@ -190,6 +190,18 @@ let test_check_epistemic_no_interference () =
   let warnings = check_ok_with_warnings {|"ready"? >>> (go ||| stop)|} in
   Alcotest.(check int) "no warnings" 0 (List.length warnings)
 
+let test_check_branch_without_merge_grouped () =
+  let warnings = check_ok_with_warnings {|(branch >>> explore)|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings);
+  Alcotest.(check bool) "warning message" true
+    (has_warning_containing "branch" warnings)
+
+let test_check_leaf_without_check_grouped () =
+  let warnings = check_ok_with_warnings {|(leaf >>> done)|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings);
+  Alcotest.(check bool) "warning message" true
+    (has_warning_containing "leaf" warnings)
+
 let test_check_epistemic_multi_statement () =
   let prog = Helpers.parse_program_ok "branch >>> explore; merge >>> done" in
   let reduced = Reducer.reduce_program prog in
@@ -234,6 +246,8 @@ let tests =
   ; "leaf without check", `Quick, test_check_leaf_without_check
   ; "check alone", `Quick, test_check_check_alone
   ; "gather leaf check", `Quick, test_check_gather_leaf_check
+  ; "branch without merge grouped", `Quick, test_check_branch_without_merge_grouped
+  ; "leaf without check grouped", `Quick, test_check_leaf_without_check_grouped
   ; "epistemic no interference", `Quick, test_check_epistemic_no_interference
   ; "epistemic multi-statement boundary", `Quick, test_check_epistemic_multi_statement
   ]
