@@ -142,6 +142,30 @@ let test_check_program_no_warnings () =
   Alcotest.(check int) "no warnings" 0
     (List.length result.Checker.warnings)
 
+let test_check_branch_with_merge () =
+  let warnings = check_ok_with_warnings {|branch >>> explore >>> merge|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_branch_merge_with_args () =
+  let warnings = check_ok_with_warnings {|branch(k: 3) >>> merge(strategy: "best")|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_branch_without_merge () =
+  let warnings = check_ok_with_warnings {|branch >>> explore|} in
+  Alcotest.(check int) "one warning" 1 (List.length warnings);
+  Alcotest.(check bool) "warning message" true
+    (has_warning_containing "branch" warnings);
+  Alcotest.(check bool) "mentions merge" true
+    (has_warning_containing "merge" warnings)
+
+let test_check_merge_without_branch () =
+  let warnings = check_ok_with_warnings {|merge >>> done|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
+let test_check_all_epistemic_no_warning () =
+  let warnings = check_ok_with_warnings {|gather >>> branch >>> leaf >>> merge >>> check|} in
+  Alcotest.(check int) "no warnings" 0 (List.length warnings)
+
 let tests =
   [ "loop plain no error", `Quick, test_check_loop_plain_no_error
   ; "loop with unicode nodes", `Quick, test_check_loop_unicode_no_error
@@ -168,4 +192,9 @@ let tests =
   ; "unit no warnings", `Quick, test_check_unit_no_warnings
   ; "program merges warnings", `Quick, test_check_program_merges_warnings
   ; "program no warnings", `Quick, test_check_program_no_warnings
+  ; "branch with merge", `Quick, test_check_branch_with_merge
+  ; "branch merge with args", `Quick, test_check_branch_merge_with_args
+  ; "branch without merge", `Quick, test_check_branch_without_merge
+  ; "merge without branch", `Quick, test_check_merge_without_branch
+  ; "all epistemic no warning", `Quick, test_check_all_epistemic_no_warning
   ]
