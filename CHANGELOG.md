@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-04-04
+
+### Added
+- Epistemic operator lint rules: `branch` without `merge` warns, `leaf` without `check` suggests verification
+- `collect_ident_names` helper for flat identifier scanning across post-reduce AST
+- Epistemic Conventions section in README.md documenting the five operator names
+
+### Fixed
+- `collect_ident_names` descends into `Group` nodes (parenthesized expressions no longer bypass epistemic lint)
+
+### Changed
+- README example renamed `branch(pattern: "feature/*")` to `git_branch(pattern: "feature/*")` to avoid epistemic lint false positive
+
 ## [0.10.0] - 2026-03-29
 
 ### Changed
