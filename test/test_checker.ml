@@ -186,6 +186,15 @@ let test_check_gather_leaf_check () =
   let warnings = check_ok_with_warnings {|gather >>> leaf >>> check|} in
   Alcotest.(check int) "no warnings" 0 (List.length warnings)
 
+let test_check_epistemic_multi_statement () =
+  let prog = Helpers.parse_program_ok "branch >>> explore; merge >>> done" in
+  let reduced = Reducer.reduce_program prog in
+  let result = Checker.check_program reduced in
+  Alcotest.(check int) "one warning on first stmt" 1
+    (List.length result.Checker.warnings);
+  Alcotest.(check bool) "warning mentions branch" true
+    (has_warning_containing "branch" result.Checker.warnings)
+
 let tests =
   [ "loop plain no error", `Quick, test_check_loop_plain_no_error
   ; "loop with unicode nodes", `Quick, test_check_loop_unicode_no_error
@@ -221,4 +230,5 @@ let tests =
   ; "leaf without check", `Quick, test_check_leaf_without_check
   ; "check alone", `Quick, test_check_check_alone
   ; "gather leaf check", `Quick, test_check_gather_leaf_check
+  ; "epistemic multi-statement boundary", `Quick, test_check_epistemic_multi_statement
   ]
