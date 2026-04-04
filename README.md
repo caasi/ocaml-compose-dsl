@@ -173,7 +173,7 @@ planning :: Doc -> Commit
   >>> commit(branch: main)
 
 implementation :: Code -> Commit
-  >>> branch(pattern: "feature/*") :: Code -> Branch
+  >>> git_branch(pattern: "feature/*") :: Code -> Branch
   >>> commit :: Branch -> Commit
 ```
 
@@ -201,6 +201,31 @@ Named and positional arguments can be freely mixed. Named arguments (`key: value
 Lambdas and let bindings are reduced to pure Arrow pipelines before structural checking. They provide abstraction without adding runtime semantics.
 
 Identifiers and unit suffixes accept any non-ASCII UTF-8 codepoint, so the DSL works naturally with non-Latin scripts. Error positions report codepoint-level columns, not byte offsets.
+
+## Epistemic Conventions
+
+Five identifier names serve as **epistemic operators** —
+cognitive role markers for human-LLM shared reasoning scaffolds. They are ordinary
+identifiers (not reserved words) with conventional meaning, inspired by
+[λ-RLM](https://github.com/lambda-calculus-LLM/lambda-RLM)'s approach of
+constraining neural reasoning to bounded leaf sub-problems while keeping
+control flow structural and verifiable.
+
+| Name | Intent | Common Pattern |
+|------|--------|----------------|
+| `gather` | Collect evidence needs / sub-questions before reasoning | `gather >>> leaf` |
+| `branch` | Explore multiple candidate paths | `branch >>> ... >>> merge` |
+| `merge` | Converge candidates into a single auditable artifact | `... >>> merge >>> check?` |
+| `leaf` | High-cost reasoning zone — bounded sub-problem | `leaf >>> check?` |
+| `check` | Verifiable validation step — not just "checked" | `check? >>> (pass \|\|\| fix)` |
+
+The checker currently lints two of these conventions:
+
+- `branch` without `merge` in the same statement
+- `leaf` without `check` in the same statement (suggestion)
+
+These operators are not keywords — they can be shadowed by `let` bindings or
+used as regular nodes. The checker matches them by name only.
 
 ## Usage
 
