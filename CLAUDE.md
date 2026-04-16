@@ -112,6 +112,7 @@ version_bump
 - **Property tests** (QCheck via `qcheck-alcotest`) — in `test/test_properties.ml`, integrated into the same alcotest runner under the "Properties" suite. Use `QCheck_alcotest.to_alcotest` to convert QCheck tests.
 - **Constraints** — structured invariants in `constraints/*.md` (Given/When/Then/Examples/Properties format). These document the rules that tests enforce.
 - **Mutation testing** — not yet integrated. mutaml 0.3 requires `ppxlib < 0.36.0` which conflicts with sedlex 3.7 (needs ppxlib >= 0.36.0). Revisit when mutaml supports ppxlib >= 0.36.0, or use a dedicated opam switch.
+- **Fuzz testing** — not yet integrated. Crowbar (QCheck-style API + AFL coverage-guided mutation) is the best candidate for parser/lexer fuzzing. Existing QCheck property logic can be reused. However, fuzz runs take minutes to hours and are not suitable for CI — intended for local deep testing before releases. Requires `afl-fuzz` (system), `crowbar` + `afl-persistent` (opam), and either a `+afl` opam switch or `-afl-instrument` ocamlopt flag. macOS support is weaker than Linux. See also Monolith (spec-vs-impl comparison) if Arrow laws rewriting is added.
 
 ## Known Bugs
 
