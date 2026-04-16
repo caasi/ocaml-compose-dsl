@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `dune build` — build everything
 - `dune exec ocaml-compose-dsl` — run the main executable
-- `dune test` — run all tests (alcotest)
+- `dune test` — run all tests (alcotest + QCheck property tests)
 - `dune exec test/main.exe -- test <Suite> <N>` — run a single test by suite name and index
 - `dune clean` — remove build artifacts
 
@@ -105,6 +105,13 @@ version_bump
   >>> wait_ci -- wait for CI release workflow to complete
   >>> run(script: "scripts/release-macos-x86_64.sh") -- local Intel Mac upload
 ```
+
+## Testing
+
+- **Unit tests** (alcotest) — example-based tests in `test/test_*.ml`, registered in `test/main.ml`
+- **Property tests** (QCheck via `qcheck-alcotest`) — in `test/test_properties.ml`, integrated into the same alcotest runner under the "Properties" suite. Use `QCheck_alcotest.to_alcotest` to convert QCheck tests.
+- **Constraints** — structured invariants in `constraints/*.md` (Given/When/Then/Examples/Properties format). These document the rules that tests enforce.
+- **Mutation testing** — not yet integrated. mutaml 0.3 requires `ppxlib < 0.36.0` which conflicts with sedlex 3.7 (needs ppxlib >= 0.36.0). Revisit when mutaml supports ppxlib >= 0.36.0, or use a dedicated opam switch.
 
 ## Known Bugs
 

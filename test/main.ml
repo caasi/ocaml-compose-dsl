@@ -10,4 +10,5 @@ let () =
     ; "Mixed args", Test_integration.mixed_arg_tests
     ; "Markdown", Test_markdown.tests
     ; "Markdown integration", Test_markdown.integration_tests
+    ; "Properties", Test_properties.tests
     ]
