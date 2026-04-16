@@ -11,6 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Use `->` for arrows (not `=>`). Follow standard PLT/Haskell arrow conventions.
 - `&&&` is fanout, `***` is parallel, `|||` is alternation. Do not confuse them.
 - When in doubt about operator semantics, check the EBNF in README.md.
+- Never change operator symbols or precedence without explicit user confirmation. Stability of the surface language is a hard invariant.
 
 ## Build Commands
 
@@ -26,6 +27,10 @@ Two opam packages defined in `dune-project` (opam files are auto-generated via `
 
 - **ocaml-compose-dsl** — the CLI executable (`bin/main.ml`), depends on the library
 - **ocaml-compose-dsl-lib** — the library (`lib/`), exposed as `compose_dsl`
+- **`examples/*.arr`** — reference pipelines (`brainstorming.arr`, `checker.arr`, `release.arr`, `tdd-loop.arr`) showing idiomatic DSL usage
+- **`constraints/*.md`** — Given/When/Then invariants enforced by tests
+- **`docs/superpowers/specs/NNN-*.md`** — RFC-style specs, one per feature
+- **`docs/superpowers/plans/*-design.md`** — design notes for each spec. Existing files use `YYYY-MM-DD-*-design.md` (grandfathered); new plans use `NNN-*-design.md` matching their spec number
 
 Library modules form a pipeline themselves:
 
@@ -126,7 +131,3 @@ version_bump
 - **`let ... in` as expression form** — `let ... in` inside parenthesized groups is already supported (parsed by the `stmt` non-terminal in `parser.mly`). The remaining work is lifting it into `seq_expr` directly so it can appear in any expression position (e.g., as a `seq_expr` operand, inside function arguments) without requiring parentheses, similar to OCaml/Haskell. Deferred as YAGNI until a concrete use case arises.
 - **Cost annotation and critical path analysis** — nodes already support unit-suffixed numbers (`3s`, `500ms`) as arg values, so `cost:` / `weight:` args need zero grammar changes. The AST is a free arrow — cost propagation maps naturally: `Seq` = sum, `Par`/`Fanout` = max, `Alt` = max or weighted average, `Loop` = cost × iterations. Enables PERT/CPM-style critical path identification, bottleneck detection in parallel branches, and cost-aware optimization (don't apply Arrow law rewrites that increase latency). See: Airflow `priority_weight`, Halide auto-scheduler, free arrows for static analysis (Fancher 2017), Granule graded modal types.
 
-## Plans
-
-- prefix any plan with 3 digits starts from 000
-- treat plans as RFCs
