@@ -127,7 +127,11 @@ let rec emit_node ~prev (n : wf_node) : PPrint.document * string * shape =
     (* Each branch root receives the SAME prev (the parallel's input), per the B1 contract. *)
     let thunk n =
       match n with
-      | Agent a -> str (Printf.sprintf "() => agent(%s, %s)" (prompt_expr a ~prev) (opts a))
+      | Agent a ->
+        let thunk_doc = str (Printf.sprintf "() => agent(%s, %s)" (prompt_expr a ~prev) (opts a)) in
+        (match a.comment with
+         | Some c -> str ("// " ^ sanitize_comment_line c) ^^ nl ^^ thunk_doc
+         | None -> thunk_doc)
       | (Seq _ | Parallel _) ->
         (* A Seq/Parallel branch (e.g. (a >>> b) &&& c) hoists into an inline async IIFE thunk. *)
         let (d, last, _) = emit_node ~prev n in
@@ -156,11 +160,15 @@ let rec emit_node ~prev (n : wf_node) : PPrint.document * string * shape =
     let subj = match prev with Some (v, _) -> v | None -> "''" (* unreachable: root check rejected *) in
     let var = Printf.sprintf "verdicts%d" (fresh ()) in
     let passed = Printf.sprintf "passed%d" (fresh ()) in
+    (* spec.label is always "check" (a fixed DSL keyword) in the current lowerer, so
+       js_template_body here is defense-in-depth: if a future Verify variant ever allows
+       a user-supplied label, backtick / ${ injection is already prevented. *)
+    let escaped_label = js_template_body spec.label in
     let d = lines [
       str (Printf.sprintf "const %s = (await parallel(Array.from({length: %d}, (_, i) => () =>" var skeptics);
       PPrint.nest 2 (str (Printf.sprintf
         "agent(`Adversarially verify the following; try to REFUTE it, default refuted if unsure.\\n\\n## Subject\\n${%s}`, { label: `%s:skeptic-${i}`, schema: VERDICT }))))"
-        subj spec.label));
+        subj escaped_label));
       str ".filter(Boolean)";
       str (Printf.sprintf "const %s = %s.filter(v => !v.refuted).length >= Math.ceil(%d / 2)" passed var skeptics) ] in
     (d, passed, Scalar)

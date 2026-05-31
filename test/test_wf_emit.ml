@@ -96,6 +96,48 @@ let test_comment_u2028_sanitized () =
   let out = Wf_emit.to_string (Wf_lower.lower ~name:"t" ~comments prog) in
   Alcotest.(check bool) "no raw U+2028 in emitted comment" false (Helpers.contains out u2028)
 
+(* Fix 1 (defense-in-depth): Verify skeptic label uses js_template_body before interpolation.
+   spec.label for a check node is always the fixed string "check" (the DSL keyword), so it
+   is not currently user-controllable. The escaping is applied defensively in case a future
+   Verify variant allows a user-supplied label. This test verifies the normal case still emits
+   correctly: `a >>> check?` produces label: `check:skeptic-${i}` in the output. *)
+let test_verify_skeptic_label_emitted () =
+  let out = emit "a >>> check?" in
+  (* The skeptic label template must be emitted correctly for the fixed "check" label. *)
+  Alcotest.(check bool) "check skeptic label present" true
+    (Helpers.contains out "`check:skeptic-${i}`")
+
+(* Fix 2: Agent comments are preserved in parallel branches.
+   Build an IR directly so we don't depend on the DSL comment syntax.
+   A parallel branch Agent with a comment set must emit a // line before the thunk. *)
+let test_parallel_branch_comment_emitted () =
+  let t : Wf_ir.t = {
+    name = "t"; description = "t"; header = [];
+    root = Wf_ir.Seq [
+      Wf_ir.Agent { label = "input"; prompt = "input"; agent_type = None;
+                    out_hint = None; comment = None; phase = None };
+      Wf_ir.Parallel [
+        Wf_ir.Agent { label = "left"; prompt = "left"; agent_type = None;
+                      out_hint = None; comment = Some "do the thing"; phase = None };
+        Wf_ir.Agent { label = "right"; prompt = "right"; agent_type = None;
+                      out_hint = None; comment = None; phase = None };
+      ]
+    ]
+  } in
+  let out = Wf_emit.to_string t in
+  (* The comment on the left branch must appear in the output *)
+  Alcotest.(check bool) "parallel branch comment emitted" true
+    (Helpers.contains out "// do the thing");
+  (* It must appear before the thunk line that contains "left" *)
+  (match String.split_on_char '\n' out
+         |> List.filter (fun l -> Helpers.contains l "// do the thing"
+                                  || Helpers.contains l "() => agent") with
+   | comment_line :: thunk_line :: _ ->
+     Alcotest.(check bool) "comment before thunk" true
+       (Helpers.contains comment_line "// do the thing"
+        && Helpers.contains thunk_line "() => agent")
+   | _ -> Alcotest.fail "expected comment line followed by thunk line")
+
 let tests =
   [ Alcotest.test_case "meta present" `Quick test_meta_present
   ; Alcotest.test_case "root omits input" `Quick test_root_no_input
@@ -108,4 +150,6 @@ let tests =
   ; Alcotest.test_case "node comment CR sanitized" `Quick test_node_comment_cr_sanitized
   ; Alcotest.test_case "js_string escapes U+2028 (line sep)" `Quick test_js_string_escapes_u2028
   ; Alcotest.test_case "js_string escapes U+2029 (para sep)" `Quick test_js_string_escapes_u2029
-  ; Alcotest.test_case "comment U+2028 sanitized" `Quick test_comment_u2028_sanitized ]
+  ; Alcotest.test_case "comment U+2028 sanitized" `Quick test_comment_u2028_sanitized
+  ; Alcotest.test_case "verify skeptic label emitted correctly (defense-in-depth)" `Quick test_verify_skeptic_label_emitted
+  ; Alcotest.test_case "parallel branch comment emitted" `Quick test_parallel_branch_comment_emitted ]
