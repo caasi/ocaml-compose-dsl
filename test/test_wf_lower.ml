@@ -126,16 +126,28 @@ let test_node_comment_attachment_inline () =
   Alcotest.(check (option string)) "inline comment attached"
     (Some "do the thing") a.comment
 
-(* Confirm the design concern: a leading "--" comment (preceding line) is NOT
-   attached because the comment's line ≠ the node's line. *)
-let test_node_comment_leading_not_attached () =
+(* A leading "--" comment on the immediately-preceding line IS now attached. *)
+let test_node_comment_leading_attached () =
   let src = "-- do the thing\ndeploy" in
   let comments = Wf_context.comments_of_source src in
   let prog = Reducer.reduce_program (Parse_errors.parse src) in
   let t = Wf_lower.lower ~comments ~name:"t" prog in
   let a = agent_of t.root in
-  (* comment is on line 1, deploy is on line 2 — no match *)
-  Alcotest.(check (option string)) "leading comment NOT attached (design constraint)"
+  (* comment is on line 1, deploy is on line 2 — adjacent, so attaches *)
+  Alcotest.(check (option string)) "leading comment attached"
+    (Some "do the thing") a.comment
+
+(* A comment two or more lines above does NOT attach — "adjacent" means exactly
+   one line before.  Source: "-- far away\n\ndeploy" puts the comment on line 1
+   and deploy on line 3 (the blank line is line 2). *)
+let test_node_comment_non_adjacent_not_attached () =
+  let src = "-- far away\n\ndeploy" in
+  let comments = Wf_context.comments_of_source src in
+  let prog = Reducer.reduce_program (Parse_errors.parse src) in
+  let t = Wf_lower.lower ~comments ~name:"t" prog in
+  let a = agent_of t.root in
+  (* comment is on line 1, deploy is on line 3 — gap of 2, no attachment *)
+  Alcotest.(check (option string)) "non-adjacent comment not attached"
     None a.comment
 
 let tests =
@@ -170,4 +182,5 @@ let tests =
   ; Alcotest.test_case "interactive_idents advisory" `Quick test_interactive_advisory
   (* Task 11: comment attachment *)
   ; Alcotest.test_case "inline comment attached to node" `Quick test_node_comment_attachment_inline
-  ; Alcotest.test_case "leading comment NOT attached (design constraint)" `Quick test_node_comment_leading_not_attached ]
+  ; Alcotest.test_case "leading comment attached to node" `Quick test_node_comment_leading_attached
+  ; Alcotest.test_case "non-adjacent comment not attached" `Quick test_node_comment_non_adjacent_not_attached ]

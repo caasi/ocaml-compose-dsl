@@ -27,8 +27,13 @@ let agent_spec_of_app ~line ~comments (e : expr) (callee_name : string) (args : 
   let params_line =
     match List.rev !params with [] -> "" | ps -> "\n\nParameters: " ^ String.concat ", " ps in
   let out_hint = match e.type_ann with Some { output; _ } -> Some output | None -> None in
-  (* Best-effort: attach the comment whose line exactly matches the node's start line. *)
-  let comment = List.assoc_opt line comments in
+  (* Best-effort: attach the comment on the same line as the node, or the
+     immediately-preceding line (leading comment style).  Same-line wins if both exist. *)
+  let comment =
+    match List.assoc_opt line comments with
+    | Some _ as c -> c
+    | None -> List.assoc_opt (line - 1) comments
+  in
   { Wf_ir.label = callee_name; prompt = base ^ params_line;
     agent_type = !agent_type; out_hint; comment; phase = None }
 
