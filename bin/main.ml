@@ -169,6 +169,7 @@ let () =
             come from -- comments (standard mode) or the surrounding Markdown prose (literate
             mode — `input` is the ORIGINAL text, before combine() discarded the prose). *)
          let comments = C.comments_of_source source in
+         let name = C.derive_name ~path:(first_positional_arg ()) in
          let header, description =
            if literate then
              let prose = C.markdown_prose input in
@@ -176,10 +177,11 @@ let () =
            else
              C.leading_block comments,
              Some (C.derive_description (List.map snd comments)
-                     ~fallback:("Generated from " ^ C.derive_name ~path:(first_positional_arg ())))
+                     ~fallback:("Generated from " ^ name)
+                   )
          in
          (match Compose_dsl.Wf_lower.lower
-                  ~name:(C.derive_name ~path:(first_positional_arg ()))
+                  ~name
                   ~comments ~header ?description prog with
           | exception Compose_dsl.Wf_ir.Emit_error (pos, msg) ->
             Printf.eprintf "emit error at %d:%d: %s\n" (tl pos.line) pos.col msg; exit 1
@@ -189,7 +191,15 @@ let () =
               (Compose_dsl.Wf_lower.interactive_idents ir);
             let js = Compose_dsl.Wf_emit.to_string ir in
             (match output_path with
-             | Some p -> let oc = open_out p in output_string oc js; close_out oc
+             | Some p ->
+               (match
+                  let oc = open_out p in
+                  Fun.protect ~finally:(fun () -> close_out oc)
+                    (fun () -> output_string oc js)
+                with
+                | exception Sys_error msg ->
+                  Printf.eprintf "error writing %s: %s\n" p msg; exit 1
+                | () -> ())
              | None -> print_string js))
        | Some other ->
          Printf.eprintf "unknown --emit target: %s (valid: workflow)\n" other; exit 1);
