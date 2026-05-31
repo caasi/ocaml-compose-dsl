@@ -55,7 +55,14 @@ and lower_expr (e : expr) : Wf_ir.wf_node =
     (match epistemic_node e name args with Some n -> n | None -> Wf_ir.Agent (agent_spec_of_app e name args))
   | Group inner -> lower_expr inner
   | Seq _ -> Wf_ir.Seq (flatten_seq e)
-  | Par _ | Fanout _ -> Wf_ir.Parallel (flatten_par e)
+  | Par _ | Fanout _ ->
+    let branches = flatten_par e in
+    if List.exists contains_verify_or_synth branches then
+      err e.loc.start
+        "check/merge inside a '***'/'&&&' parallel branch is not supported by --emit workflow (v1)";
+    Wf_ir.Parallel branches
+  | Alt _ -> err e.loc.start "'|||' (alternation) not supported by --emit workflow (v1)"
+  | Loop _ -> err e.loc.start "'loop' not supported by --emit workflow (v1)"
   | Unit -> err e.loc.start "empty pipeline: nothing to emit"
   | _ -> err e.loc.start "unsupported construct (todo: later tasks)"
 
@@ -71,6 +78,12 @@ and flatten_par (e : expr) : Wf_ir.wf_node list =
   | Par (a, b) | Fanout (a, b) -> flatten_par a @ flatten_par b
   | Group inner -> flatten_par inner
   | _ -> [lower_expr e]
+
+(* Recursively check whether a wf_node subtree contains Verify or Synthesize. *)
+and contains_verify_or_synth = function
+  | Wf_ir.Verify _ | Wf_ir.Synthesize _ -> true
+  | Wf_ir.Agent _ -> false
+  | Wf_ir.Seq ns | Wf_ir.Parallel ns -> List.exists contains_verify_or_synth ns
 
 (* Reject Verify/Synthesize at root position (they need an upstream result). *)
 let reject_root_verify_synth pos = function

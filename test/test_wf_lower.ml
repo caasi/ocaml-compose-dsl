@@ -87,6 +87,16 @@ let test_root_check_rejected () =
 let test_root_merge_rejected () =
   Helpers.lower_fails lower "merge" "needs an upstream"
 
+(* Task 7: reject unsupported constructs *)
+
+let test_alt_rejected () = Helpers.lower_fails lower "a ||| b" "not supported"
+let test_loop_rejected () = Helpers.lower_fails lower "loop(a)" "not supported"
+let test_question_noncheck_rejected () = Helpers.lower_fails lower "x?" "only supported on 'check'"
+let test_higher_order_rejected () = Helpers.lower_fails lower "map(check)" "positional"
+let test_check_in_branch_rejected () = Helpers.lower_fails lower "a &&& check?" "parallel"
+let test_check_in_branch_subtree_rejected () =
+  Helpers.lower_fails lower "(a >>> check?) &&& b" "parallel"
+
 let tests =
   [ Alcotest.test_case "bare node" `Quick test_bare_node
   ; Alcotest.test_case "named args" `Quick test_named_args
@@ -105,4 +115,11 @@ let tests =
   ; Alcotest.test_case "a >>> check? → Verify{3}" `Quick test_check_verify
   ; Alcotest.test_case "a >>> merge → Synthesize" `Quick test_merge_synth
   ; Alcotest.test_case "root check? rejected" `Quick test_root_check_rejected
-  ; Alcotest.test_case "root merge rejected" `Quick test_root_merge_rejected ]
+  ; Alcotest.test_case "root merge rejected" `Quick test_root_merge_rejected
+  (* Task 7 *)
+  ; Alcotest.test_case "alt ||| rejected" `Quick test_alt_rejected
+  ; Alcotest.test_case "loop rejected" `Quick test_loop_rejected
+  ; Alcotest.test_case "non-check ? rejected" `Quick test_question_noncheck_rejected
+  ; Alcotest.test_case "higher-order app rejected" `Quick test_higher_order_rejected
+  ; Alcotest.test_case "check in &&& branch rejected" `Quick test_check_in_branch_rejected
+  ; Alcotest.test_case "check in &&& subtree rejected" `Quick test_check_in_branch_subtree_rejected ]
