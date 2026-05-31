@@ -376,13 +376,13 @@ let count_occurrences sub s =
 (* Count IR nodes of a given kind by walking the IR.
    Used in tests to cross-check the emitted JS string. *)
 let rec count_ir_agents = function
-  | Wf_ir.Agent _ | Wf_ir.Synthesize _ -> 1
-  | Wf_ir.Verify _ -> 0  (* Verify emits parallel fan, not await agent at top level *)
+  | Wf_ir.Agent _ -> 1
+  | Wf_ir.Synthesize _ | Wf_ir.Verify _ -> 0  (* not plain Agent nodes; generator never produces them *)
   | Wf_ir.Seq ns | Wf_ir.Parallel ns -> List.fold_left (fun acc n -> acc + count_ir_agents n) 0 ns
 
 let rec count_ir_parallels = function
   | Wf_ir.Agent _ | Wf_ir.Synthesize _ | Wf_ir.Verify _ -> 0
-  | Wf_ir.Parallel _ as p -> 1 + (match p with Wf_ir.Parallel ns -> List.fold_left (fun acc n -> acc + count_ir_parallels n) 0 ns | _ -> 0)
+  | Wf_ir.Parallel ns -> 1 + List.fold_left (fun acc n -> acc + count_ir_parallels n) 0 ns
   | Wf_ir.Seq ns -> List.fold_left (fun acc n -> acc + count_ir_parallels n) 0 ns
 
 (* Balanced delimiter check: scan [s] and verify open/close counts match. *)
@@ -478,6 +478,23 @@ let prop_010_parallel_count =
        let js_parallel_count = count_occurrences "(await parallel([" out in
        ir_parallel_count = js_parallel_count)
 
+(* RULE-011: Agent-call count in JS equals IR Agent node count.
+   The generator emits only Agent/Seq/Parallel/Fanout over plain idents — no
+   Synthesize or Verify — so every `agent(` substring (both `await agent(` in
+   sequential position and `() => agent(` in parallel branches) maps 1:1 to one
+   IR Agent node. *)
+let prop_011_agent_count =
+  QCheck.Test.make ~count:200
+    ~name:"RULE-011: IR Agent count equals agent( occurrences in emitted JS"
+    arb_emit_src
+    (fun src ->
+       let prog = Reducer.reduce_program (Parse_errors.parse src) in
+       let ir = Wf_lower.lower ~name:"t" prog in
+       let ir_agent_count = count_ir_agents ir.root in
+       let out = Wf_emit.to_string ir in
+       let js_agent_count = count_occurrences "agent(" out in
+       ir_agent_count = js_agent_count)
+
 (* === Test registration === *)
 
 let tests =
@@ -513,9 +530,10 @@ let tests =
     ; prop_006_tilde_fence_rejected
     ; prop_006_content_preserved
     ; prop_006_non_arrow_rejected
-      (* RULE-007..010: Workflow emitter invariants *)
+      (* RULE-007..011: Workflow emitter invariants *)
     ; prop_007_single_meta
     ; prop_008_balanced_delimiters
     ; prop_009_no_nondeterminism
     ; prop_010_parallel_count
+    ; prop_011_agent_count
     ]
