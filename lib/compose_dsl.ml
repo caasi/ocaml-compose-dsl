@@ -6,3 +6,4 @@ module Printer = Printer
 module Reducer = Reducer
 module Markdown = Markdown
 module Parse_errors = Parse_errors
+module Wf_ir = Wf_ir

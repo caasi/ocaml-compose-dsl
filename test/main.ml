@@ -11,4 +11,5 @@ let () =
     ; "Markdown", Test_markdown.tests
     ; "Markdown integration", Test_markdown.integration_tests
     ; "Properties", Test_properties.tests
+    ; "Wf_ir", Test_wf_ir.tests
     ]
