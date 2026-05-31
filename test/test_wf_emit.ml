@@ -38,6 +38,18 @@ let test_phases_derived () =
   Alcotest.(check bool) "agent carries opts.phase" true (Helpers.contains out "phase: 'Gather'");
   Alcotest.(check bool) "meta phases lists Gather" true (Helpers.contains out "title: 'Gather'")
 
+let test_js_string_escapes_control_chars () =
+  (* A node with agent: "x\ry" — the lexer reads \r as a literal CR byte.
+     The emitted agentType field must not contain a raw CR (0x0D). *)
+  let input = "a(agent: \"x\ry\")" in
+  let out = emit input in
+  (* The raw CR byte must not appear anywhere inside a single-quoted JS string field.
+     We verify by checking no raw CR appears in the output at all. *)
+  let has_raw_cr = String.contains out '\r' in
+  Alcotest.(check bool) "no raw CR in output" false has_raw_cr;
+  (* The escaped form \r must appear instead *)
+  Alcotest.(check bool) "escaped \\r present" true (Helpers.contains out "\\r")
+
 let tests =
   [ Alcotest.test_case "meta present" `Quick test_meta_present
   ; Alcotest.test_case "root omits input" `Quick test_root_no_input
@@ -45,4 +57,5 @@ let tests =
   ; Alcotest.test_case "parallel filter(Boolean)" `Quick test_parallel_filter
   ; Alcotest.test_case "verify (adversarial fan)" `Quick test_verify
   ; Alcotest.test_case "synthesize scalar" `Quick test_synth_scalar
-  ; Alcotest.test_case "phases derived from epistemic ops" `Quick test_phases_derived ]
+  ; Alcotest.test_case "phases derived from epistemic ops" `Quick test_phases_derived
+  ; Alcotest.test_case "js_string escapes control chars (CR, etc.)" `Quick test_js_string_escapes_control_chars ]
