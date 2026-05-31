@@ -5,21 +5,44 @@ let (^^) = PPrint.(^^)
 let nl = PPrint.hardline
 let lines docs = PPrint.separate nl docs
 
-(* JS single-quoted string literal — escapes \, ', and all ASCII control chars. *)
+(* Detect the 3-byte UTF-8 sequence for U+2028 (LINE SEPARATOR, 0xE2 0x80 0xA8)
+   or U+2029 (PARAGRAPH SEPARATOR, 0xE2 0x80 0xA9) starting at index i in s.
+   Both are JavaScript source line terminators and must be escaped in JS strings
+   and line comments. *)
+let is_ls_ps s i len =
+  i + 2 < len
+  && Char.code s.[i]   = 0xE2
+  && Char.code s.[i+1] = 0x80
+  && (Char.code s.[i+2] = 0xA8 || Char.code s.[i+2] = 0xA9)
+
+(* JS single-quoted string literal — escapes \, ', ASCII control chars, and
+   Unicode line separators U+2028/U+2029 (JS line terminators). *)
 let js_string s =
   let b = Buffer.create (String.length s + 2) in
   Buffer.add_char b '\'';
-  String.iter (fun c -> match c with
-    | '\\' -> Buffer.add_string b "\\\\"
-    | '\'' -> Buffer.add_string b "\\'"
-    | '\n' -> Buffer.add_string b "\\n"
-    | '\r' -> Buffer.add_string b "\\r"
-    | '\t' -> Buffer.add_string b "\\t"
-    | '\x08' -> Buffer.add_string b "\\b"
-    | '\x0C' -> Buffer.add_string b "\\f"
-    | c when Char.code c < 0x20 ->
-      Buffer.add_string b (Printf.sprintf "\\x%02x" (Char.code c))
-    | c -> Buffer.add_char b c) s;
+  let n = String.length s in
+  let i = ref 0 in
+  while !i < n do
+    if is_ls_ps s !i n then begin
+      (* U+2028 →  , U+2029 →   *)
+      let code = if Char.code s.[!i + 2] = 0xA8 then "\\u2028" else "\\u2029" in
+      Buffer.add_string b code;
+      i := !i + 3
+    end else begin
+      (match s.[!i] with
+       | '\\' -> Buffer.add_string b "\\\\"
+       | '\'' -> Buffer.add_string b "\\'"
+       | '\n' -> Buffer.add_string b "\\n"
+       | '\r' -> Buffer.add_string b "\\r"
+       | '\t' -> Buffer.add_string b "\\t"
+       | '\x08' -> Buffer.add_string b "\\b"
+       | '\x0C' -> Buffer.add_string b "\\f"
+       | c when Char.code c < 0x20 ->
+         Buffer.add_string b (Printf.sprintf "\\x%02x" (Char.code c))
+       | c -> Buffer.add_char b c);
+      incr i
+    end
+  done;
   Buffer.add_char b '\'';
   Buffer.contents b
 
@@ -69,10 +92,26 @@ let fresh_var label =
           then "n_" ^ s else s in
   Printf.sprintf "%s_%d" s (fresh ())
 
-(* Replace any control characters (CR, LF, and all bytes < 0x20) in a comment
-   line with a space, so the text is safe to embed in a // JS line comment. *)
+(* Replace any control characters (CR, LF, and all bytes < 0x20) or Unicode
+   line separators U+2028/U+2029 in a comment line with a space, so the text is
+   safe to embed in a // JS line comment (U+2028/U+2029 terminate JS line comments
+   just like a newline would). *)
 let sanitize_comment_line s =
-  String.map (fun c -> if Char.code c < 0x20 then ' ' else c) s
+  let b = Buffer.create (String.length s) in
+  let n = String.length s in
+  let i = ref 0 in
+  while !i < n do
+    if is_ls_ps s !i n then begin
+      Buffer.add_char b ' ';
+      i := !i + 3
+    end else begin
+      (let c = s.[!i] in
+       if Char.code c < 0x20 then Buffer.add_char b ' '
+       else Buffer.add_char b c);
+      incr i
+    end
+  done;
+  Buffer.contents b
 
 (* returns (document, var_name, shape). The var/shape feed the next node's prev. *)
 let rec emit_node ~prev (n : wf_node) : PPrint.document * string * shape =
