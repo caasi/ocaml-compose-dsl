@@ -1,0 +1,28 @@
+// brainstorming.arr — structured exploration before implementation
+export const meta = {
+  name: 'brainstorming',
+  description: 'brainstorming.arr — structured exploration before implementation',
+  phases: [{ title: 'Run' }],
+}
+
+const par1 = (await parallel([
+  () => agent(`read_files
+
+Parameters: glob=lib/**/*.ml`, { label: 'read_files' }),
+  () => agent(`git_log
+
+Parameters: n=20`, { label: 'git_log' }),
+  () => agent(`read_docs
+
+Parameters: path=CLAUDE.md`, { label: 'read_docs' })
+])).filter(Boolean)
+const summarize_2 = await agent(`summarize\n\nReturn a Context.\n\n## Input\n${JSON.stringify(par1)}`, { label: 'summarize' })
+const ask_questions_3 = await agent(`ask_questions
+
+Parameters: style=one_at_a_time\n\nReturn a Requirements.\n\n## Input\n${summarize_2}`, { label: 'ask_questions' })
+const propose_4 = await agent(`propose
+
+Parameters: count=3\n\nReturn a Design.\n\n## Input\n${ask_questions_3}`, { label: 'propose' })
+const present_design_5 = await agent(`present_design\n\nReturn a Feedback.\n\n## Input\n${propose_4}`, { label: 'present_design' })
+const write_spec_6 = await agent(`write_spec\n\nReturn a ().\n\n## Input\n${present_design_5}`, { label: 'write_spec' })
+return write_spec_6

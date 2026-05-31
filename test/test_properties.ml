@@ -349,6 +349,135 @@ let prop_006_non_arrow_rejected =
        let blocks = Markdown.extract md in
        List.length blocks = 0)
 
+(* === RULE-007 through RULE-010: Workflow emitter invariants === *)
+
+(* Emit a source string end-to-end via the library pipeline.
+   Uses no context recovery (no comments/header/description) — a clean baseline. *)
+let emit_src src =
+  let prog = Reducer.reduce_program (Parse_errors.parse src) in
+  Wf_emit.to_string (Wf_lower.lower ~name:"t" prog)
+
+(* Count non-overlapping occurrences of [sub] in [s]. *)
+let count_occurrences sub s =
+  let sub_len = String.length sub in
+  let s_len   = String.length s in
+  if sub_len = 0 then 0
+  else begin
+    let count = ref 0 in
+    let i = ref 0 in
+    while !i <= s_len - sub_len do
+      if String.sub s !i sub_len = sub
+      then (incr count; i := !i + sub_len)
+      else incr i
+    done;
+    !count
+  end
+
+(* Count IR nodes of a given kind by walking the IR.
+   Used in tests to cross-check the emitted JS string. *)
+let rec count_ir_agents = function
+  | Wf_ir.Agent _ | Wf_ir.Synthesize _ -> 1
+  | Wf_ir.Verify _ -> 0  (* Verify emits parallel fan, not await agent at top level *)
+  | Wf_ir.Seq ns | Wf_ir.Parallel ns -> List.fold_left (fun acc n -> acc + count_ir_agents n) 0 ns
+
+let rec count_ir_parallels = function
+  | Wf_ir.Agent _ | Wf_ir.Synthesize _ | Wf_ir.Verify _ -> 0
+  | Wf_ir.Parallel _ as p -> 1 + (match p with Wf_ir.Parallel ns -> List.fold_left (fun acc n -> acc + count_ir_parallels n) 0 ns | _ -> 0)
+  | Wf_ir.Seq ns -> List.fold_left (fun acc n -> acc + count_ir_parallels n) 0 ns
+
+(* Balanced delimiter check: scan [s] and verify open/close counts match. *)
+let balanced_delimiters s =
+  let braces = ref 0 and parens = ref 0 and brackets = ref 0 in
+  String.iter (fun c -> match c with
+    | '{' -> incr braces   | '}' -> decr braces
+    | '(' -> incr parens   | ')' -> decr parens
+    | '[' -> incr brackets | ']' -> decr brackets
+    | _ -> ()) s;
+  !braces = 0 && !parens = 0 && !brackets = 0
+
+(* Generator: a supported-subset Arrow expression (Agent/Seq/Par/Fanout).
+   Generates source strings that the emitter accepts without error.
+   - Avoids reserved words as idents.
+   - Avoids Alt, Loop, check, merge, check?, non-check ?, higher-order positional App.
+   - Depth-bounded to keep generated inputs small and fast.
+*)
+let gen_emit_src =
+  let open QCheck.Gen in
+  (* Safe idents: lowercase-only, not reserved, not epistemic *)
+  let emit_reserved = ["let"; "in"; "loop"; "branch"; "merge"; "leaf"; "check"; "gather"] in
+  let gen_emit_ident =
+    let alpha = oneof (List.init 26 (fun i -> return (Char.chr (Char.code 'a' + i)))) in
+    string_size ~gen:alpha (1 -- 8) >>= fun s ->
+    if List.mem s emit_reserved then return ("w" ^ s) else return s
+  in
+  (* A leaf node: just a bare ident *)
+  let leaf = gen_emit_ident >>= fun n -> return n in
+  (* Build up expressions from leaves *)
+  let rec gen_expr depth =
+    if depth <= 0 then leaf
+    else
+      oneof_weighted
+        [ 3, leaf
+        ; 2, (gen_expr (depth - 1) >>= fun a ->
+               gen_expr (depth - 1) >>= fun b ->
+               return (Printf.sprintf "%s >>> %s" a b))
+        ; 1, (gen_expr (depth - 1) >>= fun a ->
+               gen_expr (depth - 1) >>= fun b ->
+               return (Printf.sprintf "%s *** %s" a b))
+        ; 1, (gen_expr (depth - 1) >>= fun a ->
+               gen_expr (depth - 1) >>= fun b ->
+               return (Printf.sprintf "%s &&& %s" a b))
+        ]
+  in
+  gen_expr 3
+
+let arb_emit_src =
+  QCheck.make ~print:Fun.id gen_emit_src
+
+(* RULE-007: Exactly one `export const meta` in the output *)
+let prop_007_single_meta =
+  QCheck.Test.make ~count:200
+    ~name:"RULE-007: emitted output has exactly one export const meta"
+    arb_emit_src
+    (fun src ->
+       let out = emit_src src in
+       count_occurrences "export const meta" out = 1)
+
+(* RULE-008: Delimiters are balanced — no JS syntax breakage *)
+let prop_008_balanced_delimiters =
+  QCheck.Test.make ~count:200
+    ~name:"RULE-008: emitted output has balanced {}, (), []"
+    arb_emit_src
+    (fun src ->
+       let out = emit_src src in
+       balanced_delimiters out)
+
+(* RULE-009: No nondeterminism tokens in the output *)
+let prop_009_no_nondeterminism =
+  QCheck.Test.make ~count:200
+    ~name:"RULE-009: emitted output contains no Date.now, Math.random, new Date"
+    arb_emit_src
+    (fun src ->
+       let out = emit_src src in
+       not (Helpers.contains out "Date.now")
+       && not (Helpers.contains out "Math.random")
+       && not (Helpers.contains out "new Date"))
+
+(* RULE-010: Parallel node count matches (await parallel([ occurrences.
+   We count IR-level Parallel nodes and `(await parallel([` substrings — the latter
+   matches Parallel but NOT Verify's `(await parallel(Array.from(`. *)
+let prop_010_parallel_count =
+  QCheck.Test.make ~count:200
+    ~name:"RULE-010: IR Parallel count equals (await parallel([ occurrences"
+    arb_emit_src
+    (fun src ->
+       let prog = Reducer.reduce_program (Parse_errors.parse src) in
+       let ir = Wf_lower.lower ~name:"t" prog in
+       let ir_parallel_count = count_ir_parallels ir.root in
+       let out = Wf_emit.to_string ir in
+       let js_parallel_count = count_occurrences "(await parallel([" out in
+       ir_parallel_count = js_parallel_count)
+
 (* === Test registration === *)
 
 let tests =
@@ -384,4 +513,9 @@ let tests =
     ; prop_006_tilde_fence_rejected
     ; prop_006_content_preserved
     ; prop_006_non_arrow_rejected
+      (* RULE-007..010: Workflow emitter invariants *)
+    ; prop_007_single_meta
+    ; prop_008_balanced_delimiters
+    ; prop_009_no_nondeterminism
+    ; prop_010_parallel_count
     ]
