@@ -81,8 +81,8 @@ let rec emit_node ~prev (n : wf_node) : PPrint.document * string * shape =
       | (Seq _ | Parallel _) ->
         (* A Seq/Parallel branch (e.g. (a >>> b) &&& c) hoists into an inline async IIFE thunk. *)
         let (d, last, _) = emit_node ~prev n in
-        str "() => (async () => {" ^^ nl
-        ^^ PPrint.nest 2 (d ^^ nl ^^ str (Printf.sprintf "return %s" last)) ^^ nl
+        str "() => (async () => {"
+        ^^ PPrint.nest 2 (nl ^^ d ^^ nl ^^ str (Printf.sprintf "return %s" last)) ^^ nl
         ^^ str "})()"
       | Verify _ | Synthesize _ ->
         failwith "unreachable: check/merge in a branch is rejected by Wf_lower (Task 7)"
@@ -90,7 +90,7 @@ let rec emit_node ~prev (n : wf_node) : PPrint.document * string * shape =
     let var = Printf.sprintf "par%d" (fresh ()) in
     let arr = PPrint.separate (str "," ^^ nl) (List.map thunk ns) in
     let d = str (Printf.sprintf "const %s = (await parallel([" var)
-            ^^ nl ^^ PPrint.nest 2 arr ^^ nl ^^ str "])).filter(Boolean)" in
+            ^^ PPrint.nest 2 (nl ^^ arr) ^^ nl ^^ str "])).filter(Boolean)" in
     (d, var, Array)
   | Synthesize a ->
     let p = js_template_body a.prompt in
