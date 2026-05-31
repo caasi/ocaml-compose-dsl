@@ -148,11 +148,12 @@ let rec emit_node ~prev (n : wf_node) : PPrint.document * string * shape =
     (d, var, Array)
   | Synthesize a ->
     let p = js_template_body a.prompt in
+    let hint = match a.out_hint with Some o -> Printf.sprintf "\\n\\nReturn a %s." o | None -> "" in
     let body = (match prev with
       | Some (v, Array) ->
-        Printf.sprintf "%s\\n\\n## Inputs\\n${%s.map((r,i)=>`### ${i}\\n${r}`).join('\\n')}" p v
-      | Some (v, Scalar) -> Printf.sprintf "%s\\n\\n## Input\\n${%s}" p v
-      | None -> p (* unreachable: root merge rejected by Wf_lower *)) in
+        Printf.sprintf "%s%s\\n\\n## Inputs\\n${%s.map((r,i)=>`### ${i}\\n${r}`).join('\\n')}" p hint v
+      | Some (v, Scalar) -> Printf.sprintf "%s%s\\n\\n## Input\\n${%s}" p hint v
+      | None -> p ^ hint (* unreachable: root merge rejected by Wf_lower *)) in
     let var = fresh_var a.label in
     let d = str (Printf.sprintf "const %s = await agent(`%s`, %s)" var body (opts a)) in
     (d, var, Scalar)

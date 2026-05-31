@@ -159,6 +159,46 @@ let test_parallel_branch_comment_emitted () =
         && Helpers.contains thunk_line "() => agent")
    | _ -> Alcotest.fail "expected comment line followed by thunk line")
 
+(* Find the first index of [sub] in [s], or -1 if absent. *)
+let index_of s sub =
+  let slen = String.length s and sublen = String.length sub in
+  let rec scan i =
+    if i + sublen > slen then -1
+    else if String.sub s i sublen = sub then i
+    else scan (i + 1)
+  in
+  scan 0
+
+(* Fix (Copilot): Synthesize (merge) emits out_hint Return-a line like Agent.
+   `:: X -> Y` attaches to the merge Var expression itself (confirmed: `a >>> merge :: X -> Y`
+   parses as Seq(Var("a"), TypeAnn(Var("merge"), "X", "Y")), so out_hint = Some "Y" reaches
+   the agent_spec). The Synthesize arm must include the hint BEFORE the ## Inputs/## Input block.
+   NOTE: hint and ## Inputs appear within the same JS source line (as \\n-escaped content),
+   so we check ordering by string position, not by source-line splitting. *)
+let test_synth_out_hint_present () =
+  (* Array prev: (a *** b) >>> merge :: Reports -> Summary *)
+  let out = emit "(a *** b) >>> merge :: Reports -> Summary" in
+  Alcotest.(check bool) "merge with type ann: Return a Summary. present" true
+    (Helpers.contains out "Return a Summary.");
+  (* Hint must appear before the ## Inputs block (both embedded as \\n-escaped in the JS template) *)
+  let hint_pos   = index_of out "Return a Summary." in
+  let inputs_pos = index_of out "## Inputs" in
+  Alcotest.(check bool) "hint found" true (hint_pos >= 0);
+  Alcotest.(check bool) "## Inputs found" true (inputs_pos >= 0);
+  Alcotest.(check bool) "hint before ## Inputs" true (hint_pos < inputs_pos)
+
+let test_synth_out_hint_scalar_prev () =
+  (* Scalar prev: a >>> merge :: X -> Y *)
+  let out = emit "a >>> merge :: X -> Y" in
+  Alcotest.(check bool) "merge scalar prev: Return a Y. present" true
+    (Helpers.contains out "Return a Y.")
+
+let test_synth_no_out_hint_when_no_ann () =
+  (* merge without type annotation must NOT emit a Return a line *)
+  let out = emit "a >>> merge" in
+  Alcotest.(check bool) "merge without ann: no Return a line" false
+    (Helpers.contains out "Return a")
+
 let tests =
   [ Alcotest.test_case "meta present" `Quick test_meta_present
   ; Alcotest.test_case "root omits input" `Quick test_root_no_input
@@ -175,4 +215,7 @@ let tests =
   ; Alcotest.test_case "verify skeptic label emitted correctly (defense-in-depth)" `Quick test_verify_skeptic_label_emitted
   ; Alcotest.test_case "verify array prev: JSON.stringify in Subject" `Quick test_verify_array_prev_uses_json_stringify
   ; Alcotest.test_case "verify scalar prev: bare var in Subject" `Quick test_verify_scalar_prev_no_json_stringify
-  ; Alcotest.test_case "parallel branch comment emitted" `Quick test_parallel_branch_comment_emitted ]
+  ; Alcotest.test_case "parallel branch comment emitted" `Quick test_parallel_branch_comment_emitted
+  ; Alcotest.test_case "synthesize out_hint emits Return-a (array prev)" `Quick test_synth_out_hint_present
+  ; Alcotest.test_case "synthesize out_hint emits Return-a (scalar prev)" `Quick test_synth_out_hint_scalar_prev
+  ; Alcotest.test_case "synthesize without ann: no Return a line" `Quick test_synth_no_out_hint_when_no_ann ]
