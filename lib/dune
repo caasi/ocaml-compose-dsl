@@ -1,7 +1,7 @@
 (library
  (name compose_dsl)
  (public_name ocaml-compose-dsl-lib)
- (libraries menhirLib sedlex)
+ (libraries menhirLib sedlex pprint)
  (preprocess (pps sedlex.ppx)))
 
 (menhir
