@@ -73,7 +73,26 @@ let rec emit_node ~prev (n : wf_node) : PPrint.document * string * shape =
     let call = str (Printf.sprintf "const %s = await agent(%s, %s)" var (prompt_expr a ~prev) (opts a)) in
     (comment ^^ call, var, Scalar)
   | Seq ns -> emit_seq ~prev ns
-  | _ -> failwith "Parallel/Verify/Synthesize: Tasks 9-10"
+  | Parallel ns ->
+    (* Each branch root receives the SAME prev (the parallel's input), per the B1 contract. *)
+    let thunk n =
+      match n with
+      | Agent a -> str (Printf.sprintf "() => agent(%s, %s)" (prompt_expr a ~prev) (opts a))
+      | (Seq _ | Parallel _) ->
+        (* A Seq/Parallel branch (e.g. (a >>> b) &&& c) hoists into an inline async IIFE thunk. *)
+        let (d, last, _) = emit_node ~prev n in
+        str "() => (async () => {" ^^ nl
+        ^^ PPrint.nest 2 (d ^^ nl ^^ str (Printf.sprintf "return %s" last)) ^^ nl
+        ^^ str "})()"
+      | Verify _ | Synthesize _ ->
+        failwith "unreachable: check/merge in a branch is rejected by Wf_lower (Task 7)"
+    in
+    let var = Printf.sprintf "par%d" (fresh ()) in
+    let arr = PPrint.separate (str "," ^^ nl) (List.map thunk ns) in
+    let d = str (Printf.sprintf "const %s = (await parallel([" var)
+            ^^ nl ^^ PPrint.nest 2 arr ^^ nl ^^ str "])).filter(Boolean)" in
+    (d, var, Array)
+  | _ -> failwith "Verify/Synthesize: Task 10"
 
 and emit_seq ~prev = function
   | [] -> (PPrint.empty, "undefined", Scalar)
