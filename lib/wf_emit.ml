@@ -69,12 +69,17 @@ let fresh_var label =
           then "n_" ^ s else s in
   Printf.sprintf "%s_%d" s (fresh ())
 
+(* Replace any control characters (CR, LF, and all bytes < 0x20) in a comment
+   line with a space, so the text is safe to embed in a // JS line comment. *)
+let sanitize_comment_line s =
+  String.map (fun c -> if Char.code c < 0x20 then ' ' else c) s
+
 (* returns (document, var_name, shape). The var/shape feed the next node's prev. *)
 let rec emit_node ~prev (n : wf_node) : PPrint.document * string * shape =
   match n with
   | Agent a ->
     let var = fresh_var a.label in
-    let comment = match a.comment with Some c -> str ("// " ^ c) ^^ nl | None -> PPrint.empty in
+    let comment = match a.comment with Some c -> str ("// " ^ sanitize_comment_line c) ^^ nl | None -> PPrint.empty in
     (* phase is carried in opts (opts.phase), not a separate phase() statement *)
     let call = str (Printf.sprintf "const %s = await agent(%s, %s)" var (prompt_expr a ~prev) (opts a)) in
     (comment ^^ call, var, Scalar)
@@ -142,9 +147,6 @@ let collect_phases (n : wf_node) : string list =
     | Seq ns | Parallel ns -> List.iter go ns
   in go n;
   match !seen with [] -> ["Run"] | ps -> ps
-
-let sanitize_comment_line s =
-  String.map (fun c -> match c with '\n' | '\r' -> ' ' | c -> c) s
 
 let to_string (t : t) =
   fresh_counter := 0;   (* deterministic var names per render → stable golden output *)

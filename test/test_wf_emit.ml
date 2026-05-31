@@ -50,6 +50,16 @@ let test_js_string_escapes_control_chars () =
   (* The escaped form \r must appear instead *)
   Alcotest.(check bool) "escaped \\r present" true (Helpers.contains out "\\r")
 
+let test_node_comment_cr_sanitized () =
+  (* A node whose inline comment contains a raw CR must not produce a raw CR
+     inside the emitted // line comment. CR in a JS line comment terminates the
+     comment and turns the remainder into code — dangerous output. *)
+  let src = "deploy -- do\rthis" in
+  let comments = Wf_context.comments_of_source src in
+  let prog = Reducer.reduce_program (Parse_errors.parse src) in
+  let out = Wf_emit.to_string (Wf_lower.lower ~name:"t" ~comments prog) in
+  Alcotest.(check bool) "no raw CR in emitted comment" false (String.contains out '\r')
+
 let tests =
   [ Alcotest.test_case "meta present" `Quick test_meta_present
   ; Alcotest.test_case "root omits input" `Quick test_root_no_input
@@ -58,4 +68,5 @@ let tests =
   ; Alcotest.test_case "verify (adversarial fan)" `Quick test_verify
   ; Alcotest.test_case "synthesize scalar" `Quick test_synth_scalar
   ; Alcotest.test_case "phases derived from epistemic ops" `Quick test_phases_derived
-  ; Alcotest.test_case "js_string escapes control chars (CR, etc.)" `Quick test_js_string_escapes_control_chars ]
+  ; Alcotest.test_case "js_string escapes control chars (CR, etc.)" `Quick test_js_string_escapes_control_chars
+  ; Alcotest.test_case "node comment CR sanitized" `Quick test_node_comment_cr_sanitized ]
