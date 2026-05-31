@@ -108,6 +108,13 @@ Two GitHub Actions workflows in `.github/workflows/`:
 
 macOS x86_64 binary is **not built in CI** (Rosetta cross-compile doesn't work with OCaml — `ocamlopt` emits arm64 assembly regardless of shell arch). It must be built locally and uploaded via `scripts/release-macos-x86_64.sh`.
 
+### CI Portability & Gotchas
+
+**Local `dune test` passing is NOT the same as CI green.** The runners (Alpine/musl + macOS) differ from a dev box; verify GitHub Actions before merging or tagging — `gh pr checks <n>` / `gh run list --workflow=ci.yml` / `gh run view <id> --json conclusion`. Treat `mergeStateStatus: UNSTABLE` as a stop sign. (Spec 021 was merged on red CI because only local tests were checked; the release built nothing.) Two traps that pass locally but fail on a runner:
+
+- **`qcheck-core` version skew (unpinned dep).** Newer qcheck-core (often the macOS runner / dev box) has `Gen.oneof_list` / `oneof_weighted` and **deprecates** `frequency` / `oneofl`; older qcheck-core (Alpine linux runner) is the reverse. The dune profile treats **deprecation alerts as errors**, so no single name compiles on both. Build generators from the **universal, non-deprecated** primitives instead: `Gen.oneof (List.map return values)` for value choice, and `Gen.oneof` over a weight-expanded list (`List.concat_map (fun (w,g) -> List.init w (fun _ -> g)) …`) for weighted choice. Adding a new dep can perturb opam's solve and surface this.
+- **Test data files.** Read fixtures via `(deps (glob_files dir/*))` and a `dir/<file>` relative path (cwd at test time is `_build/default/test/`). Do **not** rely on `(copy_files dir/*)` + flat reads — it doesn't stage reliably under CI's `dune test` (`Sys_error: No such file`).
+
 ### Version Bumps
 
 ```arrow
@@ -126,11 +133,15 @@ bump(file: "dune-project")
 
 ```arrow
 version_bump
+  >>> push(remote: origin, branch: main)
+  >>> wait_ci -- ci.yml MUST be green on the bump commit BEFORE tagging
   >>> tag(format: "vX.Y.Z")
   >>> push(remote: origin, tag: "vX.Y.Z")
-  >>> wait_ci -- wait for CI release workflow to complete
+  >>> wait_ci -- wait for release.yml to complete (creates the GitHub Release)
   >>> run(script: "scripts/release-macos-x86_64.sh") -- local Intel Mac upload
 ```
+
+Push the bump commit and confirm `ci.yml` is green **before** tagging — never tag-then-hope. If a pushed tag failed CI and produced no Release, it's safe to move it to the fixed commit (`git push origin :refs/tags/vX.Y.Z; git tag -d vX.Y.Z; git tag -a vX.Y.Z <sha>; git push origin vX.Y.Z`).
 
 ## Testing
 
