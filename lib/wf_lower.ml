@@ -28,13 +28,31 @@ let agent_spec_of_app (e : expr) (callee_name : string) (args : call_arg list) =
   { Wf_ir.label = callee_name; prompt = base ^ params_line;
     agent_type = !agent_type; out_hint; comment = None; phase = None }
 
-(* Lower a single expression to a wf_node (epistemic + structure added in later tasks). *)
-let rec lower_expr (e : expr) : Wf_ir.wf_node =
+(* Map an epistemic operator name to its IR node, or None if it's a plain agent. *)
+let rec epistemic_node (e : expr) (name : string) (args : call_arg list) : Wf_ir.wf_node option =
+  let spec () = agent_spec_of_app e name args in
+  match name with
+  | "merge"  -> Some (Wf_ir.Synthesize (spec ()))
+  | "check"  -> Some (Wf_ir.Verify { spec = spec (); skeptics = 3 })
+  | "leaf"   -> Some (Wf_ir.Agent { (spec ()) with phase = Some "Leaf" })
+  | "gather" -> Some (Wf_ir.Agent { (spec ()) with phase = Some "Gather" })
+  | "branch" -> Some (Wf_ir.Agent { (spec ()) with phase = Some "Branch" })
+  | _ -> None
+
+(* Lower a single expression to a wf_node. *)
+and lower_expr (e : expr) : Wf_ir.wf_node =
   match e.desc with
+  | Question inner ->
+    (match inner.desc with
+     | Var "check" ->
+       Wf_ir.Verify { spec = agent_spec_of_app inner "check" []; skeptics = 3 }
+     | App ({ desc = Var "check"; _ }, args) ->
+       Wf_ir.Verify { spec = agent_spec_of_app inner "check" args; skeptics = 3 }
+     | _ -> err e.loc.start "'?' is only supported on 'check' by --emit workflow (v1)")
   | Var name ->
-    Wf_ir.Agent (agent_spec_of_app e name [])
+    (match epistemic_node e name [] with Some n -> n | None -> Wf_ir.Agent (agent_spec_of_app e name []))
   | App ({ desc = Var name; _ }, args) ->
-    Wf_ir.Agent (agent_spec_of_app e name args)
+    (match epistemic_node e name args with Some n -> n | None -> Wf_ir.Agent (agent_spec_of_app e name args))
   | Group inner -> lower_expr inner
   | Seq _ -> Wf_ir.Seq (flatten_seq e)
   | Par _ | Fanout _ -> Wf_ir.Parallel (flatten_par e)
@@ -54,6 +72,12 @@ and flatten_par (e : expr) : Wf_ir.wf_node list =
   | Group inner -> flatten_par inner
   | _ -> [lower_expr e]
 
+(* Reject Verify/Synthesize at root position (they need an upstream result). *)
+let reject_root_verify_synth pos = function
+  | Wf_ir.Verify _ | Wf_ir.Synthesize _ ->
+    err pos "check/merge needs an upstream result to verify/fuse"
+  | _ -> ()
+
 (* Optional args added now (even though comments/header/description are wired in
    Task 11/13), so later tasks never change this signature and break earlier callers. *)
 let lower ?(comments = []) ?(header = []) ?description ~name (prog : Ast.program) : Wf_ir.t =
@@ -64,5 +88,10 @@ let lower ?(comments = []) ?(header = []) ?description ~name (prog : Ast.program
     | _ -> err (List.hd prog).loc.start
                "multi-statement programs not supported by --emit workflow (v1)"
   in
+  (* Reject check/merge at root position — they have no upstream. *)
+  let first_pos = (List.hd prog).loc.start in
+  (match root with
+   | Wf_ir.Seq (first :: _) -> reject_root_verify_synth first_pos first
+   | other -> reject_root_verify_synth first_pos other);
   let description = match description with Some d -> d | None -> "Generated from " ^ name in
   { name; description; header; root }

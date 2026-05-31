@@ -54,6 +54,39 @@ let test_par_flattened () =
   | Wf_ir.Parallel [Agent _; Agent _; Agent _] -> ()
   | _ -> Alcotest.fail "*** → flat Parallel of 3"
 
+(* Task 6: epistemic operators *)
+
+let test_leaf_phase () =
+  match (lower "leaf").root with
+  | Wf_ir.Agent a -> Alcotest.(check (option string)) "phase" (Some "Leaf") a.phase
+  | _ -> Alcotest.fail "leaf → Agent with phase"
+
+let test_gather_phase () =
+  match (lower "gather").root with
+  | Wf_ir.Agent a -> Alcotest.(check (option string)) "phase" (Some "Gather") a.phase
+  | _ -> Alcotest.fail "gather → Agent with phase"
+
+let test_branch_phase () =
+  match (lower "branch").root with
+  | Wf_ir.Agent a -> Alcotest.(check (option string)) "phase" (Some "Branch") a.phase
+  | _ -> Alcotest.fail "branch → Agent with phase"
+
+let test_check_verify () =
+  match (lower "a >>> check?").root with
+  | Wf_ir.Seq [Agent _; Verify { skeptics = 3; _ }] -> ()
+  | _ -> Alcotest.fail "a >>> check? → …; Verify{3}"
+
+let test_merge_synth () =
+  match (lower "a >>> merge").root with
+  | Wf_ir.Seq [Agent _; Synthesize _] -> ()
+  | _ -> Alcotest.fail "a >>> merge → …; Synthesize"
+
+let test_root_check_rejected () =
+  Helpers.lower_fails lower "check?" "needs an upstream"
+
+let test_root_merge_rejected () =
+  Helpers.lower_fails lower "merge" "needs an upstream"
+
 let tests =
   [ Alcotest.test_case "bare node" `Quick test_bare_node
   ; Alcotest.test_case "named args" `Quick test_named_args
@@ -64,4 +97,12 @@ let tests =
   ; Alcotest.test_case "group transparent" `Quick test_group_transparent
   ; Alcotest.test_case "unit dropped in seq" `Quick test_unit_dropped_in_seq
   ; Alcotest.test_case "fanout to Parallel" `Quick test_fanout
-  ; Alcotest.test_case "par flattened to Parallel" `Quick test_par_flattened ]
+  ; Alcotest.test_case "par flattened to Parallel" `Quick test_par_flattened
+  (* Task 6 *)
+  ; Alcotest.test_case "leaf → Agent phase=Leaf" `Quick test_leaf_phase
+  ; Alcotest.test_case "gather → Agent phase=Gather" `Quick test_gather_phase
+  ; Alcotest.test_case "branch → Agent phase=Branch" `Quick test_branch_phase
+  ; Alcotest.test_case "a >>> check? → Verify{3}" `Quick test_check_verify
+  ; Alcotest.test_case "a >>> merge → Synthesize" `Quick test_merge_synth
+  ; Alcotest.test_case "root check? rejected" `Quick test_root_check_rejected
+  ; Alcotest.test_case "root merge rejected" `Quick test_root_merge_rejected ]
