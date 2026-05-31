@@ -111,12 +111,12 @@ let test_interactive_advisory () =
     (List.mem "ask_questions" (Wf_lower.interactive_idents t))
 
 (* Task 11: node-level comment attachment via Wf_context.comments_of_source.
-   Design finding: agent_spec_of_app uses `List.assoc_opt line comments` where
-   `line` is the node's start line.  A leading "--" comment sits on the line
-   BEFORE the node, so its line number never matches the node's line — it is
-   never attached.  The only case where exact-line match succeeds is an inline
-   trailing comment on the SAME line as the node (e.g. `deploy -- do the thing`).
-   This test exercises that successful-attachment path. *)
+   agent_spec_of_app attaches a comment whose line matches the node's start line
+   OR the immediately-preceding line (it looks up `line` then `line - 1`). So a
+   comment attaches in two cases: an inline trailing comment on the SAME line as
+   the node (e.g. `deploy -- do the thing`), and a leading "--" comment on the
+   line directly above the node. A gap of two or more lines does not attach.
+   This test exercises the inline (same-line) path. *)
 let test_node_comment_attachment_inline () =
   let src = "deploy -- do the thing" in
   let comments = Wf_context.comments_of_source src in
