@@ -24,15 +24,57 @@ Usage:
   cat <file> | ocaml-compose-dsl [options]
 
 Options:
-  -l, --literate  Extract and check ```arrow/```arr code blocks from Markdown
-  -h, --help      Show this help message
-  -v, --version   Show version
+  -l, --literate         Extract and check ```arrow/```arr code blocks from Markdown
+  --emit <target>        Emit output in the given format (valid: workflow)
+  -o, --output <file>    Write emitted output to <file> instead of stdout
+  -h, --help             Show this help message
+  -v, --version          Show version
 
 Reads from file argument or stdin.
 Exits 0 with AST output (constructor-style format) on valid input, 1 with error messages.|}
     Version.value
 
 let version_text = Printf.sprintf "ocaml-compose-dsl %s" Version.value
+
+(* Defined first — both the dangling-value guard and consumed_indices use it. *)
+let value_flags = ["--emit"; "-o"; "--output"]
+
+(* Returns the value after `flag`, or None. Scans only 1..len-2 so a trailing
+   flag (with nothing following it) returns None — the dangling-value guard
+   catches that case. *)
+let flag_value flag =
+  let v = ref None in
+  for i = 1 to Array.length Sys.argv - 2 do
+    if Sys.argv.(i) = flag then v := Some Sys.argv.(i + 1)
+  done;
+  !v
+
+let emit_target = flag_value "--emit"
+let output_path =
+  match flag_value "-o" with Some p -> Some p | None -> flag_value "--output"
+
+(* Reject a dangling value-flag (e.g. `--emit` with no following token): flag_value
+   only scans 1..len-2, so without this guard a trailing --emit would be silently
+   ignored and fall back to default AST printing. *)
+let () =
+  let n = Array.length Sys.argv in
+  if n >= 2 && List.mem Sys.argv.(n - 1) value_flags then begin
+    Printf.eprintf "missing value for %s\n" Sys.argv.(n - 1); exit 1
+  end
+
+(* Indices consumed by value-flag + value-token pairs: both the flag token at i
+   and its value token at i+1 are marked. first_positional_arg and
+   first_unknown_flag skip these indices so they are invisible to positional/
+   unknown detection. *)
+let consumed_indices =
+  let s = Hashtbl.create 8 in
+  for i = 1 to Array.length Sys.argv - 1 do
+    if List.mem Sys.argv.(i) value_flags && i + 1 < Array.length Sys.argv then begin
+      Hashtbl.replace s i ();       (* the flag itself *)
+      Hashtbl.replace s (i + 1) ()  (* its value token *)
+    end
+  done;
+  s
 
 let argv_has flag =
   let found = ref false in
@@ -46,11 +88,14 @@ let first_unknown_flag () =
   for i = 1 to Array.length Sys.argv - 1 do
     let a = Sys.argv.(i) in
     if !result = None
+       && not (Hashtbl.mem consumed_indices i)
        && String.length a > 0
        && a.[0] = '-'
        && a <> "--help" && a <> "-h"
        && a <> "--version" && a <> "-v"
        && a <> "--literate" && a <> "-l"
+       && a <> "--emit"
+       && a <> "-o" && a <> "--output"
     then result := Some a
   done;
   !result
@@ -59,7 +104,9 @@ let first_positional_arg () =
   let result = ref None in
   for i = 1 to Array.length Sys.argv - 1 do
     let a = Sys.argv.(i) in
-    if !result = None && (String.length a = 0 || a.[0] <> '-') then
+    if !result = None
+       && not (Hashtbl.mem consumed_indices i)
+       && (String.length a = 0 || a.[0] <> '-') then
       result := Some a
   done;
   !result
@@ -112,6 +159,38 @@ let () =
         (fun (w : Compose_dsl.Checker.warning) ->
           Printf.eprintf "warning at %d:%d: %s\n" (tl w.loc.start.line) w.loc.start.col w.message)
         result.warnings;
-      let output = Compose_dsl.Printer.program_to_string prog in
-      if output <> "" then print_endline output;
+      (match emit_target with
+       | None ->
+         let output = Compose_dsl.Printer.program_to_string prog in
+         if output <> "" then print_endline output
+       | Some "workflow" ->
+         let module C = Compose_dsl.Wf_context in
+         (* Node comments come from the Arrow source (`source`); the file header/description
+            come from -- comments (standard mode) or the surrounding Markdown prose (literate
+            mode — `input` is the ORIGINAL text, before combine() discarded the prose). *)
+         let comments = C.comments_of_source source in
+         let header, description =
+           if literate then
+             let prose = C.markdown_prose input in
+             prose, (match prose with d :: _ -> Some d | [] -> None)
+           else
+             C.leading_block comments,
+             Some (C.derive_description (List.map snd comments)
+                     ~fallback:("Generated from " ^ C.derive_name ~path:(first_positional_arg ())))
+         in
+         (match Compose_dsl.Wf_lower.lower
+                  ~name:(C.derive_name ~path:(first_positional_arg ()))
+                  ~comments ~header ?description prog with
+          | exception Compose_dsl.Wf_ir.Emit_error (pos, msg) ->
+            Printf.eprintf "emit error at %d:%d: %s\n" (tl pos.line) pos.col msg; exit 1
+          | ir ->
+            List.iter (fun id -> Printf.eprintf
+              "warning: '%s' implies user interaction; workflows run autonomously and do not pause\n" id)
+              (Compose_dsl.Wf_lower.interactive_idents ir);
+            let js = Compose_dsl.Wf_emit.to_string ir in
+            (match output_path with
+             | Some p -> let oc = open_out p in output_string oc js; close_out oc
+             | None -> print_string js))
+       | Some other ->
+         Printf.eprintf "unknown --emit target: %s (valid: workflow)\n" other; exit 1);
       exit 0

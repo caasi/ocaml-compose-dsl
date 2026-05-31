@@ -106,10 +106,26 @@ let test_integration_multi_statement () =
   assert (Helpers.contains output "Var(\"a\")");
   assert (Helpers.contains output "Seq")
 
+(* End-to-end lower+emit: verify brainstorming.arr content produces a workflow
+   script containing export const meta. *)
+let test_emit_workflow_brainstorming () =
+  (* Use the same pipeline structure as examples/brainstorming.arr but without
+     the leading comment, so it parses as a single statement. *)
+  let input = {|(read_files(glob: "lib/**/*.ml")
+  *** git_log(n: "20")
+  *** read_docs(path: "CLAUDE.md"))
+  >>> summarize
+  >>> write_spec|} in
+  let prog = Reducer.reduce_program (Parse_errors.parse input) in
+  let ir = Wf_lower.lower ~name:"brainstorming" prog in
+  let js = Wf_emit.to_string ir in
+  Alcotest.(check bool) "meta present" true (Helpers.contains js "export const meta")
+
 let tests =
   [ "let and check", `Quick, test_integration_let_and_check
   ; "backward compat", `Quick, test_integration_backward_compat
   ; "multi statement", `Quick, test_integration_multi_statement
+  ; "emit workflow brainstorming", `Quick, test_emit_workflow_brainstorming
   ]
 
 let mixed_arg_tests =
