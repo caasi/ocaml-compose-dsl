@@ -113,15 +113,19 @@ let sanitize_comment_line s =
   done;
   Buffer.contents b
 
+(* Optional comment document: "// <sanitized text>\n" or empty. *)
+let comment_doc = function
+  | Some c -> str ("// " ^ sanitize_comment_line c) ^^ nl
+  | None -> PPrint.empty
+
 (* returns (document, var_name, shape). The var/shape feed the next node's prev. *)
 let rec emit_node ~prev (n : wf_node) : PPrint.document * string * shape =
   match n with
   | Agent a ->
     let var = fresh_var a.label in
-    let comment = match a.comment with Some c -> str ("// " ^ sanitize_comment_line c) ^^ nl | None -> PPrint.empty in
     (* phase is carried in opts (opts.phase), not a separate phase() statement *)
     let call = str (Printf.sprintf "const %s = await agent(%s, %s)" var (prompt_expr a ~prev) (opts a)) in
-    (comment ^^ call, var, Scalar)
+    (comment_doc a.comment ^^ call, var, Scalar)
   | Seq ns -> emit_seq ~prev ns
   | Parallel ns ->
     (* Each branch root receives the SAME prev (the parallel's input), per the B1 contract. *)
@@ -129,9 +133,7 @@ let rec emit_node ~prev (n : wf_node) : PPrint.document * string * shape =
       match n with
       | Agent a ->
         let thunk_doc = str (Printf.sprintf "() => agent(%s, %s)" (prompt_expr a ~prev) (opts a)) in
-        (match a.comment with
-         | Some c -> str ("// " ^ sanitize_comment_line c) ^^ nl ^^ thunk_doc
-         | None -> thunk_doc)
+        comment_doc a.comment ^^ thunk_doc
       | (Seq _ | Parallel _) ->
         (* A Seq/Parallel branch (e.g. (a >>> b) &&& c) hoists into an inline async IIFE thunk. *)
         let (d, last, _) = emit_node ~prev n in
@@ -156,7 +158,7 @@ let rec emit_node ~prev (n : wf_node) : PPrint.document * string * shape =
       | None -> p ^ hint (* unreachable: root merge rejected by Wf_lower *)) in
     let var = fresh_var a.label in
     let d = str (Printf.sprintf "const %s = await agent(`%s`, %s)" var body (opts a)) in
-    (d, var, Scalar)
+    (comment_doc a.comment ^^ d, var, Scalar)
   | Verify { spec; skeptics } ->
     let subj = match prev with
       | Some (v, Array)  -> Printf.sprintf "JSON.stringify(%s)" v
@@ -175,7 +177,7 @@ let rec emit_node ~prev (n : wf_node) : PPrint.document * string * shape =
         subj escaped_label));
       str ".filter(Boolean)";
       str (Printf.sprintf "const %s = %s.filter(v => !v.refuted).length >= Math.ceil(%d / 2)" passed var skeptics) ] in
-    (d, passed, Scalar)
+    (comment_doc spec.comment ^^ d, passed, Scalar)
 
 and emit_seq ~prev = function
   | [] -> (PPrint.empty, "undefined", Scalar)

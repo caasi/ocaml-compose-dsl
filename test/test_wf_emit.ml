@@ -199,6 +199,61 @@ let test_synth_no_out_hint_when_no_ann () =
   Alcotest.(check bool) "merge without ann: no Return a line" false
     (Helpers.contains out "Return a")
 
+(* Fix (Copilot): Synthesize (merge) emits node comment like Agent.
+   Build the IR directly to set comment = Some "fuse them" on the Synthesize agent_spec.
+   The emitted output must contain "// fuse them" before the merge agent( call.
+   NOTE: Synthesize uses backtick template literals, so the merge call contains
+   "merge" in its var name.  We check ordering by string position (same approach
+   as the out_hint ordering tests above). *)
+let test_synth_comment_emitted () =
+  let t : Wf_ir.t = {
+    name = "t"; description = "t"; header = [];
+    root = Wf_ir.Seq [
+      Wf_ir.Agent { label = "input"; prompt = "input"; agent_type = None;
+                    out_hint = None; comment = None; phase = None };
+      Wf_ir.Synthesize { label = "merge"; prompt = "merge"; agent_type = None;
+                         out_hint = None; comment = Some "fuse them"; phase = None };
+    ]
+  } in
+  let out = Wf_emit.to_string t in
+  Alcotest.(check bool) "synthesize comment emitted" true
+    (Helpers.contains out "// fuse them");
+  (* Comment must appear before the merge var's const declaration.
+     fresh_var "merge" produces "merge_N" so we search for "const merge_". *)
+  let comment_pos = index_of out "// fuse them" in
+  let merge_pos   = index_of out "const merge_" in
+  Alcotest.(check bool) "comment pos found"   true (comment_pos >= 0);
+  Alcotest.(check bool) "merge const found"   true (merge_pos   >= 0);
+  Alcotest.(check bool) "comment before merge agent call" true (comment_pos < merge_pos)
+
+(* Fix (Copilot): Verify (check) emits node comment like Agent.
+   Build the IR directly to set spec.comment = Some "double-check" on the Verify node.
+   The emitted output must contain "// double-check" before the verify parallel block.
+   The Verify emitter produces "const verdicts_N = (await parallel(…" — we search for
+   "const verdicts_" and use position-based ordering (same approach as out_hint tests). *)
+let test_verify_comment_emitted () =
+  let t : Wf_ir.t = {
+    name = "t"; description = "t"; header = [];
+    root = Wf_ir.Seq [
+      Wf_ir.Agent { label = "input"; prompt = "input"; agent_type = None;
+                    out_hint = None; comment = None; phase = None };
+      Wf_ir.Verify {
+        spec = { label = "check"; prompt = "check"; agent_type = None;
+                 out_hint = None; comment = Some "double-check"; phase = None };
+        skeptics = 3
+      };
+    ]
+  } in
+  let out = Wf_emit.to_string t in
+  Alcotest.(check bool) "verify comment emitted" true
+    (Helpers.contains out "// double-check");
+  (* Comment must appear before the verdicts const — check by string position *)
+  let comment_pos  = index_of out "// double-check" in
+  let verdicts_pos = index_of out "const verdicts" in
+  Alcotest.(check bool) "comment pos found"    true (comment_pos  >= 0);
+  Alcotest.(check bool) "verdicts const found" true (verdicts_pos >= 0);
+  Alcotest.(check bool) "comment before verify block" true (comment_pos < verdicts_pos)
+
 let tests =
   [ Alcotest.test_case "meta present" `Quick test_meta_present
   ; Alcotest.test_case "root omits input" `Quick test_root_no_input
@@ -218,4 +273,6 @@ let tests =
   ; Alcotest.test_case "parallel branch comment emitted" `Quick test_parallel_branch_comment_emitted
   ; Alcotest.test_case "synthesize out_hint emits Return-a (array prev)" `Quick test_synth_out_hint_present
   ; Alcotest.test_case "synthesize out_hint emits Return-a (scalar prev)" `Quick test_synth_out_hint_scalar_prev
-  ; Alcotest.test_case "synthesize without ann: no Return a line" `Quick test_synth_no_out_hint_when_no_ann ]
+  ; Alcotest.test_case "synthesize without ann: no Return a line" `Quick test_synth_no_out_hint_when_no_ann
+  ; Alcotest.test_case "synthesize comment emitted (Copilot fix)" `Quick test_synth_comment_emitted
+  ; Alcotest.test_case "verify comment emitted (Copilot fix)" `Quick test_verify_comment_emitted ]
