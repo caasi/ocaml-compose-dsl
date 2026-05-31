@@ -301,7 +301,7 @@ context from a **different channel**, never from the AST:
 
 Mapping:
 
-- **File header** → top-of-file `/* … */` banner: the leading `--` comment block
+- **File header** → top-of-file `//` per-line comments: the leading `--` comment block
   (standard mode), or the Markdown prose around the `arrow` blocks (literate
   mode).
 - **Node comment** → a `--` comment on or adjacent to a node's source line,

@@ -39,9 +39,12 @@ Parse_errors :: String -> Program;   -- Menhir incremental API; drives Lexer int
 Reducer :: Program -> Program;       -- desugar let, beta reduce lambda
 Checker :: Program -> Result;        -- structural validation and warnings
 Markdown :: Markdown -> String;      -- literate mode: extract arrow blocks
+Wf_lower :: Program -> Wf_ir;        -- lower checked AST to Workflow IR
+Wf_emit :: Wf_ir -> String;          -- emit CC workflow JS (PPrint-based)
 
-Parse_errors >>> Reducer >>> Checker;            -- standard mode
-Markdown >>> Parse_errors >>> Reducer >>> Checker -- literate mode
+Parse_errors >>> Reducer >>> Checker;                         -- standard mode
+Markdown >>> Parse_errors >>> Reducer >>> Checker;            -- literate mode
+Parse_errors >>> Reducer >>> Checker >>> Wf_lower >>> Wf_emit -- --emit workflow
 ```
 
 - `Ast` — ADT for DSL expressions: Var (variable reference, bound or free), StringLit (string literal as expression), Unit (`()`), Seq (`>>>`), Par (`***`), Fanout (`&&&`), Alt (`|||`), Loop, Group, Question (`?`), Lambda (`\x -> body`), App (unified application with `call_arg list` — mixed named/positional), Let (`let x = expr in body`). Lambda and Let are reduced away by the Reducer. Free Var and App with free Var callee survive reduction. Values: String, Ident, Number (with optional unit suffix, e.g. `100mg`), List. Question takes an `expr` directly (parser allows Var, StringLit, App, or Unit). Expressions carry optional `type_ann` (`:: type_name -> type_name` where `type_name` is an ident or `()`) for documentation.
@@ -52,6 +55,10 @@ Markdown >>> Parse_errors >>> Reducer >>> Checker -- literate mode
 - `Checker` — structural validation and well-formedness warnings. Returns `{ warnings }`. Warnings: `?` without matching `|||`; epistemic pairing: `branch` without `merge`, `leaf` without `check` (suggestion). Uses `normalize` (graph reduction) to strip `Group` wrappers before balance checking. Independently checks each Positional arg sub-expression in `App`. `collect_ident_names` deliberately uses list concatenation (`@`) instead of `StringSet` for simplicity — DSL pipelines are small; convert to `StringSet` only if profiling shows a bottleneck.
 - `Printer` — AST to constructor-style format string (for agent verification). Type annotations are wrapped as `TypeAnn(expr, "input", "output")`.
 - `Markdown` — literate mode support. `extract` scans Markdown for `` ```arrow ``/`` ```arr `` fenced code blocks (handles CRLF line endings). `combine` concatenates extracted blocks into a single source string with an offset table mapping combined line numbers to original Markdown line numbers. `translate_line` converts a combined-source line number back to the original Markdown position. Used by the CLI when `--literate` is passed.
+- `Wf_ir` — Workflow IR type (`agent_spec`, `wf_node`, `t`) and the `Emit_error of Ast.pos * string` exception raised by the lowering pass on unsupported constructs. Shape tracking (`Scalar | Array`) lives here too.
+- `Wf_lower` — `Ast.program -> Wf_ir.t`. Maps named nodes to `Agent`, `>>>` to `Seq`, `***`/`&&&` to `Parallel`, `merge` to `Synthesize`, `check`/`check?` to `Verify`; rejects unsupported constructs with `Emit_error`. Also exposes `interactive_idents : Wf_ir.t -> string list` (advisory stderr warnings in the CLI).
+- `Wf_emit` — `Wf_ir.t -> string`. PPrint-based JavaScript pretty-printer. Threads `prev : (string * shape) option` through nodes; handles escaping via `js_string` / `js_template_body`. Resets its fresh-variable counter at the top of `to_string` for deterministic output.
+- `Wf_context` — comment and prose recovery for the emitter. `comments_of_source` extracts `(line, text)` pairs from a source string via `Lexer.tokenize`; `leading_block` collects the leading comment banner; `markdown_prose` extracts prose before the first `arrow` fence; `derive_description` / `derive_name` produce `meta.description` and `meta.name`.
 
 ## CLI Usage
 
@@ -62,6 +69,18 @@ echo 'a >>> b' | dune exec ocaml-compose-dsl
 dune exec ocaml-compose-dsl -- pipeline.arr
 dune exec ocaml-compose-dsl -- --literate README.md
 ```
+
+The `--emit workflow` flag transpiles a checked pipeline to a Claude Code
+dynamic-workflow JavaScript script (see README for the full mapping):
+
+```
+dune exec ocaml-compose-dsl -- --emit workflow pipeline.arr
+dune exec ocaml-compose-dsl -- --emit workflow pipeline.arr -o pipeline.js
+dune exec ocaml-compose-dsl -- --literate --emit workflow README.md -o wf.js
+```
+
+`-o` / `--output` write the emitted script to a file instead of stdout.
+`--emit <unknown>` exits 1 with a list of valid targets.
 
 ## After Any Implementation Change
 
@@ -130,4 +149,14 @@ version_bump
 - **De Bruijn index IR** — replace the current alpha-renaming approach in the reducer with a de Bruijn index intermediate representation. Convert named AST to de Bruijn IR before reduction, perform substitution via index shifting (structurally capture-avoiding), then convert back to named AST. Eliminates the per-`reduce`-call `fresh_name` counter and makes substitution correctness a structural property rather than an algorithmic one. See: "Lambda Calculus and Combinators" (Hindley & Seldin), locally nameless representation as a lighter alternative.
 - **`let ... in` as expression form** — `let ... in` inside parenthesized groups is already supported (parsed by the `stmt` non-terminal in `parser.mly`). The remaining work is lifting it into `seq_expr` directly so it can appear in any expression position (e.g., as a `seq_expr` operand, inside function arguments) without requiring parentheses, similar to OCaml/Haskell. Deferred as YAGNI until a concrete use case arises.
 - **Cost annotation and critical path analysis** — nodes already support unit-suffixed numbers (`3s`, `500ms`) as arg values, so `cost:` / `weight:` args need zero grammar changes. The AST is a free arrow — cost propagation maps naturally: `Seq` = sum, `Par`/`Fanout` = max, `Alt` = max or weighted average, `Loop` = cost × iterations. Enables PERT/CPM-style critical path identification, bottleneck detection in parallel branches, and cost-aware optimization (don't apply Arrow law rewrites that increase latency). See: Airflow `priority_weight`, Halide auto-scheduler, free arrows for static analysis (Fancher 2017), Granule graded modal types.
+- **`|||` alternation lowering** (`--emit workflow`) — needs a chosen runtime semantics for the emitted CC workflow (fallback vs vote vs race). Rejected with `Emit_error` in v1.
+- **`loop` lowering** (`--emit workflow`) — needs a bound/termination model (ties into the cost-annotation Future Idea and λ-RLM's closed-form cost bounds). Rejected with `Emit_error` in v1.
+- **Author-supplied `schema:` and real JSON Schema generation** (`--emit workflow`) — v1 folds `schema:` into the prompt like any other unmatched arg (DSL values are `String`/`Ident`/`Number`/`List`, not the structured object `opts.schema` needs; passthrough would be type-incoherent and a JS-injection risk). Supporting it requires either DSL object-literal syntax or a registry of `Ident`-named shipped schema consts.
+- **js_of_ocaml distribution** — compile the whole DSL toolchain to JS so the parser/checker/emitter runs in a browser or as an npm package. Orthogonal to the emitter spec.
+- **Configurable skeptic count** for `check` — hardcoded to 3 in v1. A `check(n: 5)` or global `--skeptics N` flag could expose this.
+- **`check` / `merge` inside `***` / `&&&` hoisting** — hoist the multi-statement `Verify` / `Synthesize` expansion into a named async helper so it can be used as a `parallel` thunk. Rejected with `Emit_error` in v1 because they expand to multi-statement blocks that cannot be `() => …` thunks.
+- **Phase body-grouping** (`--emit workflow`) — v1 tags each epistemic node with `opts.phase`; a richer model could group following siblings into a phase body (`branch … merge` as one phase region), matching the CC workflow `phase()` statement grouping pattern.
+- **Full positional comment interleaving** (`--emit workflow`) — v1 attaches comments at the file header and per-node level only; a future version could interleave comments at every source position, preserving prose annotations between all nodes.
+- **Multi-statement programs** (`--emit workflow`) — a program with `;`-separated statements (e.g. `checker.arr`) is rejected in v1; the emitter handles a single top-level pipeline. A multi-statement program could map to several phases or several workflows.
+- **`check` arguments** (`--emit workflow`) — v1's `Verify` uses a fixed skeptic instruction and ignores `check(prompt: …)` / other args on the `check` node. A future version could let them shape the skeptic prompt.
 

@@ -63,3 +63,10 @@ let reduce_fails input =
   match reduce_ok input with
   | _ -> Alcotest.fail "expected reduce error"
   | exception Reducer.Reduce_error _ -> ()
+
+let lower_fails lower input substr =
+  match lower input with
+  | exception Wf_ir.Emit_error (_, msg) ->
+    Alcotest.(check bool) (Printf.sprintf "Emit_error contains %S" substr)
+      true (contains msg substr)
+  | _ -> Alcotest.fail "expected Emit_error"

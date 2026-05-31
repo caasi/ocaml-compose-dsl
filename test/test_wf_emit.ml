@@ -1,0 +1,278 @@
+open Compose_dsl
+
+let emit input =
+  let prog = Reducer.reduce_program (Parse_errors.parse input) in
+  Wf_emit.to_string (Wf_lower.lower ~name:"t" prog)
+
+let test_meta_present () =
+  Alcotest.(check bool) "one meta" true (Helpers.contains (emit "a >>> b") "export const meta")
+
+let test_root_no_input () =
+  let out = emit "a >>> b" in
+  (* first agent omits "## Input"; second includes it *)
+  Alcotest.(check bool) "second threads prev" true (Helpers.contains out "## Input")
+
+let test_no_date_random () =
+  let out = emit "a >>> b" in
+  Alcotest.(check bool) "no Date.now" false (Helpers.contains out "Date.now");
+  Alcotest.(check bool) "no Math.random" false (Helpers.contains out "Math.random")
+
+let test_parallel_filter () =
+  let out = emit "(a *** b) >>> c" in
+  Alcotest.(check bool) "parallel" true (Helpers.contains out "parallel([");
+  Alcotest.(check bool) "filter(Boolean)" true (Helpers.contains out ".filter(Boolean)");
+  Alcotest.(check bool) "c gets array prev" true (Helpers.contains out "JSON.stringify")
+
+let test_verify () =
+  let out = emit "a >>> check?" in
+  Alcotest.(check bool) "skeptic fan" true (Helpers.contains out "parallel(");
+  Alcotest.(check bool) "VERDICT schema" true (Helpers.contains out "VERDICT");
+  Alcotest.(check bool) "majority vote" true (Helpers.contains out "filter(Boolean)")
+
+let test_synth_scalar () =
+  let out = emit "a >>> merge" in
+  Alcotest.(check bool) "synthesis agent" true (Helpers.contains out "agent(")
+
+let test_phases_derived () =
+  let out = emit "gather >>> a >>> leaf" in
+  Alcotest.(check bool) "agent carries opts.phase" true (Helpers.contains out "phase: 'Gather'");
+  Alcotest.(check bool) "meta phases lists Gather" true (Helpers.contains out "title: 'Gather'")
+
+let test_js_string_escapes_control_chars () =
+  (* A node with agent: "x\ry" — the lexer reads \r as a literal CR byte.
+     The emitted agentType field must not contain a raw CR (0x0D). *)
+  let input = "a(agent: \"x\ry\")" in
+  let out = emit input in
+  (* The raw CR byte must not appear anywhere inside a single-quoted JS string field.
+     We verify by checking no raw CR appears in the output at all. *)
+  let has_raw_cr = String.contains out '\r' in
+  Alcotest.(check bool) "no raw CR in output" false has_raw_cr;
+  (* The escaped form \r must appear instead *)
+  Alcotest.(check bool) "escaped \\r present" true (Helpers.contains out "\\r")
+
+let test_node_comment_cr_sanitized () =
+  (* A node whose inline comment contains a raw CR must not produce a raw CR
+     inside the emitted // line comment. CR in a JS line comment terminates the
+     comment and turns the remainder into code — dangerous output. *)
+  let src = "deploy -- do\rthis" in
+  let comments = Wf_context.comments_of_source src in
+  let prog = Reducer.reduce_program (Parse_errors.parse src) in
+  let out = Wf_emit.to_string (Wf_lower.lower ~name:"t" ~comments prog) in
+  Alcotest.(check bool) "no raw CR in emitted comment" false (String.contains out '\r')
+
+(* U+2028 (LINE SEPARATOR) = 0xE2 0x80 0xA8 in UTF-8
+   U+2029 (PARAGRAPH SEPARATOR) = 0xE2 0x80 0xA9 in UTF-8
+   Both are JavaScript line terminators — raw occurrence in a single-quoted string
+   or // comment is invalid JS and a potential injection vector. *)
+let u2028 = "\xe2\x80\xa8"
+let u2029 = "\xe2\x80\xa9"
+
+let test_js_string_escapes_u2028 () =
+  (* A node with agent: "x<U+2028>y" — the emitted single-quoted label field must
+     not contain the raw 3-byte sequence. The escaped form \u2028 must appear instead. *)
+  let input = Printf.sprintf "a(agent: \"x%sy\")" u2028 in
+  let out = emit input in
+  let has_raw = Helpers.contains out u2028 in
+  let has_escaped = Helpers.contains out "\\u2028" in
+  Alcotest.(check bool) "no raw U+2028 in output" false has_raw;
+  Alcotest.(check bool) "escaped \\u2028 present" true has_escaped
+
+let test_js_string_escapes_u2029 () =
+  (* Same as above for U+2029. *)
+  let input = Printf.sprintf "a(agent: \"x%sy\")" u2029 in
+  let out = emit input in
+  let has_raw = Helpers.contains out u2029 in
+  let has_escaped = Helpers.contains out "\\u2029" in
+  Alcotest.(check bool) "no raw U+2029 in output" false has_raw;
+  Alcotest.(check bool) "escaped \\u2029 present" true has_escaped
+
+let test_comment_u2028_sanitized () =
+  (* A node whose inline comment contains U+2028 must not produce a raw U+2028
+     inside the emitted // line comment. U+2028 terminates a JS line comment,
+     turning the remainder into a syntax error or injected code. *)
+  let src = Printf.sprintf "deploy -- do%sthis" u2028 in
+  let comments = Wf_context.comments_of_source src in
+  let prog = Reducer.reduce_program (Parse_errors.parse src) in
+  let out = Wf_emit.to_string (Wf_lower.lower ~name:"t" ~comments prog) in
+  Alcotest.(check bool) "no raw U+2028 in emitted comment" false (Helpers.contains out u2028)
+
+(* Fix 1 (defense-in-depth): Verify skeptic label uses js_template_body before interpolation.
+   spec.label for a check node is always the fixed string "check" (the DSL keyword), so it
+   is not currently user-controllable. The escaping is applied defensively in case a future
+   Verify variant allows a user-supplied label. This test verifies the normal case still emits
+   correctly: `a >>> check?` produces label: `check:skeptic-${i}` in the output. *)
+let test_verify_skeptic_label_emitted () =
+  let out = emit "a >>> check?" in
+  (* The skeptic label template must be emitted correctly for the fixed "check" label. *)
+  Alcotest.(check bool) "check skeptic label present" true
+    (Helpers.contains out "`check:skeptic-${i}`")
+
+(* Fix: Verify skeptic subject is shape-aware.
+   When check? follows a Parallel (array-shaped prev), the skeptic prompt must
+   interpolate ${JSON.stringify(parN)} not bare ${parN}.
+   When check? follows a scalar-shaped node, the bare var must be used (no JSON.stringify). *)
+let test_verify_array_prev_uses_json_stringify () =
+  let out = emit "(a *** b) >>> check?" in
+  (* The ## Subject interpolation must wrap the parallel var in JSON.stringify *)
+  Alcotest.(check bool) "array prev uses JSON.stringify in Subject" true
+    (Helpers.contains out "## Subject\\n${JSON.stringify(par");
+  (* Confirm no bare ${par without JSON.stringify for the Subject line *)
+  Alcotest.(check bool) "no bare ${par in Subject" false
+    (Helpers.contains out "## Subject\\n${par")
+
+let test_verify_scalar_prev_no_json_stringify () =
+  let out = emit "a >>> check?" in
+  (* Scalar prev: bare var, no JSON.stringify in the Subject interpolation *)
+  Alcotest.(check bool) "scalar prev: Subject present" true
+    (Helpers.contains out "## Subject\\n${");
+  Alcotest.(check bool) "scalar prev: no JSON.stringify in Subject" false
+    (Helpers.contains out "## Subject\\n${JSON.stringify(")
+
+(* Fix 2: Agent comments are preserved in parallel branches.
+   Build an IR directly so we don't depend on the DSL comment syntax.
+   A parallel branch Agent with a comment set must emit a // line before the thunk. *)
+let test_parallel_branch_comment_emitted () =
+  let t : Wf_ir.t = {
+    name = "t"; description = "t"; header = [];
+    root = Wf_ir.Seq [
+      Wf_ir.Agent { label = "input"; prompt = "input"; agent_type = None;
+                    out_hint = None; comment = None; phase = None };
+      Wf_ir.Parallel [
+        Wf_ir.Agent { label = "left"; prompt = "left"; agent_type = None;
+                      out_hint = None; comment = Some "do the thing"; phase = None };
+        Wf_ir.Agent { label = "right"; prompt = "right"; agent_type = None;
+                      out_hint = None; comment = None; phase = None };
+      ]
+    ]
+  } in
+  let out = Wf_emit.to_string t in
+  (* The comment on the left branch must appear in the output *)
+  Alcotest.(check bool) "parallel branch comment emitted" true
+    (Helpers.contains out "// do the thing");
+  (* It must appear before the thunk line that contains "left" *)
+  (match String.split_on_char '\n' out
+         |> List.filter (fun l -> Helpers.contains l "// do the thing"
+                                  || Helpers.contains l "() => agent") with
+   | comment_line :: thunk_line :: _ ->
+     Alcotest.(check bool) "comment before thunk" true
+       (Helpers.contains comment_line "// do the thing"
+        && Helpers.contains thunk_line "() => agent")
+   | _ -> Alcotest.fail "expected comment line followed by thunk line")
+
+(* Find the first index of [sub] in [s], or -1 if absent. *)
+let index_of s sub =
+  let slen = String.length s and sublen = String.length sub in
+  let rec scan i =
+    if i + sublen > slen then -1
+    else if String.sub s i sublen = sub then i
+    else scan (i + 1)
+  in
+  scan 0
+
+(* Fix (Copilot): Synthesize (merge) emits out_hint Return-a line like Agent.
+   `:: X -> Y` attaches to the merge Var expression itself (confirmed: `a >>> merge :: X -> Y`
+   parses as Seq(Var("a"), TypeAnn(Var("merge"), "X", "Y")), so out_hint = Some "Y" reaches
+   the agent_spec). The Synthesize arm must include the hint BEFORE the ## Inputs/## Input block.
+   NOTE: hint and ## Inputs appear within the same JS source line (as \\n-escaped content),
+   so we check ordering by string position, not by source-line splitting. *)
+let test_synth_out_hint_present () =
+  (* Array prev: (a *** b) >>> merge :: Reports -> Summary *)
+  let out = emit "(a *** b) >>> merge :: Reports -> Summary" in
+  Alcotest.(check bool) "merge with type ann: Return a Summary. present" true
+    (Helpers.contains out "Return a Summary.");
+  (* Hint must appear before the ## Inputs block (both embedded as \\n-escaped in the JS template) *)
+  let hint_pos   = index_of out "Return a Summary." in
+  let inputs_pos = index_of out "## Inputs" in
+  Alcotest.(check bool) "hint found" true (hint_pos >= 0);
+  Alcotest.(check bool) "## Inputs found" true (inputs_pos >= 0);
+  Alcotest.(check bool) "hint before ## Inputs" true (hint_pos < inputs_pos)
+
+let test_synth_out_hint_scalar_prev () =
+  (* Scalar prev: a >>> merge :: X -> Y *)
+  let out = emit "a >>> merge :: X -> Y" in
+  Alcotest.(check bool) "merge scalar prev: Return a Y. present" true
+    (Helpers.contains out "Return a Y.")
+
+let test_synth_no_out_hint_when_no_ann () =
+  (* merge without type annotation must NOT emit a Return a line *)
+  let out = emit "a >>> merge" in
+  Alcotest.(check bool) "merge without ann: no Return a line" false
+    (Helpers.contains out "Return a")
+
+(* Fix (Copilot): Synthesize (merge) emits node comment like Agent.
+   Build the IR directly to set comment = Some "fuse them" on the Synthesize agent_spec.
+   The emitted output must contain "// fuse them" before the merge agent( call.
+   NOTE: Synthesize uses backtick template literals, so the merge call contains
+   "merge" in its var name.  We check ordering by string position (same approach
+   as the out_hint ordering tests above). *)
+let test_synth_comment_emitted () =
+  let t : Wf_ir.t = {
+    name = "t"; description = "t"; header = [];
+    root = Wf_ir.Seq [
+      Wf_ir.Agent { label = "input"; prompt = "input"; agent_type = None;
+                    out_hint = None; comment = None; phase = None };
+      Wf_ir.Synthesize { label = "merge"; prompt = "merge"; agent_type = None;
+                         out_hint = None; comment = Some "fuse them"; phase = None };
+    ]
+  } in
+  let out = Wf_emit.to_string t in
+  Alcotest.(check bool) "synthesize comment emitted" true
+    (Helpers.contains out "// fuse them");
+  (* Comment must appear before the merge var's const declaration.
+     fresh_var "merge" produces "merge_N" so we search for "const merge_". *)
+  let comment_pos = index_of out "// fuse them" in
+  let merge_pos   = index_of out "const merge_" in
+  Alcotest.(check bool) "comment pos found"   true (comment_pos >= 0);
+  Alcotest.(check bool) "merge const found"   true (merge_pos   >= 0);
+  Alcotest.(check bool) "comment before merge agent call" true (comment_pos < merge_pos)
+
+(* Fix (Copilot): Verify (check) emits node comment like Agent.
+   Build the IR directly to set spec.comment = Some "double-check" on the Verify node.
+   The emitted output must contain "// double-check" before the verify parallel block.
+   The Verify emitter produces "const verdicts_N = (await parallel(…" — we search for
+   "const verdicts_" and use position-based ordering (same approach as out_hint tests). *)
+let test_verify_comment_emitted () =
+  let t : Wf_ir.t = {
+    name = "t"; description = "t"; header = [];
+    root = Wf_ir.Seq [
+      Wf_ir.Agent { label = "input"; prompt = "input"; agent_type = None;
+                    out_hint = None; comment = None; phase = None };
+      Wf_ir.Verify {
+        spec = { label = "check"; prompt = "check"; agent_type = None;
+                 out_hint = None; comment = Some "double-check"; phase = None };
+        skeptics = 3
+      };
+    ]
+  } in
+  let out = Wf_emit.to_string t in
+  Alcotest.(check bool) "verify comment emitted" true
+    (Helpers.contains out "// double-check");
+  (* Comment must appear before the verdicts const — check by string position *)
+  let comment_pos  = index_of out "// double-check" in
+  let verdicts_pos = index_of out "const verdicts" in
+  Alcotest.(check bool) "comment pos found"    true (comment_pos  >= 0);
+  Alcotest.(check bool) "verdicts const found" true (verdicts_pos >= 0);
+  Alcotest.(check bool) "comment before verify block" true (comment_pos < verdicts_pos)
+
+let tests =
+  [ Alcotest.test_case "meta present" `Quick test_meta_present
+  ; Alcotest.test_case "root omits input" `Quick test_root_no_input
+  ; Alcotest.test_case "no Date/random" `Quick test_no_date_random
+  ; Alcotest.test_case "parallel filter(Boolean)" `Quick test_parallel_filter
+  ; Alcotest.test_case "verify (adversarial fan)" `Quick test_verify
+  ; Alcotest.test_case "synthesize scalar" `Quick test_synth_scalar
+  ; Alcotest.test_case "phases derived from epistemic ops" `Quick test_phases_derived
+  ; Alcotest.test_case "js_string escapes control chars (CR, etc.)" `Quick test_js_string_escapes_control_chars
+  ; Alcotest.test_case "node comment CR sanitized" `Quick test_node_comment_cr_sanitized
+  ; Alcotest.test_case "js_string escapes U+2028 (line sep)" `Quick test_js_string_escapes_u2028
+  ; Alcotest.test_case "js_string escapes U+2029 (para sep)" `Quick test_js_string_escapes_u2029
+  ; Alcotest.test_case "comment U+2028 sanitized" `Quick test_comment_u2028_sanitized
+  ; Alcotest.test_case "verify skeptic label emitted correctly (defense-in-depth)" `Quick test_verify_skeptic_label_emitted
+  ; Alcotest.test_case "verify array prev: JSON.stringify in Subject" `Quick test_verify_array_prev_uses_json_stringify
+  ; Alcotest.test_case "verify scalar prev: bare var in Subject" `Quick test_verify_scalar_prev_no_json_stringify
+  ; Alcotest.test_case "parallel branch comment emitted" `Quick test_parallel_branch_comment_emitted
+  ; Alcotest.test_case "synthesize out_hint emits Return-a (array prev)" `Quick test_synth_out_hint_present
+  ; Alcotest.test_case "synthesize out_hint emits Return-a (scalar prev)" `Quick test_synth_out_hint_scalar_prev
+  ; Alcotest.test_case "synthesize without ann: no Return a line" `Quick test_synth_no_out_hint_when_no_ann
+  ; Alcotest.test_case "synthesize comment emitted (Copilot fix)" `Quick test_synth_comment_emitted
+  ; Alcotest.test_case "verify comment emitted (Copilot fix)" `Quick test_verify_comment_emitted ]

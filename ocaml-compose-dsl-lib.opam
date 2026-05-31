@@ -10,8 +10,9 @@ bug-reports: "https://github.com/caasi/ocaml-compose-dsl/issues"
 depends: [
   "ocaml" {>= "5.1"}
   "dune" {>= "3.0"}
-  "menhir"
+  "menhir" {>= "20180523"}
   "sedlex"
+  "pprint"
   "alcotest" {with-test}
   "qcheck-core" {with-test}
   "qcheck-alcotest" {with-test}

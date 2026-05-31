@@ -33,6 +33,7 @@
   dune
   menhir
   sedlex
+  pprint
   (alcotest :with-test)
   (qcheck-core :with-test)
   (qcheck-alcotest :with-test)))

@@ -268,6 +268,101 @@ making the workflow reviewable by both humans and agents.
 
 Convention: `.arr` for standalone DSL files. For literate documents, just use regular `.md` — the `arrow` code blocks speak for themselves.
 
+## Workflow Emitter (`--emit workflow`)
+
+The `--emit workflow` flag transpiles a checked Arrow pipeline into a
+[Claude Code dynamic-workflow](https://code.claude.com/docs/en/workflows)
+JavaScript script. OCaml never executes the script — it emits a `.js` file that
+Claude Code runs.
+
+```sh
+# Emit to stdout
+ocaml-compose-dsl --emit workflow pipeline.arr
+
+# Emit to a file
+ocaml-compose-dsl --emit workflow pipeline.arr -o pipeline.js
+
+# Combine with literate mode
+ocaml-compose-dsl --literate --emit workflow README.md -o workflow.js
+```
+
+The emit pass runs **only after a clean checker pass** (warnings are fine; parse
+or reduction errors abort before emitting).
+
+**Important:** Emitted files are **Claude Code workflow scripts**, not standalone
+JavaScript modules. They use `export const meta`, top-level `await`, and
+top-level `return` — a combination the workflow runtime wraps before evaluating.
+Running them with `node` directly will fail. No EBNF change: the emitter reuses
+the DSL's existing named-argument and type-annotation grammar.
+
+### Operator Mapping
+
+| DSL construct | IR node | Emitted JS |
+|---|---|---|
+| named node `n` / `n(named-args)` | `Agent` | `const n = await agent(prompt, { label: '…', agentType?: '…', phase?: '…' })` |
+| `a >>> b` | `Seq` | sequential `await` calls, threading `prev` as `## Input` |
+| `a &&& b` (fanout) | `Parallel` | `parallel([…]).filter(Boolean)` — same `prev` to every branch |
+| `a *** b` (parallel) | `Parallel` | `parallel([…]).filter(Boolean)` — shared `prev` (split-input simplified to shared) |
+| `leaf` / `gather` / `branch` | `Agent` with `phase` set | plain `agent()` call carrying `opts.phase: '…'` |
+| `merge` | `Synthesize` | barrier + synthesis agent fusing upstream `prev` array into one artifact |
+| `check` / `check?` | `Verify` (3 skeptics) | `parallel` fan of 3 adversarial skeptics over `prev`, majority vote |
+| `Group(e)` (parenthesized) | transparent | unwrapped; type annotation on group is dropped |
+| `()` `Unit` in a `Seq` | identity | dropped from the chain |
+
+### Data-Flow Convention
+
+The emitter is point-free, so it threads a `prev` binding through the pipeline:
+
+- The **program root** has no upstream (`prev = None`) and omits the `## Input`
+  section in its prompt.
+- Each **non-root node** receives `prev` interpolated into its prompt as
+  `` `…\n\n## Input\n${prev}` `` (scalar) or
+  `` `…\n\n## Input\n${JSON.stringify(prev)}` `` (array from a `Parallel`).
+- **`Parallel`** (`&&&` / `***`) produces a `.filter(Boolean)` array binding;
+  every branch receives the same `prev` as its branch input.
+- **`Synthesize`** (`merge`) fuses the array from an upstream `Parallel` with
+  `.map((r,i) => ...)`.
+- **`Verify`** (`check`) fans out 3 adversarial skeptics over `prev` and
+  threads forward a `passed` boolean (scalar), not the verdict array.
+
+### Context Preservation
+
+- **File header** — the leading `--` comment block (standard mode) or the
+  Markdown prose before the first `arrow` fence (literate mode) becomes a
+  top-of-file `//` comment in the emitted JS.
+- **Node comments** — a `--` comment on the same line as a node (inline) or on
+  the immediately preceding line is emitted as a `//` line above that node's
+  `agent()` call.
+- **`meta` derivation** — `name` = the input filename stem (e.g.
+  `brainstorming.arr` → `'brainstorming'`; stdin → `'workflow'`).
+  `description` = the first recovered comment / prose line; fallback
+  `'Generated from <file>'`.
+- **`meta.phases`** — the ordered, de-duplicated list of `phase` labels from
+  epistemic nodes (`gather`, `branch`, `leaf`). Default: `[{ title: 'Run' }]`.
+
+### Non-Interactivity Limitation
+
+Claude Code workflows run **autonomously** with no mid-run user input. DSL
+pipelines can describe interactive steps (`ask_questions`, `present_design`,
+etc.); a transpiled interactive pipeline will run but will not pause where the
+DSL implies a human.
+
+The emitter is honest about this: it prints an **advisory stderr warning** for
+nodes whose names match a documented interactive-ident set (`ask_questions`,
+`present_design`, `propose`, `review`, `ask`, `confirm`, `approve`, `feedback`).
+Emission still succeeds (exit 0).
+
+### Supported and Rejected Constructs
+
+**Supported:** `Var`, `App` with named args, `>>>`, `***`, `&&&`, `Group`,
+`Unit`, `gather`, `branch`, `leaf`, `merge`, `check` (incl. `check?`), type
+annotations.
+
+**Rejected with a clear error (never silently dropped):** `|||`, `loop`, `?` on
+any node other than `check`, positional sub-expression arguments
+(`map(check)`), a `***`/`&&&` branch whose subtree contains `check`/`merge`
+anywhere, root-position `check`/`merge`, empty program, multi-statement program.
+
 ## Install
 
 Pre-built binaries are available on the [Releases](https://github.com/caasi/ocaml-compose-dsl/releases) page for:
