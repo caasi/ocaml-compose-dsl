@@ -29,14 +29,23 @@ let agent_spec_of_app (e : expr) (callee_name : string) (args : call_arg list) =
     agent_type = !agent_type; out_hint; comment = None; phase = None }
 
 (* Lower a single expression to a wf_node (epistemic + structure added in later tasks). *)
-let lower_expr (e : expr) : Wf_ir.wf_node =
+let rec lower_expr (e : expr) : Wf_ir.wf_node =
   match e.desc with
   | Var name ->
     Wf_ir.Agent (agent_spec_of_app e name [])
   | App ({ desc = Var name; _ }, args) ->
     Wf_ir.Agent (agent_spec_of_app e name args)
+  | Group inner -> lower_expr inner
+  | Seq _ -> Wf_ir.Seq (flatten_seq e)
   | Unit -> err e.loc.start "empty pipeline: nothing to emit"
   | _ -> err e.loc.start "unsupported construct (todo: later tasks)"
+
+and flatten_seq (e : expr) : Wf_ir.wf_node list =
+  match e.desc with
+  | Seq (a, b) -> flatten_seq a @ flatten_seq b
+  | Group inner -> flatten_seq inner
+  | Unit -> []                       (* identity: drop from the chain *)
+  | _ -> [lower_expr e]
 
 (* Optional args added now (even though comments/header/description are wired in
    Task 11/13), so later tasks never change this signature and break earlier callers. *)
