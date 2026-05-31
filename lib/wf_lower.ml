@@ -28,8 +28,9 @@ let agent_spec_of_app (e : expr) (callee_name : string) (args : call_arg list) =
   { Wf_ir.label = callee_name; prompt = base ^ params_line;
     agent_type = !agent_type; out_hint; comment = None; phase = None }
 
-(* Map an epistemic operator name to its IR node, or None if it's a plain agent. *)
-let rec epistemic_node (e : expr) (name : string) (args : call_arg list) : Wf_ir.wf_node option =
+(* Map an epistemic operator name to its IR node, or None if it's a plain agent.
+   Not self-recursive and does not call lower_expr/flatten_seq/flatten_par, so plain let. *)
+let epistemic_node (e : expr) (name : string) (args : call_arg list) : Wf_ir.wf_node option =
   let spec () = agent_spec_of_app e name args in
   match name with
   | "merge"  -> Some (Wf_ir.Synthesize (spec ()))
@@ -40,7 +41,7 @@ let rec epistemic_node (e : expr) (name : string) (args : call_arg list) : Wf_ir
   | _ -> None
 
 (* Lower a single expression to a wf_node. *)
-and lower_expr (e : expr) : Wf_ir.wf_node =
+let rec lower_expr (e : expr) : Wf_ir.wf_node =
   match e.desc with
   | Question inner ->
     (match inner.desc with
@@ -54,7 +55,10 @@ and lower_expr (e : expr) : Wf_ir.wf_node =
   | App ({ desc = Var name; _ }, args) ->
     (match epistemic_node e name args with Some n -> n | None -> Wf_ir.Agent (agent_spec_of_app e name args))
   | Group inner -> lower_expr inner
-  | Seq _ -> Wf_ir.Seq (flatten_seq e)
+  | Seq _ ->
+    (match flatten_seq e with
+     | [] -> err e.loc.start "empty pipeline: nothing to emit"
+     | nodes -> Wf_ir.Seq nodes)
   | Par _ | Fanout _ ->
     let branches = flatten_par e in
     if List.exists contains_verify_or_synth branches then

@@ -97,6 +97,12 @@ let test_check_in_branch_rejected () = Helpers.lower_fails lower "a &&& check?" 
 let test_check_in_branch_subtree_rejected () =
   Helpers.lower_fails lower "(a >>> check?) &&& b" "parallel"
 
+let test_all_unit_seq_rejected () =
+  Helpers.lower_fails lower "() >>> ()" "empty pipeline"
+
+let test_root_bare_check_rejected () =
+  Helpers.lower_fails lower "check" "needs an upstream"
+
 let tests =
   [ Alcotest.test_case "bare node" `Quick test_bare_node
   ; Alcotest.test_case "named args" `Quick test_named_args
@@ -122,4 +128,6 @@ let tests =
   ; Alcotest.test_case "non-check ? rejected" `Quick test_question_noncheck_rejected
   ; Alcotest.test_case "higher-order app rejected" `Quick test_higher_order_rejected
   ; Alcotest.test_case "check in &&& branch rejected" `Quick test_check_in_branch_rejected
-  ; Alcotest.test_case "check in &&& subtree rejected" `Quick test_check_in_branch_subtree_rejected ]
+  ; Alcotest.test_case "check in &&& subtree rejected" `Quick test_check_in_branch_subtree_rejected
+  ; Alcotest.test_case "all-Unit seq rejected" `Quick test_all_unit_seq_rejected
+  ; Alcotest.test_case "root bare check rejected" `Quick test_root_bare_check_rejected ]
