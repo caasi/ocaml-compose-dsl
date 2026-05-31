@@ -463,6 +463,15 @@ emitter reuses existing named-arg and type-annotation grammar.
 
 ## What This Spec Does Not Cover (deferred → Future Ideas)
 
+> **Bigger picture ([#35](https://github.com/caasi/ocaml-compose-dsl/issues/35)):**
+> `--emit workflow` is **one execution projection**, not the DSL's purpose. The
+> DSL's job is to *freeze a workflow as a durable, reviewable reference*; emitting
+> Claude Code JS is just one backend. The north-star direction is a
+> **tool-agnostic runtime** that dispatches a frozen `.arr` to heterogeneous
+> workers (frontier models, small/local models, tools, human gates). Weigh the
+> items below against that — several (e.g. `|||`/`loop` lowering, cost-aware
+> routing) make more sense at the runtime layer than as CC-JS emission.
+
 - **`|||` alternation lowering** — needs a chosen runtime semantics (fallback vs
   vote vs race).
 - **`loop` lowering** — needs a bound/termination model (ties into the existing
@@ -503,3 +512,4 @@ emitter reuses existing named-arg and type-annotation grammar.
 - λ-RLM: <https://arxiv.org/abs/2603.20105>
 - Claude Code dynamic workflows: <https://code.claude.com/docs/en/workflows>
 - Claude Code subagents: <https://code.claude.com/docs/en/sub-agents>
+- Tool-agnostic runtime direction (north star): [#35](https://github.com/caasi/ocaml-compose-dsl/issues/35)
