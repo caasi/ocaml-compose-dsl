@@ -92,7 +92,28 @@ let rec emit_node ~prev (n : wf_node) : PPrint.document * string * shape =
     let d = str (Printf.sprintf "const %s = (await parallel([" var)
             ^^ nl ^^ PPrint.nest 2 arr ^^ nl ^^ str "])).filter(Boolean)" in
     (d, var, Array)
-  | _ -> failwith "Verify/Synthesize: Task 10"
+  | Synthesize a ->
+    let p = js_template_body a.prompt in
+    let body = (match prev with
+      | Some (v, Array) ->
+        Printf.sprintf "%s\\n\\n## Inputs\\n${%s.map((r,i)=>`### ${i}\\n${r}`).join('\\n')}" p v
+      | Some (v, Scalar) -> Printf.sprintf "%s\\n\\n## Input\\n${%s}" p v
+      | None -> p (* unreachable: root merge rejected by Wf_lower *)) in
+    let var = fresh_var a.label in
+    let d = str (Printf.sprintf "const %s = await agent(`%s`, %s)" var body (opts a)) in
+    (d, var, Scalar)
+  | Verify { spec; skeptics } ->
+    let subj = match prev with Some (v, _) -> v | None -> "''" (* unreachable: root check rejected *) in
+    let var = Printf.sprintf "verdicts%d" (fresh ()) in
+    let passed = Printf.sprintf "passed%d" (fresh ()) in
+    let d = lines [
+      str (Printf.sprintf "const %s = (await parallel(Array.from({length: %d}, (_, i) => () =>" var skeptics);
+      PPrint.nest 2 (str (Printf.sprintf
+        "agent(`Adversarially verify the following; try to REFUTE it, default refuted if unsure.\\n\\n## Subject\\n${%s}`, { label: `%s:skeptic-${i}`, schema: VERDICT }))))"
+        subj spec.label));
+      str ".filter(Boolean)";
+      str (Printf.sprintf "const %s = %s.filter(v => !v.refuted).length >= Math.ceil(%d / 2)" passed var skeptics) ] in
+    (d, passed, Scalar)
 
 and emit_seq ~prev = function
   | [] -> (PPrint.empty, "undefined", Scalar)
@@ -102,17 +123,39 @@ and emit_seq ~prev = function
     let (d2, v2, sh2) = emit_seq ~prev:(Some (v, sh)) rest in
     (d1 ^^ nl ^^ d2, v2, sh2)
 
+let rec has_verify = function
+  | Verify _ -> true
+  | Agent _ | Synthesize _ -> false
+  | Seq ns | Parallel ns -> List.exists has_verify ns
+
+let collect_phases (n : wf_node) : string list =
+  let seen = ref [] in
+  let rec go = function
+    | Agent { phase = Some p; _ } -> if not (List.mem p !seen) then seen := !seen @ [p]
+    | Agent _ | Synthesize _ -> ()
+    | Verify { spec; _ } -> (match spec.phase with Some p when not (List.mem p !seen) -> seen := !seen @ [p] | _ -> ())
+    | Seq ns | Parallel ns -> List.iter go ns
+  in go n;
+  match !seen with [] -> ["Run"] | ps -> ps
+
 let to_string (t : t) =
   fresh_counter := 0;   (* deterministic var names per render → stable golden output *)
   let header = List.map (fun h -> str ("// " ^ h)) t.header in
+  let phases = collect_phases t.root in
+  let phases_str =
+    "[" ^ String.concat ", " (List.map (fun p -> Printf.sprintf "{ title: %s }" (js_string p)) phases) ^ "]" in
   let meta = lines [
     str "export const meta = {";
     str (Printf.sprintf "  name: %s," (js_string t.name));
     str (Printf.sprintf "  description: %s," (js_string t.description));
-    str "  phases: [{ title: 'Run' }],";   (* refined in Task 10 *)
+    str (Printf.sprintf "  phases: %s," phases_str);
     str "}" ] in
+  let verdict_const =
+    if has_verify t.root then
+      [str "const VERDICT = { type: 'object', properties: { refuted: { type: 'boolean' } }, required: ['refuted'] }"]
+    else [] in
   let (body, last, _) = emit_node ~prev:None t.root in
-  let doc = lines (header @ [meta; str ""; body; str (Printf.sprintf "return %s" last)]) ^^ nl in
+  let doc = lines (header @ [meta] @ verdict_const @ [str ""; body; str (Printf.sprintf "return %s" last)]) ^^ nl in
   let buf = Buffer.create 1024 in
   PPrint.ToBuffer.pretty 1.0 100 buf doc;
   Buffer.contents buf
