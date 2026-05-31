@@ -385,15 +385,24 @@ let rec count_ir_parallels = function
   | Wf_ir.Parallel ns -> 1 + List.fold_left (fun acc n -> acc + count_ir_parallels n) 0 ns
   | Wf_ir.Seq ns -> List.fold_left (fun acc n -> acc + count_ir_parallels n) 0 ns
 
-(* Balanced delimiter check: scan [s] and verify open/close counts match. *)
+(* Balanced delimiter check: scan [s] left-to-right with running depth counters.
+   For each of the three delimiter pairs ({}, (), []) a depth counter increments on
+   the opener and decrements on the closer.  If any counter goes negative (a closer
+   before its matching opener, e.g. "}{") the string is unbalanced → return false.
+   At the end all counters must be zero. This rejects premature/mis-ordered closers
+   that a simple net-count check would pass (e.g. "}{" has net zero but is invalid). *)
 let balanced_delimiters s =
   let braces = ref 0 and parens = ref 0 and brackets = ref 0 in
-  String.iter (fun c -> match c with
-    | '{' -> incr braces   | '}' -> decr braces
-    | '(' -> incr parens   | ')' -> decr parens
-    | '[' -> incr brackets | ']' -> decr brackets
-    | _ -> ()) s;
-  !braces = 0 && !parens = 0 && !brackets = 0
+  let ok = ref true in
+  String.iter (fun c ->
+    (match c with
+     | '{' -> incr braces   | '}' -> decr braces
+     | '(' -> incr parens   | ')' -> decr parens
+     | '[' -> incr brackets | ']' -> decr brackets
+     | _ -> ());
+    if !braces < 0 || !parens < 0 || !brackets < 0 then ok := false
+  ) s;
+  !ok && !braces = 0 && !parens = 0 && !brackets = 0
 
 (* Generator: a supported-subset Arrow expression (Agent/Seq/Par/Fanout).
    Generates source strings that the emitter accepts without error.

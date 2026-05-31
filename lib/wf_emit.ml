@@ -24,7 +24,7 @@ let js_string s =
   let i = ref 0 in
   while !i < n do
     if is_ls_ps s !i n then begin
-      (* U+2028 →  , U+2029 →   *)
+      (* U+2028 → \u2028, U+2029 → \u2029 *)
       let code = if Char.code s.[!i + 2] = 0xA8 then "\\u2028" else "\\u2029" in
       Buffer.add_string b code;
       i := !i + 3

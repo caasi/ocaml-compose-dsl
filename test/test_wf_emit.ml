@@ -69,7 +69,7 @@ let u2029 = "\xe2\x80\xa9"
 
 let test_js_string_escapes_u2028 () =
   (* A node with agent: "x<U+2028>y" — the emitted single-quoted label field must
-     not contain the raw 3-byte sequence. The escaped form   must appear instead. *)
+     not contain the raw 3-byte sequence. The escaped form \u2028 must appear instead. *)
   let input = Printf.sprintf "a(agent: \"x%sy\")" u2028 in
   let out = emit input in
   let has_raw = Helpers.contains out u2028 in
