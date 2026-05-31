@@ -113,7 +113,7 @@ let prop_002_no_false_keyword =
 let prop_002_standalone_keywords =
   QCheck.Test.make ~count:50
     ~name:"RULE-002: standalone keywords are keyword tokens"
-    QCheck.(make (Gen.oneof_list ["let"; "in"; "loop"]))
+    QCheck.(make Gen.(oneof (List.map return ["let"; "in"; "loop"])))
     (fun kw ->
        let tokens = Lexer.tokenize kw in
        match kw, (List.hd tokens).token with
@@ -334,7 +334,8 @@ let prop_006_content_preserved =
 
 (* Generator: non-arrow language tag *)
 let gen_other_lang =
-  QCheck.Gen.oneof_list ["python"; "javascript"; "ocaml"; "rust"; "go"; "arrows"; "arrow-diagram"]
+  QCheck.Gen.(oneof (List.map return
+    ["python"; "javascript"; "ocaml"; "rust"; "go"; "arrows"; "arrow-diagram"]))
 
 let arb_other_lang =
   QCheck.make ~print:Fun.id gen_other_lang
@@ -425,18 +426,23 @@ let gen_emit_src =
   let rec gen_expr depth =
     if depth <= 0 then leaf
     else
-      oneof_weighted
-        [ 3, leaf
-        ; 2, (gen_expr (depth - 1) >>= fun a ->
-               gen_expr (depth - 1) >>= fun b ->
-               return (Printf.sprintf "%s >>> %s" a b))
-        ; 1, (gen_expr (depth - 1) >>= fun a ->
-               gen_expr (depth - 1) >>= fun b ->
-               return (Printf.sprintf "%s *** %s" a b))
-        ; 1, (gen_expr (depth - 1) >>= fun a ->
-               gen_expr (depth - 1) >>= fun b ->
-               return (Printf.sprintf "%s &&& %s" a b))
-        ]
+      (* Weighted choice built from the universal `oneof` — avoids both the
+         deprecated `frequency` (newer qcheck-core) and `oneof_weighted` /
+         `oneof_list` (absent on older qcheck-core); only `oneof` is portable
+         across the versions our CI runners resolve. *)
+      oneof
+        (List.concat_map (fun (w, g) -> List.init w (fun _ -> g))
+           [ 3, leaf
+           ; 2, (gen_expr (depth - 1) >>= fun a ->
+                  gen_expr (depth - 1) >>= fun b ->
+                  return (Printf.sprintf "%s >>> %s" a b))
+           ; 1, (gen_expr (depth - 1) >>= fun a ->
+                  gen_expr (depth - 1) >>= fun b ->
+                  return (Printf.sprintf "%s *** %s" a b))
+           ; 1, (gen_expr (depth - 1) >>= fun a ->
+                  gen_expr (depth - 1) >>= fun b ->
+                  return (Printf.sprintf "%s &&& %s" a b))
+           ])
   in
   gen_expr 3
 

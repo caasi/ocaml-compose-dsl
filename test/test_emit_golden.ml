@@ -1,6 +1,7 @@
 open Compose_dsl
 
-(* Read a file by relative path — cwd is _build/default/test/ at test run time *)
+(* Read a file by relative path — cwd is _build/default/test/ at test run time.
+   Golden fixtures are staged under golden/ by the glob_files deps in test/dune. *)
 let read_file path =
   let ic = open_in path in
   let n = in_channel_length ic in
@@ -22,13 +23,13 @@ let emit_file path =
   Wf_emit.to_string (Wf_lower.lower ~name ~comments ~header ?description prog)
 
 let test_brainstorming () =
-  let expected = read_file "brainstorming.js" in
-  let actual   = emit_file "brainstorming.arr" in
+  let expected = read_file "golden/brainstorming.js" in
+  let actual   = emit_file "golden/brainstorming.arr" in
   Alcotest.(check string) "brainstorming golden" expected actual
 
 let test_release () =
-  let expected = read_file "release.js" in
-  let actual   = emit_file "release.arr" in
+  let expected = read_file "golden/release.js" in
+  let actual   = emit_file "golden/release.arr" in
   Alcotest.(check string) "release golden" expected actual
 
 let tests =

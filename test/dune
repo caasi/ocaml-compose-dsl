@@ -1,5 +1,3 @@
-(copy_files golden/*)
-
 (test
  (name main)
  (package ocaml-compose-dsl-lib)
