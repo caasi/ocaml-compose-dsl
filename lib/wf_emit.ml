@@ -157,7 +157,10 @@ let rec emit_node ~prev (n : wf_node) : PPrint.document * string * shape =
     let d = str (Printf.sprintf "const %s = await agent(`%s`, %s)" var body (opts a)) in
     (d, var, Scalar)
   | Verify { spec; skeptics } ->
-    let subj = match prev with Some (v, _) -> v | None -> "''" (* unreachable: root check rejected *) in
+    let subj = match prev with
+      | Some (v, Array)  -> Printf.sprintf "JSON.stringify(%s)" v
+      | Some (v, Scalar) -> v
+      | None -> "''" (* unreachable: root check rejected by Wf_lower *) in
     let var = Printf.sprintf "verdicts%d" (fresh ()) in
     let passed = Printf.sprintf "passed%d" (fresh ()) in
     (* spec.label is always "check" (a fixed DSL keyword) in the current lowerer, so

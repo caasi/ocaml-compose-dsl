@@ -107,6 +107,27 @@ let test_verify_skeptic_label_emitted () =
   Alcotest.(check bool) "check skeptic label present" true
     (Helpers.contains out "`check:skeptic-${i}`")
 
+(* Fix: Verify skeptic subject is shape-aware.
+   When check? follows a Parallel (array-shaped prev), the skeptic prompt must
+   interpolate ${JSON.stringify(parN)} not bare ${parN}.
+   When check? follows a scalar-shaped node, the bare var must be used (no JSON.stringify). *)
+let test_verify_array_prev_uses_json_stringify () =
+  let out = emit "(a *** b) >>> check?" in
+  (* The ## Subject interpolation must wrap the parallel var in JSON.stringify *)
+  Alcotest.(check bool) "array prev uses JSON.stringify in Subject" true
+    (Helpers.contains out "## Subject\\n${JSON.stringify(par");
+  (* Confirm no bare ${par without JSON.stringify for the Subject line *)
+  Alcotest.(check bool) "no bare ${par in Subject" false
+    (Helpers.contains out "## Subject\\n${par")
+
+let test_verify_scalar_prev_no_json_stringify () =
+  let out = emit "a >>> check?" in
+  (* Scalar prev: bare var, no JSON.stringify in the Subject interpolation *)
+  Alcotest.(check bool) "scalar prev: Subject present" true
+    (Helpers.contains out "## Subject\\n${");
+  Alcotest.(check bool) "scalar prev: no JSON.stringify in Subject" false
+    (Helpers.contains out "## Subject\\n${JSON.stringify(")
+
 (* Fix 2: Agent comments are preserved in parallel branches.
    Build an IR directly so we don't depend on the DSL comment syntax.
    A parallel branch Agent with a comment set must emit a // line before the thunk. *)
@@ -152,4 +173,6 @@ let tests =
   ; Alcotest.test_case "js_string escapes U+2029 (para sep)" `Quick test_js_string_escapes_u2029
   ; Alcotest.test_case "comment U+2028 sanitized" `Quick test_comment_u2028_sanitized
   ; Alcotest.test_case "verify skeptic label emitted correctly (defense-in-depth)" `Quick test_verify_skeptic_label_emitted
+  ; Alcotest.test_case "verify array prev: JSON.stringify in Subject" `Quick test_verify_array_prev_uses_json_stringify
+  ; Alcotest.test_case "verify scalar prev: bare var in Subject" `Quick test_verify_scalar_prev_no_json_stringify
   ; Alcotest.test_case "parallel branch comment emitted" `Quick test_parallel_branch_comment_emitted ]
