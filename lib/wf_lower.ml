@@ -8,8 +8,10 @@ let rec value_to_text = function
   | Number s -> s
   | List vs -> "[" ^ String.concat ", " (List.map value_to_text vs) ^ "]"
 
-(* Pull prompt:/agent: out; fold the remaining named args into a Parameters line. *)
-let agent_spec_of_app (e : expr) (callee_name : string) (args : call_arg list) =
+(* Pull prompt:/agent: out; fold the remaining named args into a Parameters line.
+   ~line is the source line of the node (from expr.loc.start.line), used for
+   comment attachment when a comments list is provided. *)
+let agent_spec_of_app ~line ~comments (e : expr) (callee_name : string) (args : call_arg list) =
   let prompt = ref None and agent_type = ref None and params = ref [] in
   List.iter (function
     | Named { key = "prompt"; value = (String s | Ident s) } -> prompt := Some s
@@ -25,13 +27,16 @@ let agent_spec_of_app (e : expr) (callee_name : string) (args : call_arg list) =
   let params_line =
     match List.rev !params with [] -> "" | ps -> "\n\nParameters: " ^ String.concat ", " ps in
   let out_hint = match e.type_ann with Some { output; _ } -> Some output | None -> None in
+  (* Best-effort: attach the comment whose line exactly matches the node's start line. *)
+  let comment = List.assoc_opt line comments in
   { Wf_ir.label = callee_name; prompt = base ^ params_line;
-    agent_type = !agent_type; out_hint; comment = None; phase = None }
+    agent_type = !agent_type; out_hint; comment; phase = None }
 
 (* Map an epistemic operator name to its IR node, or None if it's a plain agent.
    Not self-recursive and does not call lower_expr/flatten_seq/flatten_par, so plain let. *)
-let epistemic_node (e : expr) (name : string) (args : call_arg list) : Wf_ir.wf_node option =
-  let spec () = agent_spec_of_app e name args in
+let epistemic_node ~comments (e : expr) (name : string) (args : call_arg list) : Wf_ir.wf_node option =
+  let line = e.loc.start.line in
+  let spec () = agent_spec_of_app ~line ~comments e name args in
   match name with
   | "merge"  -> Some (Wf_ir.Synthesize (spec ()))
   | "check"  -> Some (Wf_ir.Verify { spec = spec (); skeptics = 3 })
@@ -40,27 +45,36 @@ let epistemic_node (e : expr) (name : string) (args : call_arg list) : Wf_ir.wf_
   | "branch" -> Some (Wf_ir.Agent { (spec ()) with phase = Some "Branch" })
   | _ -> None
 
-(* Lower a single expression to a wf_node. *)
-let rec lower_expr (e : expr) : Wf_ir.wf_node =
+(* Lower a single expression to a wf_node.
+   ~comments is the recovered (line, text) list from Wf_context.comments_of_source. *)
+let rec lower_expr ~comments (e : expr) : Wf_ir.wf_node =
   match e.desc with
   | Question inner ->
     (match inner.desc with
      | Var "check" ->
-       Wf_ir.Verify { spec = agent_spec_of_app inner "check" []; skeptics = 3 }
+       let line = inner.loc.start.line in
+       Wf_ir.Verify { spec = agent_spec_of_app ~line ~comments inner "check" []; skeptics = 3 }
      | App ({ desc = Var "check"; _ }, args) ->
-       Wf_ir.Verify { spec = agent_spec_of_app inner "check" args; skeptics = 3 }
+       let line = inner.loc.start.line in
+       Wf_ir.Verify { spec = agent_spec_of_app ~line ~comments inner "check" args; skeptics = 3 }
      | _ -> err e.loc.start "'?' is only supported on 'check' by --emit workflow (v1)")
   | Var name ->
-    (match epistemic_node e name [] with Some n -> n | None -> Wf_ir.Agent (agent_spec_of_app e name []))
+    let line = e.loc.start.line in
+    (match epistemic_node ~comments e name [] with
+     | Some n -> n
+     | None -> Wf_ir.Agent (agent_spec_of_app ~line ~comments e name []))
   | App ({ desc = Var name; _ }, args) ->
-    (match epistemic_node e name args with Some n -> n | None -> Wf_ir.Agent (agent_spec_of_app e name args))
-  | Group inner -> lower_expr inner
+    let line = e.loc.start.line in
+    (match epistemic_node ~comments e name args with
+     | Some n -> n
+     | None -> Wf_ir.Agent (agent_spec_of_app ~line ~comments e name args))
+  | Group inner -> lower_expr ~comments inner
   | Seq _ ->
-    (match flatten_seq e with
+    (match flatten_seq ~comments e with
      | [] -> err e.loc.start "empty pipeline: nothing to emit"
      | nodes -> Wf_ir.Seq nodes)
   | Par _ | Fanout _ ->
-    let branches = flatten_par e in
+    let branches = flatten_par ~comments e in
     if List.exists contains_verify_or_synth branches then
       err e.loc.start
         "check/merge inside a '***'/'&&&' parallel branch is not supported by --emit workflow (v1)";
@@ -70,18 +84,18 @@ let rec lower_expr (e : expr) : Wf_ir.wf_node =
   | Unit -> err e.loc.start "empty pipeline: nothing to emit"
   | _ -> err e.loc.start "unsupported construct (todo: later tasks)"
 
-and flatten_seq (e : expr) : Wf_ir.wf_node list =
+and flatten_seq ~comments (e : expr) : Wf_ir.wf_node list =
   match e.desc with
-  | Seq (a, b) -> flatten_seq a @ flatten_seq b
-  | Group inner -> flatten_seq inner
+  | Seq (a, b) -> flatten_seq ~comments a @ flatten_seq ~comments b
+  | Group inner -> flatten_seq ~comments inner
   | Unit -> []                       (* identity: drop from the chain *)
-  | _ -> [lower_expr e]
+  | _ -> [lower_expr ~comments e]
 
-and flatten_par (e : expr) : Wf_ir.wf_node list =
+and flatten_par ~comments (e : expr) : Wf_ir.wf_node list =
   match e.desc with
-  | Par (a, b) | Fanout (a, b) -> flatten_par a @ flatten_par b
-  | Group inner -> flatten_par inner
-  | _ -> [lower_expr e]
+  | Par (a, b) | Fanout (a, b) -> flatten_par ~comments a @ flatten_par ~comments b
+  | Group inner -> flatten_par ~comments inner
+  | _ -> [lower_expr ~comments e]
 
 (* Recursively check whether a wf_node subtree contains Verify or Synthesize. *)
 and contains_verify_or_synth = function
@@ -95,13 +109,14 @@ let reject_root_verify_synth pos = function
     err pos "check/merge needs an upstream result to verify/fuse"
   | _ -> ()
 
-(* Optional args added now (even though comments/header/description are wired in
-   Task 11/13), so later tasks never change this signature and break earlier callers. *)
+(* Optional args added now (even though header/description are wired in Task 13),
+   so later tasks never change this signature and break earlier callers.
+   ~comments: (line, text) list from Wf_context.comments_of_source — threaded
+   through lower_expr for best-effort node comment attachment. *)
 let lower ?(comments = []) ?(header = []) ?description ~name (prog : Ast.program) : Wf_ir.t =
-  ignore comments;  (* consumed in Task 11 for node-comment attachment *)
   let root = match prog with
     | [] -> err { line = 1; col = 1 } "empty pipeline: nothing to emit"
-    | [e] -> lower_expr e
+    | [e] -> lower_expr ~comments e
     | _ -> err (List.hd prog).loc.start
                "multi-statement programs not supported by --emit workflow (v1)"
   in
@@ -112,3 +127,20 @@ let lower ?(comments = []) ?(header = []) ?description ~name (prog : Ast.program
    | other -> reject_root_verify_synth first_pos other);
   let description = match description with Some d -> d | None -> "Generated from " ^ name in
   { name; description; header; root }
+
+(* Interactive-ident advisory (Task 12) *)
+let interactive_set = ["ask_questions"; "present_design"; "propose"; "review"; "ask"; "confirm"; "approve"; "feedback"]
+
+let interactive_idents (t : Wf_ir.t) : string list =
+  let found = ref [] in
+  let note l =
+    if List.mem l interactive_set && not (List.mem l !found)
+    then found := !found @ [l]
+  in
+  let rec go = function
+    | Wf_ir.Agent a -> note a.label
+    | Wf_ir.Synthesize a -> note a.label
+    | Wf_ir.Verify { spec; _ } -> note spec.label
+    | Wf_ir.Seq ns | Wf_ir.Parallel ns -> List.iter go ns
+  in
+  go t.root; !found

@@ -14,4 +14,5 @@ let () =
     ; "Wf_ir", Test_wf_ir.tests
     ; "Wf_lower", Test_wf_lower.tests
     ; "Wf_emit", Test_wf_emit.tests
+    ; "Wf_context", Test_wf_context.tests
     ]

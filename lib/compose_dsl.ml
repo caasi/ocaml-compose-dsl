@@ -9,3 +9,4 @@ module Parse_errors = Parse_errors
 module Wf_ir = Wf_ir
 module Wf_lower = Wf_lower
 module Wf_emit = Wf_emit
+module Wf_context = Wf_context
