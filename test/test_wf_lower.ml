@@ -103,6 +103,13 @@ let test_all_unit_seq_rejected () =
 let test_root_bare_check_rejected () =
   Helpers.lower_fails lower "check" "needs an upstream"
 
+(* Task 12: interactive-ident advisory *)
+
+let test_interactive_advisory () =
+  let t = lower "ask_questions >>> a" in
+  Alcotest.(check bool) "flags ask_questions" true
+    (List.mem "ask_questions" (Wf_lower.interactive_idents t))
+
 let tests =
   [ Alcotest.test_case "bare node" `Quick test_bare_node
   ; Alcotest.test_case "named args" `Quick test_named_args
@@ -130,4 +137,6 @@ let tests =
   ; Alcotest.test_case "check in &&& branch rejected" `Quick test_check_in_branch_rejected
   ; Alcotest.test_case "check in &&& subtree rejected" `Quick test_check_in_branch_subtree_rejected
   ; Alcotest.test_case "all-Unit seq rejected" `Quick test_all_unit_seq_rejected
-  ; Alcotest.test_case "root bare check rejected" `Quick test_root_bare_check_rejected ]
+  ; Alcotest.test_case "root bare check rejected" `Quick test_root_bare_check_rejected
+  (* Task 12 *)
+  ; Alcotest.test_case "interactive_idents advisory" `Quick test_interactive_advisory ]
