@@ -44,6 +44,16 @@ let test_unit_dropped_in_seq () =
   | Wf_ir.Seq [Agent _; Agent _] -> ()
   | _ -> Alcotest.fail "Unit dropped from Seq"
 
+let test_fanout () =
+  match (lower "a &&& b").root with
+  | Wf_ir.Parallel [Agent _; Agent _] -> ()
+  | _ -> Alcotest.fail "&&& → Parallel"
+
+let test_par_flattened () =
+  match (lower "a *** b *** c").root with
+  | Wf_ir.Parallel [Agent _; Agent _; Agent _] -> ()
+  | _ -> Alcotest.fail "*** → flat Parallel of 3"
+
 let tests =
   [ Alcotest.test_case "bare node" `Quick test_bare_node
   ; Alcotest.test_case "named args" `Quick test_named_args
@@ -52,4 +62,6 @@ let tests =
   ; Alcotest.test_case "prompt: ident" `Quick test_prompt_ident
   ; Alcotest.test_case "seq flattened" `Quick test_seq
   ; Alcotest.test_case "group transparent" `Quick test_group_transparent
-  ; Alcotest.test_case "unit dropped in seq" `Quick test_unit_dropped_in_seq ]
+  ; Alcotest.test_case "unit dropped in seq" `Quick test_unit_dropped_in_seq
+  ; Alcotest.test_case "fanout to Parallel" `Quick test_fanout
+  ; Alcotest.test_case "par flattened to Parallel" `Quick test_par_flattened ]

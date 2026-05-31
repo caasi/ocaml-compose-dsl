@@ -37,6 +37,7 @@ let rec lower_expr (e : expr) : Wf_ir.wf_node =
     Wf_ir.Agent (agent_spec_of_app e name args)
   | Group inner -> lower_expr inner
   | Seq _ -> Wf_ir.Seq (flatten_seq e)
+  | Par _ | Fanout _ -> Wf_ir.Parallel (flatten_par e)
   | Unit -> err e.loc.start "empty pipeline: nothing to emit"
   | _ -> err e.loc.start "unsupported construct (todo: later tasks)"
 
@@ -45,6 +46,12 @@ and flatten_seq (e : expr) : Wf_ir.wf_node list =
   | Seq (a, b) -> flatten_seq a @ flatten_seq b
   | Group inner -> flatten_seq inner
   | Unit -> []                       (* identity: drop from the chain *)
+  | _ -> [lower_expr e]
+
+and flatten_par (e : expr) : Wf_ir.wf_node list =
+  match e.desc with
+  | Par (a, b) | Fanout (a, b) -> flatten_par a @ flatten_par b
+  | Group inner -> flatten_par inner
   | _ -> [lower_expr e]
 
 (* Optional args added now (even though comments/header/description are wired in
