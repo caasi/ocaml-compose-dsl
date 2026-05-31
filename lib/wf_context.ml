@@ -35,6 +35,14 @@ let leading_block (comments : (int * string) list) : string list =
     | _ -> []
   in take 1 comments
 
+(* Strip a trailing CR so CRLF-line-ending Markdown works correctly.
+   Markdown.is_opening_fence checks for exact trailing whitespace; a '\r'
+   left on the line defeats that check and causes fence lines to be
+   collected into prose. *)
+let strip_cr s =
+  let n = String.length s in
+  if n > 0 && s.[n-1] = '\r' then String.sub s 0 (n-1) else s
+
 (* Literate mode: the doc's intro prose = non-empty lines BEFORE the first arrow
    fence (the surrounding Markdown that combine() discards). Header/description
    come from here when the .arr blocks carry no -- comments. *)
@@ -45,4 +53,4 @@ let markdown_prose (raw : string) : string list =
     | line :: rest ->
       let t = String.trim line in
       collect (if t = "" then acc else t :: acc) rest
-  in collect [] (String.split_on_char '\n' raw)
+  in collect [] (List.map strip_cr (String.split_on_char '\n' raw))

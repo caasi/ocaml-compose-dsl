@@ -110,6 +110,34 @@ let test_interactive_advisory () =
   Alcotest.(check bool) "flags ask_questions" true
     (List.mem "ask_questions" (Wf_lower.interactive_idents t))
 
+(* Task 11: node-level comment attachment via Wf_context.comments_of_source.
+   Design finding: agent_spec_of_app uses `List.assoc_opt line comments` where
+   `line` is the node's start line.  A leading "--" comment sits on the line
+   BEFORE the node, so its line number never matches the node's line — it is
+   never attached.  The only case where exact-line match succeeds is an inline
+   trailing comment on the SAME line as the node (e.g. `deploy -- do the thing`).
+   This test exercises that successful-attachment path. *)
+let test_node_comment_attachment_inline () =
+  let src = "deploy -- do the thing" in
+  let comments = Wf_context.comments_of_source src in
+  let prog = Reducer.reduce_program (Parse_errors.parse src) in
+  let t = Wf_lower.lower ~comments ~name:"t" prog in
+  let a = agent_of t.root in
+  Alcotest.(check (option string)) "inline comment attached"
+    (Some "do the thing") a.comment
+
+(* Confirm the design concern: a leading "--" comment (preceding line) is NOT
+   attached because the comment's line ≠ the node's line. *)
+let test_node_comment_leading_not_attached () =
+  let src = "-- do the thing\ndeploy" in
+  let comments = Wf_context.comments_of_source src in
+  let prog = Reducer.reduce_program (Parse_errors.parse src) in
+  let t = Wf_lower.lower ~comments ~name:"t" prog in
+  let a = agent_of t.root in
+  (* comment is on line 1, deploy is on line 2 — no match *)
+  Alcotest.(check (option string)) "leading comment NOT attached (design constraint)"
+    None a.comment
+
 let tests =
   [ Alcotest.test_case "bare node" `Quick test_bare_node
   ; Alcotest.test_case "named args" `Quick test_named_args
@@ -139,4 +167,7 @@ let tests =
   ; Alcotest.test_case "all-Unit seq rejected" `Quick test_all_unit_seq_rejected
   ; Alcotest.test_case "root bare check rejected" `Quick test_root_bare_check_rejected
   (* Task 12 *)
-  ; Alcotest.test_case "interactive_idents advisory" `Quick test_interactive_advisory ]
+  ; Alcotest.test_case "interactive_idents advisory" `Quick test_interactive_advisory
+  (* Task 11: comment attachment *)
+  ; Alcotest.test_case "inline comment attached to node" `Quick test_node_comment_attachment_inline
+  ; Alcotest.test_case "leading comment NOT attached (design constraint)" `Quick test_node_comment_leading_not_attached ]
