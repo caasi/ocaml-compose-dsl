@@ -87,7 +87,7 @@ let rec lower_expr ~comments (e : expr) : Wf_ir.wf_node =
   | Alt _ -> err e.loc.start "'|||' (alternation) not supported by --emit workflow (v1)"
   | Loop _ -> err e.loc.start "'loop' not supported by --emit workflow (v1)"
   | Unit -> err e.loc.start "empty pipeline: nothing to emit"
-  | _ -> err e.loc.start "unsupported construct (todo: later tasks)"
+  | _ -> err e.loc.start "unsupported construct: --emit workflow (v1) supports named nodes, >>>, ***, &&&, and the epistemic operators (gather/branch/leaf/merge/check)"
 
 and flatten_seq ~comments (e : expr) : Wf_ir.wf_node list =
   match e.desc with

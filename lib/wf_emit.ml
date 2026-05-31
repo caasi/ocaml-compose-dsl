@@ -132,8 +132,7 @@ let collect_phases (n : wf_node) : string list =
   let seen = ref [] in
   let rec go = function
     | Agent { phase = Some p; _ } -> if not (List.mem p !seen) then seen := !seen @ [p]
-    | Agent _ | Synthesize _ -> ()
-    | Verify { spec; _ } -> (match spec.phase with Some p when not (List.mem p !seen) -> seen := !seen @ [p] | _ -> ())
+    | Agent _ | Verify _ | Synthesize _ -> ()
     | Seq ns | Parallel ns -> List.iter go ns
   in go n;
   match !seen with [] -> ["Run"] | ps -> ps
