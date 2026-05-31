@@ -82,6 +82,8 @@ dune exec ocaml-compose-dsl -- --literate --emit workflow README.md -o wf.js
 `-o` / `--output` write the emitted script to a file instead of stdout.
 `--emit <unknown>` exits 1 with a list of valid targets.
 
+The emitted file is a **Claude Code workflow script, not standalone JS**: it combines a top-level `export const meta`, top-level `await`, and a top-level `return` (the runtime wraps the body), so it is intentionally **not** validated with `node --check`. Emit runs only after a clean check; unsupported constructs (`|||`, `loop`, non-`check` `?`, higher-order app, `check`/`merge` inside a parallel branch, root-position `check`/`merge`, empty/multi-statement programs) fail loud with `Emit_error` rather than producing partial output.
+
 ## After Any Implementation Change
 
 Every code change should follow this workflow:

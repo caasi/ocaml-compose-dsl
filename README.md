@@ -2,13 +2,15 @@
 
 [![CI](https://github.com/caasi/ocaml-compose-dsl/actions/workflows/ci.yml/badge.svg)](https://github.com/caasi/ocaml-compose-dsl/actions/workflows/ci.yml)
 
-A structural checker for an Arrow-style DSL designed for AI agent workflow composition.
+A structural checker — and Claude Code workflow transpiler — for an Arrow-style DSL designed for AI agent workflow composition.
 
 ## What Is This?
 
 AI agents compose tools through natural language reasoning, but this approach is unreproducible, hard to review, and disappears when the conversation ends. This DSL gives agents (and humans) a shared, structured language to describe multi-step workflows — **without requiring a runtime or interpreter**. The agent itself expands the DSL into concrete tool calls.
 
 The DSL uses Arrow combinators because they sit at the sweet spot between shell pipes (too linear) and monads (too opaque): pipeline structure is fully visible before execution.
+
+A checked pipeline can also be **frozen into executable code**: `--emit workflow` transpiles it into a [Claude Code dynamic-workflow](https://code.claude.com/docs/en/workflows) JavaScript script (the OCaml tool emits the script; Claude Code runs it). See [Workflow Emitter](#workflow-emitter---emit-workflow).
 
 ## Grammar (EBNF)
 

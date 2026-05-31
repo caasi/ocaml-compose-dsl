@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-05-31
+
+### Added
+- `--emit workflow` backend pass: transpiles a checked Arrow pipeline into a Claude Code dynamic-workflow JavaScript script (`parse >>> reduce >>> check >>> emit`). The CLI stays non-executing — it emits the script, Claude Code runs it.
+- `-o` / `--output <file>` flag to write the emitted workflow to a file (default: stdout)
+- New library modules: `Wf_ir` (workflow IR + `Emit_error`), `Wf_lower` (`Ast.program -> Wf_ir.t` lowering + validation), `Wf_emit` (PPrint-based JS pretty-printer), `Wf_context` (comment/prose recovery)
+- Epistemic mapping: `leaf`/`gather`/`branch` → agent with `opts.phase`; `merge` → barrier + synthesis; `check`/`check?` → adversarial-verify fan (majority vote)
+- Context preservation: `--` comments and literate Markdown prose are carried into the emitted script as JS comments
+- Constraints 007–009 and QCheck properties RULE-007..011 covering emitter invariants (single pure-literal `meta`, fail-loud rejection, no nondeterminism, delimiter balance, agent-count)
+- New dependency: `pprint`
+
+### Notes
+- Fail-loud: `|||`, `loop`, non-`check` `?`, higher-order application, `check`/`merge` inside a `***`/`&&&` branch, root-position `check`/`merge`, and empty/multi-statement programs are rejected with a clear `Emit_error` rather than emitting partial output.
+- All user-controlled text is escaped (single-quoted strings, template literals, and `//` comments) including ASCII control chars and U+2028/U+2029, so accepted DSL input cannot produce invalid JS.
+
 ## [0.11.0] - 2026-04-04
 
 ### Added
